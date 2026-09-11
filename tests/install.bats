@@ -16,14 +16,19 @@ FIXTURE_NEW="9.9.2"
 FIXTURE_OLD="9.9.1"
 FIXTURE_ABSENT="999.0.0"
 
-setup_file() {
-    INSTALL_ORIGIN="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_origin.XXXXXX")"
-    export INSTALL_ORIGIN
-
-    # `update` fetches `origin main` by name, so the fixture needs that branch.
-    # `git branch -m` rather than `init -b`: the latter needs git >= 2.28.
+# Build the origin inside the per-test project rather than sharing one from
+# setup_file: bats versions differ in whether an exported setup_file variable
+# reaches the tests, and an empty origin URL fails every test here for a reason
+# that has nothing to do with the installer.
+#
+# `update` fetches `origin main` by name, so the fixture needs that branch.
+# `git branch -M` rather than `init -b`: the latter needs git >= 2.28, and the
+# force form is a no-op when the default branch is already called main.
+_build_origin_fixture() {
+    local origin="$1"
+    mkdir -p "$origin"
     (
-        cd "$INSTALL_ORIGIN" || exit 1
+        cd "$origin" || exit 1
         git init --quiet
         git config user.email "test@test.com"
         git config user.name "Test"
@@ -33,7 +38,7 @@ setup_file() {
         git add -A
         git commit --quiet -m "fixture engine $FIXTURE_OLD"
         git tag "$FIXTURE_OLD"
-        git branch -m main
+        git branch -M main
 
         printf '%s\n' "$FIXTURE_NEW" > VERSION
         git commit --quiet -am "fixture engine $FIXTURE_NEW"
@@ -41,15 +46,15 @@ setup_file() {
     )
 }
 
-teardown_file() {
-    [[ -n "${INSTALL_ORIGIN:-}" ]] && _rm_rf_resilient "$INSTALL_ORIGIN"
-}
-
 setup() {
     setup_test_project
     export HOME="$TEST_PROJECT/home"
     mkdir -p "$HOME"
     touch "$HOME/.zshrc"
+
+    INSTALL_ORIGIN="$TEST_PROJECT/origin"
+    _build_origin_fixture "$INSTALL_ORIGIN"
+
     export AGENTSYNC_REPO_URL="$INSTALL_ORIGIN"
     export AGENTSYNC_INSTALL_DIR="$TEST_PROJECT/engine"
     export AGENTSYNC_BIN_DIR="$TEST_PROJECT/bin"

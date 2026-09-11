@@ -5,7 +5,9 @@
 # Each resolver has two shapes: a `_r` variant returning through $REPLY, and an
 # echo wrapper for the `$(...)` call sites. Hot loops use `_r`.
 
-# Parent directory of a path. Matches `dirname` for every path this module handles.
+# Parent directory of a path. Matches `dirname` for every path this module
+# handles; a pathname starting with exactly two slashes is implementation-defined
+# in POSIX and normalisation collapses it before it can reach here.
 _path_parent_r() {
     local path="$1"
     if [[ -z "$path" ]]; then
@@ -31,7 +33,8 @@ _path_parent_r() {
     REPLY="$path"
 }
 
-# Final component of a path. Matches `basename` with no suffix argument.
+# Final component of a path. Matches `basename` with no suffix argument, under
+# the same two-slash caveat as _path_parent_r.
 _path_leaf_r() {
     local path="$1"
     while [[ "$path" == */ ]] && [[ "$path" != "/" ]]; do

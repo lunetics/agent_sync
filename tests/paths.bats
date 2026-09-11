@@ -29,7 +29,7 @@ teardown() {
 
 @test "paths: _path_parent_r agrees with dirname" {
     local cases=(
-        "/" "//" "/a" "/a/" "/a//" "/a/b" "/a/b/" "/a//b//"
+        "/" "/a" "/a/" "/a//" "/a/b" "/a/b/" "/a//b//"
         "a" "a/b" "./a" "../a" "." ".." "/." "/.."
         "/usr//lib//" "/a/b/c/d.md" "/x y/z.md" "/a/.ai/src/rules/core.md"
         "file.md" ".hidden" "/a/b.c/d.e"
@@ -48,7 +48,7 @@ teardown() {
 
 @test "paths: _path_leaf_r agrees with basename" {
     local cases=(
-        "/" "//" "/a" "/a/" "/a/b" "/a/b/" "/a//b//"
+        "/" "/a" "/a/" "/a/b" "/a/b/" "/a//b//"
         "a" "a/b" "/usr//lib//" "/a/b/c/d.md" "/x y/z.md"
         "file.md" ".hidden" "/a/b.c/d.e"
     )
@@ -62,6 +62,24 @@ teardown() {
 @test "paths: _path_parent_r reaches a fixpoint at / so ancestor walks terminate" {
     _path_parent_r "/"
     [ "$REPLY" = "/" ]
+}
+
+# A pathname starting with exactly two slashes is implementation-defined in
+# POSIX, and the platforms disagree: `dirname //` is `/` on BSD and `//` under
+# MSYS, where it is the UNC prefix. No implementation can match both, so the
+# primitives above are not asserted against it. What keeps that safe is that
+# normalisation collapses the form first, so they never receive one.
+@test "paths: normalization collapses a leading double slash before it reaches the primitives" {
+    local case
+    for case in "//" "///" "//a" "//a//b"; do
+        normalize_absolute_path_r "$case"
+        [[ "$REPLY" != //* ]]
+    done
+
+    normalize_absolute_path_r "//"
+    [ "$REPLY" = "/" ]
+    normalize_absolute_path_r "//a//b"
+    [ "$REPLY" = "/a/b" ]
 }
 
 # ── normalize_absolute_path_r ───────────────────────────────────────────────

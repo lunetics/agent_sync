@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.35.1
+
+### Performance
+
+- **`sync` does about a quarter less work, and the test suite close to half.** Sync was fork-bound — system time ran at twice user time — spending more on `$(...)` command substitutions than on the work inside them. The path-resolution chain, the repo-relative and display-path helpers, the manifest recorders, and the backup target validators now return through `$REPLY` rather than a subshell; `dirname` and `basename` became parameter expansion; `cd -P && pwd` is memoised per directory; and an already-canonical path skips normalisation entirely. On a 13-tool project that is −22.8% user+sys CPU, ahead in every round of an interleaved A/B, and the bats suite drops −45.3% — a small sync pays proportionally more of the fixed cost that went away. Generated output is byte-identical across all 234 files, and every echo-returning helper was kept, so no call site outside these paths changed.
+
+### Internal
+
+- **`install.bats` builds its own tagged origin repository.** The tests pinned the installer to real release tags of this repository — which a developer's full clone has and `actions/checkout` does not — so they passed locally and failed on CI. They now stand up a fixture repo with its own `main` branch and tags, and a guard test asserts the fixture really publishes them so the rest cannot pass vacuously.
+- **`paths.sh` has direct test coverage.** It holds the containment invariant that keeps sync from writing outside the project root, yet was only exercised through other commands. `tests/paths.bats` checks the lexical primitives against `dirname` and `basename`, the normalisation fast path, symlinked ancestors, and every escape rejection.
+- `backup.sh` now depends on `paths.sh`, so `rollback`'s module list and the backup tests load it.
+
 ## 0.35.0
 
 Team setup in one command: generated outputs travel through git, so everyone except the person editing the rules runs nothing.

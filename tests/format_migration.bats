@@ -23,7 +23,7 @@ seed_pre_format_project() {
     mkdir -p .ai/src/skills/agentsync/references
     cp "$REPO_ROOT/lib/templates/base-src/skills/agentsync/SKILL.md" .ai/src/skills/agentsync/SKILL.md
     local hash
-    hash=$(shasum -a 256 .ai/src/skills/agentsync/SKILL.md | awk '{print $1}')
+    hash=$(file_sha256 .ai/src/skills/agentsync/SKILL.md)
     printf 'skills/agentsync/SKILL.md\t%s\n' "$hash" >> .ai/.template-manifest
 }
 

@@ -49,6 +49,22 @@ run_agentsync() {
     AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" "$@"
 }
 
+# SHA-256 of one file, in the engine's own detection order. Git Bash on Windows
+# ships sha256sum but not shasum, so a bare `shasum` call there prints nothing —
+# which makes a before/after comparison pass by comparing two empty strings.
+# Fails loudly instead when neither tool exists.
+file_sha256() {
+    local file="$1"
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$file" | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$file" | awk '{print $1}'
+    else
+        echo "file_sha256: no sha256sum or shasum on PATH" >&2
+        return 1
+    fi
+}
+
 # Git for Windows deep-copies `ln -s` unless native links are requested explicitly.
 create_test_symlink() {
     local target="$1"

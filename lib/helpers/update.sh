@@ -328,10 +328,64 @@ _show_changelog_range() {
     _show_changelog_sections "$changelog" "$sorted_versions"
 }
 
+# Strip the inline Markdown the changelog uses. A terminal shows `**bold**` and
+# backticks literally, so the markers are noise here rather than emphasis.
+_md_plain() {
+    local text="$1"
+    text="${text//\*\*/}"
+    text="${text//\`/}"
+    REPLY="$text"
+}
+
+# Usable width for changelog prose. tput is absent under some Git Bash setups
+# and reports nonsense without a TERM, so the result is range-checked; the upper
+# bound keeps lines readable on a maximised terminal.
+_changelog_width() {
+    local cols=""
+    if command -v tput >/dev/null 2>&1; then
+        cols=$(tput cols 2>/dev/null) || cols=""
+    fi
+    case "$cols" in
+        ""|*[!0-9]*) cols=80 ;;
+    esac
+    [[ "$cols" -lt 40 ]] && cols=80
+    [[ "$cols" -gt 100 ]] && cols=100
+    REPLY="$cols"
+}
+
+# Print text wrapped to width, with a prefix on the first line and another on
+# every continuation line. The first prefix may carry colour escapes, so only
+# the continuation prefix is measured.
+_print_wrapped() {
+    local text="$1"
+    local first_prefix="$2"
+    local cont_prefix="$3"
+    local width="$4"
+
+    local avail=$(( width - ${#cont_prefix} ))
+    [[ "$avail" -lt 24 ]] && avail=24
+
+    local first=true line
+    while IFS= read -r line; do
+        # fold -s breaks at spaces and leaves the separator on the line.
+        line="${line%"${line##*[![:space:]]}"}"
+        if [[ "$first" == "true" ]]; then
+            printf '%s%s\n' "$first_prefix" "$line"
+            first=false
+        else
+            printf '%s%s\n' "$cont_prefix" "$line"
+        fi
+    done <<< "$(printf '%s\n' "$text" | fold -s -w "$avail")"
+}
+
 # Print the changelog body for each version in sorted_versions (newline-separated list).
 _show_changelog_sections() {
     local changelog="$1"
     local sorted_versions="$2"
+
+    local width
+    _changelog_width
+    width="$REPLY"
 
     while IFS= read -r version; do
         [[ -z "$version" ]] && continue
@@ -351,11 +405,15 @@ _show_changelog_sections() {
                 [[ -z "$line" ]] && [[ "$started" == "false" ]] && continue
                 started=true
                 if [[ "$line" == "### "* ]]; then
-                    echo "  $(_bold "${line#"### "}")"
+                    _md_plain "${line#"### "}"
+                    echo ""
+                    echo "  $(_bold "$REPLY")"
                 elif [[ "$line" == "- "* ]]; then
-                    echo "    $(_dim "•") ${line#"- "}"
+                    _md_plain "${line#"- "}"
+                    _print_wrapped "$REPLY" "    $(_dim "•") " "      " "$width"
                 elif [[ -n "$line" ]]; then
-                    echo "    $line"
+                    _md_plain "$line"
+                    _print_wrapped "$REPLY" "    " "    " "$width"
                 fi
             fi
         done < "$changelog"

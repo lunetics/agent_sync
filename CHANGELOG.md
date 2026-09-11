@@ -6,10 +6,18 @@ No engine changes. 0.35.1 ships correct code, but its CI was red on the Windows 
 
 ### Internal
 
-- **The suite passes on the Windows and macOS runners, not only on a developer's machine.** Five unrelated causes, every one of them in the tests rather than the engine. `install.bats` pinned the installer to this repository's own release tags, which `actions/checkout` never fetches, and now stands up a fixture origin carrying its own. `paths.bats` asserted `dirname` parity for a pathname of exactly two slashes, which POSIX leaves implementation-defined and BSD and MSYS answer differently, and separately built an expectation by concatenating a root that macOS returns with a double slash because `$TMPDIR` ends in one. `format_migration.bats` hashed with `shasum`, which Git Bash does not ship.
-- **Hashing in tests goes through one helper that prefers `sha256sum`.** Twenty-six before/after comparisons across `adopt`, `drift`, `opencode`, and `base_skills` called `shasum` directly, so on Windows both sides came back empty and the assertions passed without proving anything.
+The suite now passes on the Windows and macOS runners, not only on a developer's machine. Five unrelated causes, every one in the tests rather than the engine:
+
+- **`install.bats` pinned the installer to this repository's release tags**, which `actions/checkout` never fetches. It builds its own tagged fixture origin instead.
+- **`paths.bats` asserted `dirname` parity for a pathname of exactly two slashes** — implementation-defined in POSIX, and answered differently by BSD and MSYS.
+- **`paths.bats` also built an expectation by concatenating the project root**, which macOS returns containing `//` because `$TMPDIR` ends in a slash.
+- **`format_migration.bats` hashed with `shasum`**, which Git Bash does not ship.
+- **Twenty-six other comparisons hashed the same way**, so on Windows both sides came back empty and the assertion proved nothing. All hashing goes through one helper that prefers `sha256sum`.
+
+Also:
+
 - **`tests/paths.bats` covers the path resolvers directly.** The module holds the containment check that keeps sync from writing outside the project root, and had no tests of its own.
-- **`team_workflow`'s git steps say what failed.** The fixtures discarded git's stderr, so an intermittent failure on the macOS runner surfaced only as `status 128` with git's explanation thrown away. Each step now reports its name, exit status, and output. That failure remains undiagnosed — it does not reproduce locally, under a trailing-slash `$TMPDIR`, or across repeated parallel runs.
+- **`team_workflow`'s git steps say what failed.** The fixtures discarded git's stderr, so an intermittent macOS failure surfaced only as `status 128`. Each step now reports its name, status, and output. That failure is still undiagnosed — it reproduces on no local run.
 
 ## 0.35.1
 

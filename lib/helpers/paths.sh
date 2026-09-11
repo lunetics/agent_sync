@@ -1,14 +1,90 @@
 #!/usr/bin/env bash
 # Path resolution utilities for AgentSync sync engine.
 # Depends on globals: REPO_ROOT, REPO_ROOT_CANONICAL, DEFAULT_REPO_ROOT (set in sync.sh)
+#
+# Each resolver has two shapes: a `_r` variant returning through $REPLY, and an
+# echo wrapper for the `$(...)` call sites. Hot loops use `_r`.
+
+# Parent directory of a path. Matches `dirname` for every path this module handles.
+_path_parent_r() {
+    local path="$1"
+    if [[ -z "$path" ]]; then
+        REPLY="."
+        return 0
+    fi
+    while [[ "$path" == */ ]] && [[ "$path" != "/" ]]; do
+        path="${path%/}"
+    done
+    if [[ "$path" == "/" ]]; then
+        REPLY="/"
+        return 0
+    fi
+    if [[ "$path" != */* ]]; then
+        REPLY="."
+        return 0
+    fi
+    path="${path%/*}"
+    while [[ "$path" == */ ]] && [[ "$path" != "/" ]]; do
+        path="${path%/}"
+    done
+    [[ -z "$path" ]] && path="/"
+    REPLY="$path"
+}
+
+# Final component of a path. Matches `basename` with no suffix argument.
+_path_leaf_r() {
+    local path="$1"
+    while [[ "$path" == */ ]] && [[ "$path" != "/" ]]; do
+        path="${path%/}"
+    done
+    if [[ "$path" == "/" ]]; then
+        REPLY="/"
+        return 0
+    fi
+    REPLY="${path##*/}"
+}
+
+# Memo for `cd -P <dir> && pwd`. A key is a directory that existed when first
+# probed, so a directory sync creates later arrives under its own key and cannot
+# hit a stale entry. Failures are not cached.
+_PATH_CANON_KEYS=()
+_PATH_CANON_VALUES=()
+
+_canon_dir_r() {
+    local dir="$1"
+    local count=${#_PATH_CANON_KEYS[@]}
+    local index
+    for ((index = 0; index < count; index++)); do
+        if [[ "${_PATH_CANON_KEYS[index]}" == "$dir" ]]; then
+            REPLY="${_PATH_CANON_VALUES[index]}"
+            return 0
+        fi
+    done
+
+    local canonical
+    canonical=$(cd -P "$dir" 2>/dev/null && pwd) || return 1
+    [[ -n "$canonical" ]] || return 1
+    _PATH_CANON_KEYS+=("$dir")
+    _PATH_CANON_VALUES+=("$canonical")
+    REPLY="$canonical"
+}
 
 # Normalize a path lexically into an absolute path.
 # Works even if the target does not exist yet.
-normalize_absolute_path() {
+normalize_absolute_path_r() {
     local path="$1"
     if [[ "$path" != /* ]]; then
         path="$REPO_ROOT/$path"
     fi
+
+    # Already lexically canonical — no empty, "." or ".." segment to collapse.
+    case "$path" in
+        */ | *//* | */./* | */../* | */. | */..) ;;
+        *)
+            REPLY="$path"
+            return 0
+            ;;
+    esac
 
     local -a segments normalized_segments
     IFS='/' read -r -a segments <<< "$path"
@@ -40,7 +116,12 @@ normalize_absolute_path() {
         done
     fi
 
-    echo "$normalized"
+    REPLY="$normalized"
+}
+
+normalize_absolute_path() {
+    normalize_absolute_path_r "$1"
+    echo "$REPLY"
 }
 
 is_path_within_repo_root() {
@@ -48,39 +129,45 @@ is_path_within_repo_root() {
     [[ "$candidate_path" == "$REPO_ROOT_CANONICAL" || "$candidate_path" == "$REPO_ROOT_CANONICAL/"* ]]
 }
 
-resolve_existing_ancestor() {
-    local path="$1"
-    local current="$path"
+resolve_existing_ancestor_r() {
+    local current="$1"
+    local parent
     while [[ ! -e "$current" ]]; do
-        local parent
-        parent=$(dirname "$current")
+        _path_parent_r "$current"
+        parent="$REPLY"
         if [[ "$parent" == "$current" ]]; then
             break
         fi
         current="$parent"
     done
 
-    echo "$current"
+    REPLY="$current"
 }
 
-canonicalize_with_existing_ancestor() {
+resolve_existing_ancestor() {
+    resolve_existing_ancestor_r "$1"
+    echo "$REPLY"
+}
+
+canonicalize_with_existing_ancestor_r() {
     local path="$1"
-    local existing_ancestor
-    existing_ancestor=$(resolve_existing_ancestor "$path")
+    resolve_existing_ancestor_r "$path"
+    local existing_ancestor="$REPLY"
 
     local existing_ancestor_canonical
     if [[ -d "$existing_ancestor" ]]; then
-        existing_ancestor_canonical=$(cd -P "$existing_ancestor" 2>/dev/null && pwd) || return 1
+        _canon_dir_r "$existing_ancestor" || return 1
+        existing_ancestor_canonical="$REPLY"
     else
-        local ancestor_parent
-        ancestor_parent=$(dirname "$existing_ancestor")
-        local ancestor_parent_canonical
-        ancestor_parent_canonical=$(cd -P "$ancestor_parent" 2>/dev/null && pwd) || return 1
-        existing_ancestor_canonical="$ancestor_parent_canonical/$(basename "$existing_ancestor")"
+        _path_parent_r "$existing_ancestor"
+        _canon_dir_r "$REPLY" || return 1
+        local ancestor_parent_canonical="$REPLY"
+        _path_leaf_r "$existing_ancestor"
+        existing_ancestor_canonical="$ancestor_parent_canonical/$REPLY"
     fi
 
     if [[ "$path" == "$existing_ancestor" ]]; then
-        echo "$existing_ancestor_canonical"
+        REPLY="$existing_ancestor_canonical"
         return 0
     fi
 
@@ -89,10 +176,15 @@ canonicalize_with_existing_ancestor() {
         suffix="/$suffix"
     fi
 
-    normalize_absolute_path "$existing_ancestor_canonical$suffix"
+    normalize_absolute_path_r "$existing_ancestor_canonical$suffix"
 }
 
-resolve_dest_path() {
+canonicalize_with_existing_ancestor() {
+    canonicalize_with_existing_ancestor_r "$1" || return 1
+    echo "$REPLY"
+}
+
+resolve_dest_path_r() {
     local raw_path="$1"
     local label="$2"
 
@@ -101,20 +193,26 @@ resolve_dest_path() {
         return 1
     fi
 
-    local abs_path
-    abs_path=$(normalize_absolute_path "$raw_path")
-    local canonical_path
-    canonical_path=$(canonicalize_with_existing_ancestor "$abs_path") || {
+    normalize_absolute_path_r "$raw_path"
+    local abs_path="$REPLY"
+
+    if ! canonicalize_with_existing_ancestor_r "$abs_path"; then
         log_error "Failed to canonicalize $label path: $raw_path"
         return 1
-    }
+    fi
+    local canonical_path="$REPLY"
 
     if ! is_path_within_repo_root "$canonical_path"; then
         log_error "$label resolves outside repository root: $raw_path -> $canonical_path"
         return 1
     fi
 
-    echo "$abs_path"
+    REPLY="$abs_path"
+}
+
+resolve_dest_path() {
+    resolve_dest_path_r "$1" "$2" || return 1
+    echo "$REPLY"
 }
 
 is_path_safe_source() {
@@ -148,7 +246,7 @@ is_path_safe_source() {
     return 1
 }
 
-resolve_source_path() {
+resolve_source_path_r() {
     local raw_path="$1"
     local label="$2"
 
@@ -158,13 +256,15 @@ resolve_source_path() {
     fi
 
     # First try resolving relative to REPO_ROOT (the user project)
-    local abs_path_target
-    abs_path_target=$(normalize_absolute_path "$raw_path")
-    local canonical_path_target
-    canonical_path_target=$(canonicalize_with_existing_ancestor "$abs_path_target") 2>/dev/null || true
+    normalize_absolute_path_r "$raw_path"
+    local abs_path_target="$REPLY"
+    local canonical_path_target=""
+    if canonicalize_with_existing_ancestor_r "$abs_path_target" 2>/dev/null; then
+        canonical_path_target="$REPLY"
+    fi
 
     if [[ -n "$canonical_path_target" ]] && [[ -e "$canonical_path_target" ]] && is_path_safe_source "$canonical_path_target"; then
-        echo "$abs_path_target"
+        REPLY="$abs_path_target"
         return 0
     fi
 
@@ -176,11 +276,13 @@ resolve_source_path() {
         abs_path_fallback="$DEFAULT_REPO_ROOT/$raw_path"
     fi
 
-    local canonical_path_fallback
-    canonical_path_fallback=$(canonicalize_with_existing_ancestor "$abs_path_fallback") 2>/dev/null || true
+    local canonical_path_fallback=""
+    if canonicalize_with_existing_ancestor_r "$abs_path_fallback" 2>/dev/null; then
+        canonical_path_fallback="$REPLY"
+    fi
 
     if [[ -n "$canonical_path_fallback" ]] && is_path_safe_source "$canonical_path_fallback"; then
-        echo "$abs_path_fallback"
+        REPLY="$abs_path_fallback"
         return 0
     fi
 
@@ -192,8 +294,13 @@ resolve_source_path() {
         fi
     fi
 
-    echo "$abs_path_target"
+    REPLY="$abs_path_target"
     return 0
+}
+
+resolve_source_path() {
+    resolve_source_path_r "$1" "$2" || return 1
+    echo "$REPLY"
 }
 
 # Walk up from a starting directory looking for a sibling `.ai/src/` directory,
@@ -303,18 +410,24 @@ find_workspace_ai_dirs() {
         | cut -f2-
 }
 
-to_repo_relative_path() {
+to_repo_relative_path_r() {
     local abs_path="$1"
     if [[ "$abs_path" == "$REPO_ROOT" ]]; then
-        echo "."
+        REPLY="."
         return 0
     fi
 
     if [[ "$abs_path" == "$REPO_ROOT/"* ]]; then
-        echo "${abs_path#"$REPO_ROOT"/}"
+        REPLY="${abs_path#"$REPO_ROOT"/}"
         return 0
     fi
 
+    REPLY=""
     log_error "Path is outside repository root: $abs_path"
     return 1
+}
+
+to_repo_relative_path() {
+    to_repo_relative_path_r "$1" || return 1
+    echo "$REPLY"
 }

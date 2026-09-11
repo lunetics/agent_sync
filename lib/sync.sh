@@ -315,7 +315,7 @@ _resolve_one_dest() {
     fi
     get_tool_value_r "$tool_name" "targets.$key.dest"; raw="$REPLY"
     [[ -n "$raw" ]] || { echo ""; return 0; }
-    abs=$(resolve_dest_path "$raw" "targets.$key.dest for $display") || abs=""
+    if resolve_dest_path_r "$raw" "targets.$key.dest for $display"; then abs="$REPLY"; else abs=""; fi
     echo "$abs"
 }
 
@@ -718,7 +718,7 @@ cleanup_tool() {
     for key in "${AGENTSYNC_TARGET_KEYS[@]}"; do
         get_tool_value_r "$tool_name" "targets.$key.dest"; raw="$REPLY"
         [[ -z "$raw" ]] && continue
-        abs=$(resolve_dest_path "$raw" "targets.$key.dest for $display") || continue
+        resolve_dest_path_r "$raw" "targets.$key.dest for $display" || continue; abs="$REPLY"
         [[ -z "$abs" ]] && continue
         if ! is_path_protected "$abs"; then
             if cleanup_path "$abs" "$DRY_RUN"; then
@@ -920,10 +920,10 @@ _collect_tool_dests() {
     for key in "${AGENTSYNC_TARGET_KEYS[@]}"; do
         get_tool_value_r "$tool_name" "targets.$key.dest"; raw="$REPLY"
         [[ -z "$raw" ]] && continue
-        abs=$(resolve_dest_path "$raw" "targets.$key.dest for $tool_name") || continue
+        resolve_dest_path_r "$raw" "targets.$key.dest for $tool_name" || continue; abs="$REPLY"
         ENABLED_DEST_PATHS+=("$abs")
         LAST_COLLECTED_DESTS+=("$abs")
-        rel=$(to_repo_relative_path "$abs")
+        to_repo_relative_path_r "$abs"; rel="$REPLY"
         case "$key" in
             rules|skills|commands|subagents) rel="$rel/" ;;
         esac
@@ -948,7 +948,7 @@ _warn_baseline_replacements() {
     local -a existing=()
     local abs rel
     for abs in "${SYNC_BACKUP_TARGETS[@]+"${SYNC_BACKUP_TARGETS[@]}"}"; do
-        rel=$(to_repo_relative_path "$abs")
+        to_repo_relative_path_r "$abs"; rel="$REPLY"
         if [[ -f "$abs" ]]; then
             existing+=("$rel")
         elif [[ -d "$abs" ]] && [[ -n "$(find "$abs" -type f 2>/dev/null | head -n 1 || true)" ]]; then
@@ -1101,7 +1101,7 @@ _collect_tool_backup_dests() {
         fi
         get_tool_value_r "$tool_name" "targets.$key.dest"; raw="$REPLY"
         [[ -n "$raw" ]] || continue
-        abs=$(resolve_dest_path "$raw" "targets.$key.dest for $tool_name") || continue
+        resolve_dest_path_r "$raw" "targets.$key.dest for $tool_name" || continue; abs="$REPLY"
         SYNC_BACKUP_TARGETS+=("$abs")
     done
 }

@@ -5,6 +5,7 @@ load test_helper
 
 setup() {
     setup_test_project
+    source "$REPO_ROOT/lib/helpers/paths.sh"
     source "$REPO_ROOT/lib/helpers/backup.sh"
     BACKUP_OUTSIDE=""
 }

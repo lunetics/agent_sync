@@ -19,11 +19,13 @@ cleanup_path() {
     local dry_run="${2:-false}"
 
     if [[ -e "$target" ]]; then
+        local shown
+        display_path_r "$target"; shown="$REPLY"
         if [[ "$dry_run" == "true" ]]; then
-            log_step "Would remove: $(display_path "$target") (dry-run)"
+            log_step "Would remove: $shown (dry-run)"
         else
             rm -rf "$target"
-            log_step "Removed: $(display_path "$target")"
+            log_step "Removed: $shown"
         fi
         return 0
     fi
@@ -45,20 +47,27 @@ copy_file() {
         return 0
     fi
 
+    local src_disp dest_disp
+    display_path_r "$src"; src_disp="$REPLY"
+    display_path_r "$dest"; dest_disp="$REPLY"
+
     if [[ "$dry_run" == "true" ]]; then
-        log_step "$(display_path "$src") → $(display_path "$dest") (dry-run)"
+        log_step "$src_disp → $dest_disp (dry-run)"
         return 0
     fi
 
     ensure_dir "${dest%/*}"
-    rm -f "$dest" 2>/dev/null || true
+    # cp cannot write through a read-only or symlinked dest, so clear it first.
+    if [[ -e "$dest" || -L "$dest" ]]; then
+        rm -f "$dest" 2>/dev/null || true
+    fi
     cp "$src" "$dest"
 
     if declare -f manifest_record_write >/dev/null 2>&1; then
         manifest_record_write "$dest"
     fi
 
-    log_step "$(display_path "$src") → $(display_path "$dest")"
+    log_step "$src_disp → $dest_disp"
 }
 
 # Decide whether an extraneous destination entry may be pruned during a sync.
@@ -73,9 +82,10 @@ sync_may_prune() {
     [[ "${SYNC_MANIFEST_ACTIVE:-false}" == "true" ]] || return 0
     [[ "${FORCE_SYNC:-false}" == "true" ]] && return 0
     declare -f manifest_lookup >/dev/null 2>&1 || return 0
-    declare -f to_repo_relative_path >/dev/null 2>&1 || return 0
+    declare -f to_repo_relative_path_r >/dev/null 2>&1 || return 0
     local rel
-    rel=$(to_repo_relative_path "$dest_path" 2>/dev/null) || return 0
+    to_repo_relative_path_r "$dest_path" 2>/dev/null || return 0
+    rel="$REPLY"
     manifest_lookup "$rel" >/dev/null 2>&1 && return 0
     return 1
 }
@@ -113,8 +123,8 @@ sync_dir() {
     fi
 
     local src_disp dest_disp
-    src_disp=$(display_path "$src")
-    dest_disp=$(display_path "$dest")
+    display_path_r "$src"; src_disp="$REPLY"
+    display_path_r "$dest"; dest_disp="$REPLY"
 
     if [[ "$dry_run" != "true" ]]; then
         ensure_dir "$dest"

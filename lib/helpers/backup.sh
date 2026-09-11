@@ -4,6 +4,8 @@
 # A snapshot mirrors each existing target below .ai/backups/<id>/files/ and
 # records missing targets as well, so restore can remove paths created by a
 # failed or accidental operation. Snapshot directories are self-ignored by git.
+#
+# Depends on: paths.sh (_path_parent_r, _canon_dir_r).
 
 BACKUP_PREPARED_TARGETS=()
 BACKUP_LOADED_STATES=()
@@ -58,18 +60,19 @@ _backup_validate_rel() {
     fi
 }
 
-_backup_safe_target_path() {
+_backup_safe_target_path_r() {
     local canonical_root="$1"
     local rel="$2"
     local allow_store_parent="${3:-false}"
     _backup_validate_rel "$rel" "$allow_store_parent" || return 1
 
     local abs="$canonical_root/$rel"
-    local probe
-    probe=$(dirname "$abs")
+    local probe parent
+    _path_parent_r "$abs"
+    probe="$REPLY"
     while [[ ! -e "$probe" ]] && [[ ! -L "$probe" ]]; do
-        local parent
-        parent=$(dirname "$probe")
+        _path_parent_r "$probe"
+        parent="$REPLY"
         [[ "$parent" != "$probe" ]] || break
         probe="$parent"
     done
@@ -80,19 +83,25 @@ _backup_safe_target_path() {
     fi
 
     local resolved
-    resolved=$(cd -P "$probe" 2>/dev/null && pwd) || {
+    if ! _canon_dir_r "$probe"; then
         _backup_error "Could not resolve backup target parent: $rel"
         return 1
-    }
+    fi
+    resolved="$REPLY"
     if [[ "$resolved" != "$canonical_root" ]] && [[ "$resolved" != "$canonical_root/"* ]]; then
         _backup_error "Backup target resolves outside the repository root: $rel"
         return 1
     fi
 
-    echo "$abs"
+    REPLY="$abs"
 }
 
-_backup_target_abs() {
+_backup_safe_target_path() {
+    _backup_safe_target_path_r "$1" "$2" "${3:-false}" || return 1
+    echo "$REPLY"
+}
+
+_backup_target_abs_r() {
     local supplied_root="$1"
     local canonical_root="$2"
     local target="$3"
@@ -113,7 +122,7 @@ _backup_target_abs() {
     fi
 
     _backup_validate_rel "$rel" || return 1
-    _backup_safe_target_path "$canonical_root" "$rel"
+    _backup_safe_target_path_r "$canonical_root" "$rel"
 }
 
 # Normalize, validate, deduplicate, and collapse nested paths into their
@@ -127,7 +136,8 @@ _backup_prepare_targets() {
     BACKUP_PREPARED_TARGETS=()
     local target candidate existing skip_existing
     for target in "$@"; do
-        candidate=$(_backup_target_abs "$supplied_root" "$canonical_root" "$target") || return 1
+        _backup_target_abs_r "$supplied_root" "$canonical_root" "$target" || return 1
+        candidate="$REPLY"
         skip_existing=false
         local -a retained=()
 
@@ -476,7 +486,7 @@ backup_load_targets() {
             fi
         fi
         local target_path
-        target_path=$(_backup_safe_target_path "$canonical_root" "$rel") || return 1
+        _backup_safe_target_path_r "$canonical_root" "$rel" || return 1; target_path="$REPLY"
         BACKUP_LOADED_STATES+=("$state")
         BACKUP_LOADED_RELS+=("$rel")
         BACKUP_LOADED_PATHS+=("$target_path")
@@ -502,15 +512,15 @@ backup_restore() {
     local path index rel parent
     for ((index = 0; index < ${#BACKUP_LOADED_PATHS[@]}; index++)); do
         rel="${BACKUP_LOADED_RELS[$index]}"
-        path=$(_backup_safe_target_path "$canonical_root" "$rel") || return 1
+        _backup_safe_target_path_r "$canonical_root" "$rel" || return 1; path="$REPLY"
         rm -rf "$path" || return 1
     done
 
     for ((index = 0; index < ${#BACKUP_LOADED_PATHS[@]}; index++)); do
         [[ "${BACKUP_LOADED_STATES[$index]}" == "present" ]] || continue
         rel="${BACKUP_LOADED_RELS[$index]}"
-        path=$(_backup_safe_target_path "$canonical_root" "$rel") || return 1
-        parent=$(dirname "$path")
+        _backup_safe_target_path_r "$canonical_root" "$rel" || return 1; path="$REPLY"
+        _path_parent_r "$path"; parent="$REPLY"
         mkdir -p "$parent" || return 1
         local snapshot_source
         snapshot_source=$(_backup_snapshot_source "$snapshot" "$rel") || return 1

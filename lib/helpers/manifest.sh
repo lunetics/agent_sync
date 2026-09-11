@@ -148,7 +148,8 @@ manifest_record_write() {
     [[ -z "$abs_path" ]] && return 0
 
     local rel
-    rel=$(to_repo_relative_path "$abs_path" 2>/dev/null) || return 0
+    to_repo_relative_path_r "$abs_path" 2>/dev/null || return 0
+    rel="$REPLY"
     [[ -z "$rel" ]] && return 0
 
     if [[ "$SYNC_TOUCHED_SET" != *"|$rel|"* ]]; then
@@ -166,7 +167,8 @@ manifest_was_touched() {
     local abs_path="$1"
     [[ -z "$abs_path" ]] && return 1
     local rel
-    rel=$(to_repo_relative_path "$abs_path" 2>/dev/null) || return 1
+    to_repo_relative_path_r "$abs_path" 2>/dev/null || return 1
+    rel="$REPLY"
     [[ -z "$rel" ]] && return 1
     [[ "$SYNC_TOUCHED_SET" == *"|$rel|"* ]]
 }

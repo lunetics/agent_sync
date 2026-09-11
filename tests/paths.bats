@@ -15,8 +15,12 @@ setup() {
     source "$REPO_ROOT/lib/helpers/logging.sh"
     source "$REPO_ROOT/lib/helpers/paths.sh"
 
-    REPO_ROOT="$TEST_PROJECT"
-    REPO_ROOT_CANONICAL="$(cd -P "$TEST_PROJECT" && pwd)"
+    # A real project root is a clean absolute path, and these tests compare
+    # against one built by string concatenation. macOS sets $TMPDIR with a
+    # trailing slash, so mktemp hands back a path containing "//" that the
+    # resolvers correctly collapse — which would fail the comparison, not the code.
+    REPO_ROOT="$(cd -P "$TEST_PROJECT" && pwd)"
+    REPO_ROOT_CANONICAL="$REPO_ROOT"
     DEFAULT_REPO_ROOT="$REPO_ROOT_CANONICAL/engine"
     mkdir -p "$DEFAULT_REPO_ROOT"
 }

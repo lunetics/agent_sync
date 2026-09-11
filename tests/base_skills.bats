@@ -59,11 +59,11 @@ set_config() {
 
 @test "base skills: a second sync is byte-identical (no drift)" {
     local before
-    before=$(shasum -a 256 .claude/skills/agentsync/SKILL.md | awk '{print $1}')
+    before=$(file_sha256 .claude/skills/agentsync/SKILL.md)
     run run_agentsync sync
     [ "$status" -eq 0 ]
     local after
-    after=$(shasum -a 256 .claude/skills/agentsync/SKILL.md | awk '{print $1}')
+    after=$(file_sha256 .claude/skills/agentsync/SKILL.md)
     [ "$before" = "$after" ]
 }
 

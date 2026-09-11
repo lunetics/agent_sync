@@ -183,14 +183,14 @@ CASES
     run_agentsync sync >/dev/null
     printf '%s\n' 'ORIGINAL' > opencode.json
     local manifest_before
-    manifest_before=$(shasum -a 256 .ai/.sync-manifest | awk '{print $1}')
+    manifest_before=$(file_sha256 .ai/.sync-manifest)
     write_shared_mcp '{"mcpServers":'
 
     run run_agentsync sync --force
 
     [ "$status" -ne 0 ]
     [ "$(cat opencode.json)" = "ORIGINAL" ]
-    [ "$(shasum -a 256 .ai/.sync-manifest | awk '{print $1}')" = "$manifest_before" ]
+    [ "$(file_sha256 .ai/.sync-manifest)" = "$manifest_before" ]
 }
 
 @test "opencode: dry-run validates malformed MCP" {
@@ -215,11 +215,11 @@ CASES
     write_shared_mcp '{"mcpServers":{"x":{"command":"x","enabled":true,"timeout":12}}}'
     run_agentsync sync >/dev/null
     local config_before manifest_before
-    config_before=$(shasum -a 256 opencode.json | awk '{print $1}')
-    manifest_before=$(shasum -a 256 .ai/.sync-manifest | awk '{print $1}')
+    config_before=$(file_sha256 opencode.json)
+    manifest_before=$(file_sha256 .ai/.sync-manifest)
 
     run_agentsync sync >/dev/null
 
-    [ "$(shasum -a 256 opencode.json | awk '{print $1}')" = "$config_before" ]
-    [ "$(shasum -a 256 .ai/.sync-manifest | awk '{print $1}')" = "$manifest_before" ]
+    [ "$(file_sha256 opencode.json)" = "$config_before" ]
+    [ "$(file_sha256 .ai/.sync-manifest)" = "$manifest_before" ]
 }

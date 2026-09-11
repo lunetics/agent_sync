@@ -177,14 +177,14 @@ teardown() { teardown_test_project; }
     enable_tools claude
     AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync >/dev/null
     local before
-    before=$(shasum -a 256 .ai/src/rules/core.md | awk '{print $1}')
+    before=$(file_sha256 .ai/src/rules/core.md)
     echo "## Edit" >> .claude/rules/core.md
 
     run env AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" adopt --dry-run .claude/rules/core.md
     [ "$status" -eq 0 ]
 
     local after
-    after=$(shasum -a 256 .ai/src/rules/core.md | awk '{print $1}')
+    after=$(file_sha256 .ai/src/rules/core.md)
     [ "$before" = "$after" ]
 }
 
@@ -192,12 +192,12 @@ teardown() { teardown_test_project; }
     enable_tools claude
     AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync >/dev/null
     local before
-    before=$(shasum -a 256 .ai/.sync-manifest | awk '{print $1}')
+    before=$(file_sha256 .ai/.sync-manifest)
     echo "## Edit" >> .claude/rules/core.md
 
     AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" adopt --dry-run .claude/rules/core.md >/dev/null
     local after
-    after=$(shasum -a 256 .ai/.sync-manifest | awk '{print $1}')
+    after=$(file_sha256 .ai/.sync-manifest)
     [ "$before" = "$after" ]
 }
 
@@ -262,7 +262,7 @@ teardown() { teardown_test_project; }
     enable_tools claude gemini
     AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync >/dev/null
     local before
-    before=$(shasum -a 256 .ai/src/AGENTS.md | awk '{print $1}')
+    before=$(file_sha256 .ai/src/AGENTS.md)
     echo "## Claude only" >> CLAUDE.md
     echo "## Gemini only" >> GEMINI.md
 
@@ -271,7 +271,7 @@ teardown() { teardown_test_project; }
     [[ "$output" == *"multiple edited outputs map to"* ]]
 
     local after
-    after=$(shasum -a 256 .ai/src/AGENTS.md | awk '{print $1}')
+    after=$(file_sha256 .ai/src/AGENTS.md)
     [ "$before" = "$after" ]
 }
 
@@ -279,14 +279,14 @@ teardown() { teardown_test_project; }
     enable_tools claude
     AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync >/dev/null
     local before
-    before=$(shasum -a 256 .ai/src/rules/core.md | awk '{print $1}')
+    before=$(file_sha256 .ai/src/rules/core.md)
     echo "## Edit" >> .claude/rules/core.md
 
     run env AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" adopt --all --dry-run
     [ "$status" -eq 0 ]
 
     local after
-    after=$(shasum -a 256 .ai/src/rules/core.md | awk '{print $1}')
+    after=$(file_sha256 .ai/src/rules/core.md)
     [ "$before" = "$after" ]
 }
 

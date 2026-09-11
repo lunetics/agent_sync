@@ -48,10 +48,10 @@ teardown() { teardown_test_project; }
 
 @test "drift: second sync produces byte-identical manifest" {
     local first
-    first=$(shasum -a 256 .ai/.sync-manifest | awk '{print $1}')
+    first=$(file_sha256 .ai/.sync-manifest)
     AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync >/dev/null
     local second
-    second=$(shasum -a 256 .ai/.sync-manifest | awk '{print $1}')
+    second=$(file_sha256 .ai/.sync-manifest)
     [ "$first" = "$second" ]
 }
 
@@ -73,11 +73,11 @@ teardown() { teardown_test_project; }
 
 @test "drift: refused sync does not rewrite manifest" {
     local before
-    before=$(shasum -a 256 .ai/.sync-manifest | awk '{print $1}')
+    before=$(file_sha256 .ai/.sync-manifest)
     echo "MANUAL EDIT" >> .claude/rules/core.md
     AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync >/dev/null 2>&1 || true
     local after
-    after=$(shasum -a 256 .ai/.sync-manifest | awk '{print $1}')
+    after=$(file_sha256 .ai/.sync-manifest)
     [ "$before" = "$after" ]
 }
 
@@ -91,10 +91,10 @@ teardown() { teardown_test_project; }
 @test "drift: --force updates manifest to new dest hashes" {
     echo "MANUAL EDIT" >> .claude/rules/core.md
     local before
-    before=$(shasum -a 256 .ai/.sync-manifest | awk '{print $1}')
+    before=$(file_sha256 .ai/.sync-manifest)
     AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync --force >/dev/null
     local after
-    after=$(shasum -a 256 .ai/.sync-manifest | awk '{print $1}')
+    after=$(file_sha256 .ai/.sync-manifest)
     # Manifest content should be identical to first run (we restored source content),
     # so hash should match the original baseline.
     [ "$before" = "$after" ]
@@ -112,11 +112,11 @@ teardown() { teardown_test_project; }
 @test "drift: dry-run does not check drift and does not write manifest" {
     echo "MANUAL EDIT" >> .claude/rules/core.md
     local before
-    before=$(shasum -a 256 .ai/.sync-manifest | awk '{print $1}')
+    before=$(file_sha256 .ai/.sync-manifest)
     run env AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync --dry-run
     [ "$status" -eq 0 ]
     local after
-    after=$(shasum -a 256 .ai/.sync-manifest | awk '{print $1}')
+    after=$(file_sha256 .ai/.sync-manifest)
     [ "$before" = "$after" ]
     grep -q "MANUAL EDIT" .claude/rules/core.md
 }
@@ -207,10 +207,10 @@ teardown() { teardown_test_project; }
 @test "drift: --if-stale leaves the manifest untouched when fresh" {
     touch -t 203012312359 .ai/.sync-manifest
     local before
-    before=$(shasum -a 256 .ai/.sync-manifest | awk '{print $1}')
+    before=$(file_sha256 .ai/.sync-manifest)
     env AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync --if-stale >/dev/null
     local after
-    after=$(shasum -a 256 .ai/.sync-manifest | awk '{print $1}')
+    after=$(file_sha256 .ai/.sync-manifest)
     [ "$before" = "$after" ]
 }
 

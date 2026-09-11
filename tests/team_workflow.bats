@@ -22,16 +22,34 @@ teardown() {
 }
 
 # Clone a: init in the given mode, sync, commit, push. Clone b: fresh clone.
+#
+# git's stderr is kept: discarding it here once made an intermittent failure on
+# the macOS runner undiagnosable — bats reported only "status 128" from a step
+# whose own explanation had been thrown away. _git_step names the step instead.
 seed_team() {
     local mode="$1"
-    git clone --quiet "$TEST_PROJECT/origin.git" "$TEST_PROJECT/a" 2>/dev/null
+    _git_step "clone a" clone --quiet "$TEST_PROJECT/origin.git" "$TEST_PROJECT/a"
     cd "$TEST_PROJECT/a"
     run_agentsync init --tools claude --yes --outputs "$mode" >/dev/null 2>&1
     run_agentsync sync >/dev/null 2>&1
-    git add -A
-    git commit --quiet -m "init agentsync"
-    git push --quiet -u origin HEAD 2>/dev/null
-    git clone --quiet "$TEST_PROJECT/origin.git" "$TEST_PROJECT/b" 2>/dev/null
+    _git_step "add" add -A
+    _git_step "commit" commit --quiet -m "init agentsync"
+    _git_step "push" push --quiet -u origin HEAD
+    _git_step "clone b" clone --quiet "$TEST_PROJECT/origin.git" "$TEST_PROJECT/b"
+}
+
+# Run one git step, and on failure say which step it was and what git printed.
+_git_step() {
+    local label="$1"
+    shift
+    local out status
+    out=$(git "$@" 2>&1)
+    status=$?
+    if [[ $status -ne 0 ]]; then
+        printf 'git %s failed (status %s) in %s\n' "$label" "$status" "$PWD" >&2
+        printf '%s\n' "$out" >&2
+        return "$status"
+    fi
 }
 
 # Clone a edits a rule, syncs, and pushes.
@@ -39,9 +57,9 @@ push_rule_edit() {
     cd "$TEST_PROJECT/a"
     printf '\n- Team rule added by a.\n' >> .ai/src/rules/core.md
     run_agentsync sync >/dev/null 2>&1
-    git add -A
-    git commit --quiet -m "rules: add team rule"
-    git push --quiet 2>/dev/null
+    _git_step "add" add -A
+    _git_step "commit" commit --quiet -m "rules: add team rule"
+    _git_step "push" push --quiet
 }
 
 # ── local mode ──────────────────────────────────────────────────────────────
@@ -67,7 +85,7 @@ push_rule_edit() {
     run_agentsync sync >/dev/null 2>&1
     push_rule_edit
     cd "$TEST_PROJECT/b"
-    git pull --quiet 2>/dev/null
+    _git_step "pull" pull --quiet
     run run_agentsync sync
     [ "$status" -eq 0 ]
     grep -q "Team rule added by a" .claude/rules/core.md
@@ -79,7 +97,7 @@ push_rule_edit() {
     run_agentsync sync >/dev/null 2>&1
     push_rule_edit
     cd "$TEST_PROJECT/b"
-    git pull --quiet 2>/dev/null
+    _git_step "pull" pull --quiet
     run_agentsync sync >/dev/null 2>&1
     printf '\n# hand edit\n' >> .claude/rules/core.md
     run run_agentsync sync
@@ -110,7 +128,7 @@ push_rule_edit() {
     seed_team committed
     push_rule_edit
     cd "$TEST_PROJECT/b"
-    git pull --quiet 2>/dev/null
+    _git_step "pull" pull --quiet
     grep -q "Team rule added by a" .claude/rules/core.md
     run run_agentsync check
     [ "$status" -eq 0 ]
@@ -120,7 +138,7 @@ push_rule_edit() {
     seed_team committed
     push_rule_edit
     cd "$TEST_PROJECT/b"
-    git pull --quiet 2>/dev/null
+    _git_step "pull" pull --quiet
     run run_agentsync sync
     [ "$status" -eq 0 ]
     [ -z "$(git status --porcelain)" ]

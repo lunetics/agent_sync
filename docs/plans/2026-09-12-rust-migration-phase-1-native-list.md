@@ -628,7 +628,7 @@ git commit -m "feat(cli): delegate ported commands to the native engine"
 - Consumes: nothing.
 - Produces: `yaml_subset::value(text: &str, key_path: &str) -> String` (empty when missing or empty, first match wins), `yaml_subset::list(text: &str, key_path: &str) -> Vec<String>` (inline `[a, b]` or block `- item`), `yaml_subset::normalize_scalar(raw: &str) -> String`. Semantics are those of `parse_yaml_value_r`, `parse_yaml_list`, and `_yaml_normalize_scalar_reply` in `lib/helpers/yaml.sh`.
 
-- [ ] **Step 1: Write the module with its failing tests**
+- [x] **Step 1: Write the module with its failing tests**
 
 ```rust
 //! Reader for the YAML subset AgentSync configs are written in.
@@ -910,7 +910,7 @@ url: http://example.com/x#frag
 }
 ```
 
-- [ ] **Step 2: Register the module in `src/lib.rs`**
+- [x] **Step 2: Register the module in `src/lib.rs`**
 
 ```rust
 //! AgentSync native engine. `main.rs` is the only place that talks to the
@@ -928,12 +928,12 @@ pub fn engine_version() -> &'static str {
 }
 ```
 
-- [ ] **Step 3: Run the tests, confirm green**
+- [x] **Step 3: Run the tests, confirm green**
 
 Run: `cargo test yaml_subset`
 Expected: 15 tests pass. If `an_empty_block_key_takes_the_next_dash_list_like_bash_does` fails, the port drifted from `parse_yaml_list`; re-read `lib/helpers/yaml.sh:160-234` before changing the test.
 
-- [ ] **Step 4: Cross-check two values against the Bash reader**
+- [x] **Step 4: Cross-check two values against the Bash reader**
 
 ```bash
 bash -c 'source lib/helpers/yaml.sh; parse_yaml_value lib/templates/tools/cursor.yaml targets.rules.header; parse_yaml_list lib/templates/tools/cursor.yaml targets.rules.include'
@@ -941,7 +941,7 @@ bash -c 'source lib/helpers/yaml.sh; parse_yaml_value lib/templates/tools/cursor
 
 Expected: the literal `---\nglobs: '**/*'\nalwaysApply: true\n---` (backslash-n, not newlines) and no list output. These are the same answers `value` and `list` give for that file.
 
-- [ ] **Step 5: Lint and commit**
+- [x] **Step 5: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings
@@ -2254,4 +2254,11 @@ Before reporting Phase 1 done, produce the completion receipt from `verification
 - Verified: `tests/native_dispatch.bats` failed 1, 2, 3 and 7 before the dispatcher existed and 4, 5, 6 passed by accident, exactly as Step 2 predicts; after Step 4, `bats tests/native_dispatch.bats tests/cli.bats` → 15 ok, 0 not ok; `shellcheck -x -S warning -e SC1091 bin/agentsync.sh` → exit 0; `AGENTSYNC_NATIVE=1 bats tests/cli.bats` → 8 ok, answered by `target/release/agentsync`; `AGENTSYNC_NATIVE=1 AGENTSYNC_HOME="$PWD" bash bin/agentsync.sh version` → `agentsync v0.35.2`; full suite `bats --jobs 4 tests/ --tap` → bats exit 0, plan `1..733`, 733 ok, 0 not ok.
 - Plan amended: Step 4's `main` insertion. The snippet's bare `_native_try "$@"` aborts `main` under `set -euo pipefail`, because falling through to Bash is a `return 1` — `bats tests/cli.bats` went 0/8 on the first write, every command exiting 1 with no output. Now `_native_try "$@" || true`, with the reason in the plan. Step 4's comment block was also reworded: the comment gate reads `#   AGENTSYNC_NATIVE=0   always Bash` as commented-out code, so the env contract is one prose sentence and the binary lookup order is left to `_native_bin` below.
 - Next: Task 3 Step 1 — write `src/yaml_subset.rs` with its failing unit tests, mirroring `lib/helpers/yaml.sh`.
+- Blocker: none.
+
+### 2026-09-12 — Task 3 done
+- Commits: `feat(native): read the AgentSync YAML subset`
+- Verified: `cargo test yaml_subset` → 15 passed, 0 failed, including the quirk test `an_empty_block_key_takes_the_next_dash_list_like_bash_does`; `cargo test` → 15 + 4 passed; `cargo fmt --all --check` → exit 0 after `cargo fmt --all` reflowed two expressions in `split_key` and `unwrap_quoted`; `cargo clippy --all-targets -- -D warnings` → exit 0. Step 4's Bash reference, read from the shipped Cursor template, is the literal `---\nglobs: '**/*'\nalwaysApply: true\n---` and an empty include list; a throwaway unit test over `include_str!("../lib/templates/tools/cursor.yaml")` confirmed `value` and `list` return the same, then was removed — Task 4 embeds the catalog with `include_dir!`, so a test pinned to a repo-relative path would be churn.
+- Plan amended: none. Before writing, the port was read against `lib/helpers/yaml.sh:13-30` (`_yaml_normalize_scalar_reply`), `:40-119` (`parse_yaml_value_r`) and `:133-235` (`parse_yaml_list`); the only divergence found is that Bash `[[:space:]]` includes a vertical tab and Rust's `is_ascii_whitespace` does not, which no config exercises.
+- Next: Task 4 Step 1 — write `src/catalog.rs`, the `include_dir!` embedding of `lib/templates/`.
 - Blocker: none.

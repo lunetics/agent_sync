@@ -3,6 +3,7 @@
 
 pub mod cli;
 pub mod error;
+pub mod yaml_subset;
 
 pub use error::Error;
 

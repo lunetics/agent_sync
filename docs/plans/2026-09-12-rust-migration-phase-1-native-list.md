@@ -30,7 +30,7 @@
 - Consumes: a clean `main` at or after `432b2dd`.
 - Produces: branch `feat/native-engine-phase-1`, a working `cargo`, and a recorded green baseline.
 
-- [ ] **Step 1: Install the Rust toolchain (one-time, on the developer machine)**
+- [x] **Step 1: Install the Rust toolchain (one-time, on the developer machine)**
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile default
@@ -49,7 +49,7 @@ git -C /Users/yelamanyelmuratov/Development/agent_sync/agent switch -c feat/nati
 
 Expected: empty status; `Switched to a new branch 'feat/native-engine-phase-1'`.
 
-- [ ] **Step 3: Record the baseline**
+- [x] **Step 3: Record the baseline**
 
 ```bash
 bats --jobs 4 tests/ --tap | tail -3
@@ -70,7 +70,7 @@ Expected: the TAP plan is `1..725` with no `not ok`; ShellCheck exits 0.
 - Consumes: nothing new.
 - Produces: `list_legacy_enabled_tools` always returns 0, so `list_enabled_tools` inside `$(...)` under `set -e` can no longer abort its caller. Found while writing Task 7's fixtures: with `.ai/src/tools/cursor.yaml` holding only `name:`, `agentsync list` printed its header and exited 1 without a message, because the function's status was that of the last `[[ "$flag" == "true" ]]`. `doctor.sh:428` already works around it with `|| true`; `list.sh:71` does not. The parity suite needs a correct Bash reference, so the fix lands before the port.
 
-- [ ] **Step 1: Write the failing test in `tests/list.bats`**
+- [x] **Step 1: Write the failing test in `tests/list.bats`**
 
 ```bash
 @test "list survives a tool override that does not set enabled" {
@@ -83,12 +83,12 @@ Expected: the TAP plan is `1..725` with no `not ok`; ShellCheck exits 0.
 }
 ```
 
-- [ ] **Step 2: Run it, confirm it fails**
+- [x] **Step 2: Run it, confirm it fails**
 
 Run: `bats tests/list.bats`
 Expected: the new test fails with `status` 1; the other 7 pass.
 
-- [ ] **Step 3: Return 0 from the lister**
+- [x] **Step 3: Return 0 from the lister**
 
 In `lib/helpers/tool_resolver.sh`, `list_legacy_enabled_tools`, after the `done` that closes the `for f in "$dir"/*.yaml` loop, add `return 0`:
 
@@ -100,7 +100,7 @@ In `lib/helpers/tool_resolver.sh`, `list_legacy_enabled_tools`, after the `done`
 }
 ```
 
-- [ ] **Step 4: Run the affected files, confirm green**
+- [x] **Step 4: Run the affected files, confirm green**
 
 ```bash
 bats tests/list.bats tests/doctor.bats tests/enable.bats
@@ -109,7 +109,7 @@ shellcheck -x -S warning -e SC1091 lib/helpers/tool_resolver.sh
 
 Expected: 8 + 34 + 13 tests pass; ShellCheck exits 0.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/helpers/tool_resolver.sh tests/list.bats
@@ -2230,3 +2230,10 @@ Before reporting Phase 1 done, produce the completion receipt from `verification
 - Plan amended: none. The design spec's `Status:` line moved from `Proposed` to `In progress since 2026-09-12` with this first commit on the phase branch.
 - Next: Task 0 Step 1 — install the toolchain, then Step 3's baseline (`bats --jobs 4 tests/ --tap`, ShellCheck over the shell entry points), then Task 0b Step 1.
 - Blocker: `command -v cargo` prints nothing. Needs, on this machine: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile default` then `. "$HOME/.cargo/env"`, until `cargo --version && rustc --version` both report 1.85 or newer. This command never installs a toolchain.
+
+### 2026-09-12 — Task 0 done, Task 0b done
+- Commits: `fix(list): survive a tool override without enabled: true`
+- Verified: toolchain installed by the user, `cargo 1.98.1 (797e8a9bc 2026-08-05)` and `rustc 1.98.1 (48a229cea 2026-09-01)`, both above MSRV 1.85 (Step 1). `bats --jobs 4 tests/ --tap` → `1..725`, no `not ok`, exit 0; `shellcheck -x -S warning -e SC1091` over the six shell entry points → exit 0 (Step 3). Task 0b: the new `tests/list.bats` case failed red at `[ "$status" -eq 0 ]` before the fix and passes after; `bats tests/list.bats tests/doctor.bats tests/enable.bats --tap` → 55 ok, 0 not ok (8 + 34 + 13 as planned); `shellcheck` on `lib/helpers/tool_resolver.sh` → exit 0.
+- Plan amended: none.
+- Next: Task 1 Step 1 — create `Cargo.toml` for the crate scaffold. Note for the next run: `cargo` is not on the agent shell's `PATH` (the profile snapshot predates the install); invoke it as `/Users/yelamanyelmuratov/.cargo/bin/cargo` or prepend `/Users/yelamanyelmuratov/.cargo/bin` to `PATH`.
+- Blocker: none.

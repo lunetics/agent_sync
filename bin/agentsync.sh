@@ -273,6 +273,57 @@ cmd_engine() {
     bash "$script_path" "$@"
 }
 
+# ─── Native engine delegation ───────────────────────────────────────────────
+# Public env contract: AGENTSYNC_NATIVE is "0" to force Bash, "1" to require
+# the native binary and fail loudly without one, unset to use one when found;
+# AGENTSYNC_NATIVE_BIN names the binary explicitly.
+_NATIVE_COMMANDS=" version --version -v "
+
+_native_bin() {
+    if [[ -n "${AGENTSYNC_NATIVE_BIN:-}" ]]; then
+        [[ -x "$AGENTSYNC_NATIVE_BIN" ]] || return 1
+        echo "$AGENTSYNC_NATIVE_BIN"
+        return 0
+    fi
+    local candidate
+    for candidate in \
+        "$_AGENTSYNC_ENGINE_ROOT/target/release/agentsync" \
+        "$_AGENTSYNC_ENGINE_ROOT/target/release/agentsync.exe" \
+        "$_AGENTSYNC_ENGINE_ROOT/bin/agentsync-native" \
+        "$_AGENTSYNC_ENGINE_ROOT/bin/agentsync-native.exe"; do
+        if [[ -x "$candidate" ]]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Delegate the whole argument list to the native binary when the command is
+# ported and a binary is available. Exits with the binary's status; returns 1
+# to fall through to the Bash implementation.
+_native_try() {
+    local command="${1:-help}"
+    local mode="${AGENTSYNC_NATIVE:-}"
+    [[ "$mode" != "0" ]] || return 1
+    [[ "$_NATIVE_COMMANDS" == *" $command "* ]] || return 1
+
+    local bin
+    if ! bin=$(_native_bin); then
+        if [[ "$mode" == "1" ]]; then
+            echo "$(_red "Error"): AGENTSYNC_NATIVE=1 but no native binary was found." >&2
+            echo "  Build one with: cargo build --release" >&2
+            exit 1
+        fi
+        return 1
+    fi
+
+    # A child process, not exec: the EXIT trap must still remove the run tmpdir.
+    local rc=0
+    AGENTSYNC_ENGINE_VERSION="$VERSION" "$bin" "$@" || rc=$?
+    exit "$rc"
+}
+
 # ─── Main ────────────────────────────────────────────────────────────────────
 main() {
     local command="${1:-help}"
@@ -294,6 +345,10 @@ main() {
             esac
             ;;
     esac
+
+    # `|| true`: falling through to Bash is a return 1, which errexit would
+    # otherwise treat as a failed command and abort the run.
+    _native_try "$@" || true
 
     case "$command" in
         init)          _need prompts yaml logging tool_resolver template_manifest paths filters file_ops manifest tmp backup adopt format init; shift; cmd_init "$@" ;;

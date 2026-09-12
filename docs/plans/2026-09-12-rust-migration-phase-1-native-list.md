@@ -427,7 +427,7 @@ git commit -m "feat(native): scaffold the Rust engine with a version command"
 - Consumes: the binary contract from Task 1 (`AGENTSYNC_ENGINE_VERSION` guard).
 - Produces: `_NATIVE_COMMANDS` (space-padded list), `_native_bin` (prints the binary path or returns 1), `_native_try "$@"` (exits with the binary's status or returns 1 to fall through); the env contract `AGENTSYNC_NATIVE` ∈ {`0`, `1`, unset} and `AGENTSYNC_NATIVE_BIN`.
 
-- [ ] **Step 1: Write the failing tests `tests/native_dispatch.bats`**
+- [x] **Step 1: Write the failing tests `tests/native_dispatch.bats`**
 
 ```bash
 #!/usr/bin/env bats
@@ -502,12 +502,12 @@ teardown() { teardown_test_project; }
 }
 ```
 
-- [ ] **Step 2: Run them, confirm they fail**
+- [x] **Step 2: Run them, confirm they fail**
 
 Run: `bats tests/native_dispatch.bats`
 Expected: the first three and the last test fail (`version` is answered by Bash, status 0); the other three pass by accident, which is fine.
 
-- [ ] **Step 3: Default the suite to Bash in `tests/test_helper.bash`**
+- [x] **Step 3: Default the suite to Bash in `tests/test_helper.bash`**
 
 Insert after the `unset AGENTSYNC_ALLOW_POST_SYNC ...` line:
 
@@ -518,18 +518,15 @@ Insert after the `unset AGENTSYNC_ALLOW_POST_SYNC ...` line:
 export AGENTSYNC_NATIVE="${AGENTSYNC_NATIVE:-0}"
 ```
 
-- [ ] **Step 4: Add the delegation to `bin/agentsync.sh`**
+- [x] **Step 4: Add the delegation to `bin/agentsync.sh`**
 
 Insert before `# ─── Main ───`:
 
 ```bash
 # ─── Native engine delegation ───────────────────────────────────────────────
-# Commands ported to the Rust engine run there when a binary is available:
-#   AGENTSYNC_NATIVE=0   always Bash
-#   AGENTSYNC_NATIVE=1   require the binary, fail loudly without one
-#   unset                use the binary when one is found
-# AGENTSYNC_NATIVE_BIN names the binary explicitly; otherwise a release build
-# in the engine checkout or an installed binary beside this script is used.
+# Public env contract: AGENTSYNC_NATIVE is "0" to force Bash, "1" to require
+# the native binary and fail loudly without one, unset to use one when found;
+# AGENTSYNC_NATIVE_BIN names the binary explicitly.
 _NATIVE_COMMANDS=" version --version -v "
 
 _native_bin() {
@@ -581,12 +578,19 @@ _native_try() {
 Inside `main`, insert one line after the `--help` interception `case` block and before `case "$command" in` / `init)`:
 
 ```bash
-    _native_try "$@"
+    # `|| true`: falling through to Bash is a return 1, which errexit would
+    # otherwise treat as a failed command and abort the run.
+    _native_try "$@" || true
 ```
+
+`|| true` is load-bearing, not defensive: `_native_try` signals "stay in Bash"
+with `return 1`, and a bare call of it under `set -euo pipefail` aborts `main`
+before the dispatch `case` — every command, ported or not, exits 1 with no
+output. Amended after `bats tests/cli.bats` went 0/8 on the first write.
 
 Delegation sits after `check_for_updates` and the `--help` interception on purpose: the update banner, the format notice, and `<cmd> --help` keep their Bash behaviour for every command.
 
-- [ ] **Step 5: Run the tests, confirm green**
+- [x] **Step 5: Run the tests, confirm green**
 
 ```bash
 bats tests/native_dispatch.bats tests/cli.bats
@@ -595,7 +599,7 @@ shellcheck -x -S warning -e SC1091 bin/agentsync.sh
 
 Expected: 7 + 8 tests pass; ShellCheck exits 0.
 
-- [ ] **Step 6: Prove the real binary goes through the dispatcher**
+- [x] **Step 6: Prove the real binary goes through the dispatcher**
 
 ```bash
 cargo build --release
@@ -605,7 +609,7 @@ AGENTSYNC_NATIVE=1 AGENTSYNC_HOME="$PWD" bash bin/agentsync.sh version
 
 Expected: 8 tests pass; the last command prints `agentsync v0.35.2` (or the current `VERSION`).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add bin/agentsync.sh tests/test_helper.bash tests/native_dispatch.bats
@@ -2244,3 +2248,10 @@ Before reporting Phase 1 done, produce the completion receipt from `verification
 - Plan amended: none. Two mechanical deviations from the pasted snippets, both required by `rustfmt` and reported: the `StaleBinary` `#[error(...)]` string wraps onto its own line, and the `matches!` in `run()` wraps its arguments. No behaviour change; `cargo fmt --all --check` is clean.
 - Next: Task 2 Step 1 — write `tests/native_dispatch.bats`, the failing tests for the dispatcher in `bin/agentsync.sh`.
 - Blocker: none. Note for the next run: `cargo` needs the sandbox disabled to write `~/.cargo/registry`; it is not in the sandbox write allowlist.
+
+### 2026-09-12 — Task 2 done
+- Commits: `feat(cli): delegate ported commands to the native engine`; also in this run, outside the plan, `f33223f docs(native): add phase 7 to retire bats and name the shell floor` — the user set the target at no Bash left, so the 43 `.bats` files got their own phase after Phase 6, and the two scripts that survive every phase are now named in the spec with the reason each cannot be a binary.
+- Verified: `tests/native_dispatch.bats` failed 1, 2, 3 and 7 before the dispatcher existed and 4, 5, 6 passed by accident, exactly as Step 2 predicts; after Step 4, `bats tests/native_dispatch.bats tests/cli.bats` → 15 ok, 0 not ok; `shellcheck -x -S warning -e SC1091 bin/agentsync.sh` → exit 0; `AGENTSYNC_NATIVE=1 bats tests/cli.bats` → 8 ok, answered by `target/release/agentsync`; `AGENTSYNC_NATIVE=1 AGENTSYNC_HOME="$PWD" bash bin/agentsync.sh version` → `agentsync v0.35.2`; full suite `bats --jobs 4 tests/ --tap` → bats exit 0, plan `1..733`, 733 ok, 0 not ok.
+- Plan amended: Step 4's `main` insertion. The snippet's bare `_native_try "$@"` aborts `main` under `set -euo pipefail`, because falling through to Bash is a `return 1` — `bats tests/cli.bats` went 0/8 on the first write, every command exiting 1 with no output. Now `_native_try "$@" || true`, with the reason in the plan. Step 4's comment block was also reworded: the comment gate reads `#   AGENTSYNC_NATIVE=0   always Bash` as commented-out code, so the env contract is one prose sentence and the binary lookup order is left to `_native_bin` below.
+- Next: Task 3 Step 1 — write `src/yaml_subset.rs` with its failing unit tests, mirroring `lib/helpers/yaml.sh`.
+- Blocker: none.

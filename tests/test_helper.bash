@@ -8,6 +8,11 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Out-of-repo trust signals from the developer's shell must not leak into tests.
 unset AGENTSYNC_ALLOW_POST_SYNC AGENTSYNC_SKIP_POST_SYNC AGENTSYNC_SKIP_HOOKS
 
+# Ported commands run in Bash unless a run opts into the native engine
+# (`AGENTSYNC_NATIVE=1 bats tests/`), so a stray release build never changes
+# what the suite exercises.
+export AGENTSYNC_NATIVE="${AGENTSYNC_NATIVE:-0}"
+
 # The developer's own git config must not decide test outcomes — a global
 # core.hooksPath, for one, moves where hooks are installed. A path that does not
 # exist reads as empty config on every platform, where /dev/null is a device

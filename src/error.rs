@@ -1,0 +1,30 @@
+use std::path::PathBuf;
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("{}: {source}", .path.display())]
+    Io {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("Repository root not found: {}", .0.display())]
+    ProjectRootNotFound(PathBuf),
+    #[error(
+        "native binary is v{binary} but the engine is v{engine}. Rebuild it: cargo build --release"
+    )]
+    StaleBinary { binary: String, engine: String },
+}
+
+impl Error {
+    pub fn io(path: impl Into<PathBuf>, source: std::io::Error) -> Self {
+        Self::Io {
+            path: path.into(),
+            source,
+        }
+    }
+
+    pub fn is_broken_pipe(&self) -> bool {
+        matches!(self, Self::Io { source, .. } if source.kind() == std::io::ErrorKind::BrokenPipe)
+    }
+}

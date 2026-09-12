@@ -134,7 +134,7 @@ git commit -m "fix(list): survive a tool override without enabled: true"
 - Consumes: the `VERSION` file.
 - Produces: `agentsync::engine_version() -> &'static str`; `agentsync::Error` with `Error::io(path, source)`, `Error::ProjectRootNotFound(PathBuf)`, `Error::StaleBinary { binary, engine }`, `Error::is_broken_pipe()`; `agentsync::cli::{Cli, Command}`; the binary `target/release/agentsync` printing `agentsync v<VERSION>` for `version`, `--version`, `-v`, and refusing to run when `AGENTSYNC_ENGINE_VERSION` names another version.
 
-- [ ] **Step 1: Write `Cargo.toml`**
+- [x] **Step 1: Write `Cargo.toml`**
 
 ```toml
 [package]
@@ -168,7 +168,7 @@ lto = true
 strip = true
 ```
 
-- [ ] **Step 2: Write the failing integration test `tests/cli.rs`**
+- [x] **Step 2: Write the failing integration test `tests/cli.rs`**
 
 ```rust
 use assert_cmd::Command;
@@ -222,12 +222,12 @@ fn a_matching_engine_version_is_accepted() {
 }
 ```
 
-- [ ] **Step 3: Run it, confirm it fails**
+- [x] **Step 3: Run it, confirm it fails**
 
 Run: `cargo test`
 Expected: compilation error, `src/main.rs` and `src/lib.rs` do not exist.
 
-- [ ] **Step 4: Write `src/error.rs`**
+- [x] **Step 4: Write `src/error.rs`**
 
 ```rust
 use std::path::PathBuf;
@@ -260,7 +260,7 @@ impl Error {
 }
 ```
 
-- [ ] **Step 5: Write `src/lib.rs`**
+- [x] **Step 5: Write `src/lib.rs`**
 
 ```rust
 //! AgentSync native engine. `main.rs` is the only place that talks to the
@@ -277,7 +277,7 @@ pub fn engine_version() -> &'static str {
 }
 ```
 
-- [ ] **Step 6: Write `src/cli/mod.rs`**
+- [x] **Step 6: Write `src/cli/mod.rs`**
 
 ```rust
 use clap::{Parser, Subcommand};
@@ -306,7 +306,7 @@ pub enum Command {
 }
 ```
 
-- [ ] **Step 7: Write `src/main.rs`**
+- [x] **Step 7: Write `src/main.rs`**
 
 ```rust
 use std::ffi::OsString;
@@ -363,7 +363,7 @@ fn guard_engine_version() -> Result<(), Error> {
 }
 ```
 
-- [ ] **Step 8: Run the tests and the lints, confirm green**
+- [x] **Step 8: Run the tests and the lints, confirm green**
 
 ```bash
 cargo test
@@ -373,7 +373,7 @@ cargo clippy --all-targets -- -D warnings
 
 Expected: 4 tests pass; both lints exit 0.
 
-- [ ] **Step 9: Ignore the build directory**
+- [x] **Step 9: Ignore the build directory**
 
 Append to `.gitignore`, after the `# Temporary agent task bundles` block:
 
@@ -382,7 +382,7 @@ Append to `.gitignore`, after the `# Temporary agent task bundles` block:
 /target/
 ```
 
-- [ ] **Step 10: Add the `native` CI job**
+- [x] **Step 10: Add the `native` CI job**
 
 Append to `.github/workflows/ci.yaml` under `jobs:`:
 
@@ -407,7 +407,7 @@ Append to `.github/workflows/ci.yaml` under `jobs:`:
       - run: cargo build --release
 ```
 
-- [ ] **Step 11: Commit**
+- [x] **Step 11: Commit**
 
 ```bash
 git add Cargo.toml Cargo.lock src/ tests/cli.rs .gitignore .github/workflows/ci.yaml
@@ -2237,3 +2237,10 @@ Before reporting Phase 1 done, produce the completion receipt from `verification
 - Plan amended: none.
 - Next: Task 1 Step 1 — create `Cargo.toml` for the crate scaffold. Note for the next run: `cargo` is not on the agent shell's `PATH` (the profile snapshot predates the install); invoke it as `/Users/yelamanyelmuratov/.cargo/bin/cargo` or prepend `/Users/yelamanyelmuratov/.cargo/bin` to `PATH`.
 - Blocker: none.
+
+### 2026-09-12 — Task 1 done
+- Commits: `feat(native): scaffold the Rust engine with a version command`
+- Verified: `cargo test` before the modules existed failed to compile `tests/cli.rs` (`environment variable CARGO_BIN_EXE_agentsync not defined`, no binary target yet) — red for the right reason; after Steps 4–7, `cargo test` → 4 passed, 0 failed; `cargo fmt --all --check` → exit 0; `cargo clippy --all-targets -- -D warnings` → exit 0; `cargo build --release` → `target/release/agentsync` prints `agentsync v0.35.2`, byte-identical to `bash bin/agentsync.sh version`; `git check-ignore -v target` → `.gitignore:34:/target/`.
+- Plan amended: none. Two mechanical deviations from the pasted snippets, both required by `rustfmt` and reported: the `StaleBinary` `#[error(...)]` string wraps onto its own line, and the `matches!` in `run()` wraps its arguments. No behaviour change; `cargo fmt --all --check` is clean.
+- Next: Task 2 Step 1 — write `tests/native_dispatch.bats`, the failing tests for the dispatcher in `bin/agentsync.sh`.
+- Blocker: none. Note for the next run: `cargo` needs the sandbox disabled to write `~/.cargo/registry`; it is not in the sandbox write allowlist.

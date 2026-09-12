@@ -115,3 +115,22 @@ jobs:
           printf 'shard %s/%s: %d files\n' "$SHARD" "$TOTAL" "${#mine[@]}"
           printf '  %s\n' "${mine[@]}"
           bats "${mine[@]}" --tap
+
+  native:
+    name: Native engine (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+      - run: cargo build --release

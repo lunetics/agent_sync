@@ -40,7 +40,7 @@ cargo --version && rustc --version
 
 Expected: `cargo 1.8x` or newer and a matching `rustc`; both at least 1.85.
 
-- [ ] **Step 2: Branch off `main`**
+- [x] **Step 2: Branch off `main`**
 
 ```bash
 git -C /Users/yelamanyelmuratov/Development/agent_sync/agent status --short
@@ -2219,3 +2219,14 @@ Before reporting Phase 1 done, produce the completion receipt from `verification
 - Each Global Constraint mapped to the file that satisfies it.
 - Fresh output of: `cargo test`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check`, `shellcheck` over the shell entry points, `bats --jobs 4 tests/ --tap` in both `AGENTSYNC_NATIVE` modes, and the `native` CI job green on all three runners.
 - The language decision gate from the design spec: how long Tasks 1–7 took and whether Rust velocity is acceptable before Phase 2's plan is written.
+
+---
+
+## Run log
+
+### 2026-09-12 — Task 0 blocked at Step 1 (no Rust toolchain)
+- Commits: `docs(native): log run 2026-09-12`
+- Verified: `git switch -c feat/native-engine-phase-1 main` → `Switched to a new branch 'feat/native-engine-phase-1'`, `git status --short` empty (Task 0 Step 2 done); `command -v cargo` → not found, so Task 0 Step 1 is unmet and Step 3's baseline was not run.
+- Plan amended: none. The design spec's `Status:` line moved from `Proposed` to `In progress since 2026-09-12` with this first commit on the phase branch.
+- Next: Task 0 Step 1 — install the toolchain, then Step 3's baseline (`bats --jobs 4 tests/ --tap`, ShellCheck over the shell entry points), then Task 0b Step 1.
+- Blocker: `command -v cargo` prints nothing. Needs, on this machine: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile default` then `. "$HOME/.cargo/env"`, until `cargo --version && rustc --version` both report 1.85 or newer. This command never installs a toolchain.

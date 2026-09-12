@@ -1,7 +1,7 @@
 # Rust Engine Migration
 
 Date: 2026-09-12
-Status: Proposed. Phase 1 is planned in
+Status: In progress since 2026-09-12. Phase 1 is planned in
 `docs/plans/2026-09-12-rust-migration-phase-1-native-list.md`.
 
 ## Objective

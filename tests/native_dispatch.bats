@@ -61,6 +61,14 @@ teardown() { teardown_test_project; }
     [[ "$output" == agentsync\ v* ]]
 }
 
+@test "native: --help for a ported command still prints the Bash usage" {
+    export AGENTSYNC_NATIVE=1
+    run run_agentsync list --help
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"COMMANDS"* ]]
+    [[ "$output" != *"native:"* ]]
+}
+
 @test "native: AGENTSYNC_NATIVE=1 without a binary fails loudly" {
     export AGENTSYNC_NATIVE=1
     export AGENTSYNC_NATIVE_BIN="$TEST_PROJECT/missing"

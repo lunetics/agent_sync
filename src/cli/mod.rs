@@ -1,3 +1,5 @@
+pub mod list;
+
 use clap::{Parser, Subcommand};
 
 /// Argument surface of the ported commands. `bin/agentsync.sh` delegates only
@@ -21,4 +23,7 @@ pub enum Command {
     /// Print the engine version.
     #[command(disable_help_flag = true)]
     Version,
+    /// Show available tools and their status.
+    #[command(visible_alias = "ls", disable_help_flag = true)]
+    List,
 }

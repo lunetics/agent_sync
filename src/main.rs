@@ -2,7 +2,9 @@ use std::ffi::OsString;
 use std::io::Write;
 use std::process::ExitCode;
 
-use agentsync::cli::{Cli, Command};
+use agentsync::cli::{self, Cli, Command};
+use agentsync::project::Project;
+use agentsync::style::Style;
 use agentsync::{Error, engine_version};
 use clap::Parser;
 
@@ -12,7 +14,8 @@ fn main() -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) if e.is_broken_pipe() => ExitCode::SUCCESS,
         Err(e) => {
-            eprintln!("Error: {e}");
+            // Bash decides colour from stdout even for stderr lines; same here.
+            eprintln!("{}: {e}", Style::for_stdout().red("Error"));
             ExitCode::from(1)
         }
     }
@@ -30,6 +33,11 @@ fn run(args: Vec<OsString>) -> Result<(), Error> {
     let cli = Cli::parse_from(std::iter::once(OsString::from("agentsync")).chain(args));
     match cli.command {
         Command::Version => print_version(),
+        Command::List => {
+            let project = Project::discover()?;
+            let mut out = std::io::stdout().lock();
+            cli::list::run(&project, &Style::for_stdout(), &mut out)
+        }
     }
 }
 

@@ -47,3 +47,47 @@ fn a_matching_engine_version_is_accepted() {
         .assert()
         .success();
 }
+
+#[test]
+fn list_works_without_a_project_config() {
+    let dir = tempfile::tempdir().unwrap();
+    agentsync()
+        .current_dir(dir.path())
+        .arg("list")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("  AgentSync Tools\n"))
+        .stdout(predicate::str::contains("Claude Code"))
+        .stdout(predicate::str::contains("  0 of 13 enabled\n"))
+        .stdout(predicate::str::contains("Enable a tool:"));
+}
+
+#[test]
+fn ls_is_an_alias_for_list() {
+    let dir = tempfile::tempdir().unwrap();
+    agentsync()
+        .current_dir(dir.path())
+        .arg("ls")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("  AgentSync Tools\n"));
+}
+
+#[test]
+fn list_counts_configured_tools_and_honours_the_repo_root_variable() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join(".ai")).unwrap();
+    std::fs::write(
+        dir.path().join(".ai/agent_sync.yaml"),
+        "tools:\n  enabled:\n    - claude\n",
+    )
+    .unwrap();
+    agentsync()
+        .env("AGENTSYNC_REPO_ROOT", dir.path())
+        .arg("list")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("  1 of 13 enabled\n"))
+        .stdout(predicate::str::contains("Customize a tool:"))
+        .stdout(predicate::str::contains("Enable a tool:").not());
+}

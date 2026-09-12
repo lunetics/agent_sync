@@ -1520,7 +1520,7 @@ git commit -m "feat(native): locate payload overrides"
 - Consumes: `Project`, `Tool`, `catalog::base_tools`, `payload::*`.
 - Produces: `Style::for_stdout()`, `Style::plain()`, `bold/green/cyan/yellow/red/dim(&str) -> String`, `style::pad_right(&str, usize) -> String`; `cli::list::render(&Project, &Style) -> Result<String>` and `cli::list::run(&Project, &Style, &mut impl Write)`; `agentsync list` and `agentsync ls` byte-identical to `lib/helpers/list.sh`.
 
-- [ ] **Step 1: Add the failing smoke tests to `tests/cli.rs`**
+- [x] **Step 1: Add the failing smoke tests to `tests/cli.rs`**
 
 ```rust
 #[test]
@@ -1568,12 +1568,12 @@ fn list_counts_configured_tools_and_honours_the_repo_root_variable() {
 }
 ```
 
-- [ ] **Step 2: Run them, confirm they fail**
+- [x] **Step 2: Run them, confirm they fail**
 
 Run: `cargo test --test cli list`
 Expected: 3 failures, clap reports `unrecognized subcommand 'list'`.
 
-- [ ] **Step 3: Write `src/style.rs`**
+- [x] **Step 3: Write `src/style.rs`**
 
 ```rust
 //! Colour helpers matching `lib/helpers/cli_colors.sh`: decided once from
@@ -1669,7 +1669,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 4: Write `src/cli/list.rs`**
+- [x] **Step 4: Write `src/cli/list.rs`**
 
 ```rust
 //! `agentsync list`: the tool catalog with per-project status, byte for byte
@@ -1851,7 +1851,7 @@ mod tests {
 
 The two unit tests assert exact rows. If one fails on spacing, compare against `AGENTSYNC_NATIVE=0 agentsync list | cat -A` on the same fixture before touching the format string: the Bash row is `printf "    %s %s  %-22s %-13s %-10s  %s\n"`.
 
-- [ ] **Step 5: Add `List` to `src/cli/mod.rs`**
+- [x] **Step 5: Add `List` to `src/cli/mod.rs`**
 
 ```rust
 pub mod list;
@@ -1885,7 +1885,7 @@ pub enum Command {
 }
 ```
 
-- [ ] **Step 6: Dispatch `List` in `src/main.rs`**
+- [x] **Step 6: Dispatch `List` in `src/main.rs`**
 
 ```rust
 use std::ffi::OsString;
@@ -1952,12 +1952,12 @@ fn guard_engine_version() -> Result<(), Error> {
 
 Add `pub mod style;` to `src/lib.rs` between `pub mod project;` and `pub mod tool;`.
 
-- [ ] **Step 7: Run the Rust tests, confirm green**
+- [x] **Step 7: Run the Rust tests, confirm green**
 
 Run: `cargo test`
 Expected: every test passes, including the 3 new smoke tests and the 2 `list` unit tests.
 
-- [ ] **Step 8: Declare `list` ported in `bin/agentsync.sh`**
+- [x] **Step 8: Declare `list` ported in `bin/agentsync.sh`**
 
 Change the list to:
 
@@ -1965,7 +1965,7 @@ Change the list to:
 _NATIVE_COMMANDS=" version --version -v list ls "
 ```
 
-- [ ] **Step 9: Add the `--help` guard to `tests/native_dispatch.bats`**
+- [x] **Step 9: Add the `--help` guard to `tests/native_dispatch.bats`**
 
 ```bash
 @test "native: --help for a ported command still prints the Bash usage" {
@@ -1977,7 +1977,7 @@ _NATIVE_COMMANDS=" version --version -v list ls "
 }
 ```
 
-- [ ] **Step 10: Run the bats files in both modes, confirm green**
+- [x] **Step 10: Run the bats files in both modes, confirm green**
 
 ```bash
 cargo build --release
@@ -1988,7 +1988,7 @@ shellcheck -x -S warning -e SC1091 bin/agentsync.sh
 
 Expected: 8 + 8 + 8 tests pass in each mode; ShellCheck exits 0.
 
-- [ ] **Step 11: Lint and commit**
+- [x] **Step 11: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings
@@ -2277,4 +2277,11 @@ Before reporting Phase 1 done, produce the completion receipt from `verification
 - Verified: `cargo test payload` → both `payload::` tests pass; `cargo test` → 30 unit + 4 integration, 0 failed; `cargo fmt --all --check` → exit 0 with no reflow needed; `cargo clippy --all-targets -- -D warnings` → exit 0. The legacy paths were confirmed against Bash with `REPO_ROOT=/tmp/proj`: `_payload_override_legacy_path claude settings` → `/tmp/proj/.ai/src/settings/claude.json`, `claude hooks` → empty, `codex settings` → `/tmp/proj/.ai/src/settings/codex.toml` — the three values the unit test asserts.
 - Plan amended: none. Read against `lib/helpers/tool_resolver.sh:257-269` (`_find_new_payload_override`, glob `<resource>.*` with the first existing file winning) and `:272-280` (`_payload_override_legacy_path`, extension taken from `_find_base_payload` at `:214-236`, which falls back to the `base:` tool exactly as `Tool::base_payload` does).
 - Next: Task 6 Step 1 — write `src/style.rs`, the mirror of `lib/helpers/cli_colors.sh`.
+- Blocker: none.
+
+### 2026-09-12 — Task 6 done, `list` is the first ported command
+- Commits: `feat(native): port list`
+- Verified: the three smoke tests failed first with clap's `unrecognized subcommand 'list'`, exit 2, as Step 2 predicts. After the port, `cargo test` → 35 unit + 7 integration, 0 failed, including the two `cli::list` tests that assert exact table rows; `cargo fmt --all --check` → exit 0 after `cargo fmt --all` reflowed four assertions and one `push_str`; `cargo clippy --all-targets -- -D warnings` → exit 0. `cargo build --release`, then `bats tests/list.bats tests/cli.bats tests/native_dispatch.bats --tap` → `1..24`, 24 ok in Bash mode and 24 ok under `AGENTSYNC_NATIVE=1`; `shellcheck -x -S warning -e SC1091 bin/agentsync.sh` → exit 0. Byte parity on a real fixture, this repository itself (25 lines, `2 of 13 enabled, 1 payload override(s)`, shared-MCP line present): `diff <(AGENTSYNC_NATIVE=0 … list) <(AGENTSYNC_NATIVE=1 … list)` → no output.
+- Plan amended: none. `lib/helpers/list.sh:120` (`printf "    %s %s  %-22s %-13s %-10s  %s\n"`) and `lib/helpers/cli_colors.sh:5-13` were read before writing; the escape codes and the `NO_COLOR` rule (colour only when stdout is a terminal and `NO_COLOR` is unset or empty) match the port.
+- Next: Task 7 Step 1 — write `tests/native_parity.bats`.
 - Blocker: none.

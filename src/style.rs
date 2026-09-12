@@ -1,0 +1,91 @@
+//! Colour helpers matching `lib/helpers/cli_colors.sh`: decided once from
+//! stdout being a terminal and `NO_COLOR` being unset or empty.
+
+use std::io::IsTerminal;
+
+#[derive(Clone, Copy, Debug)]
+pub struct Style {
+    enabled: bool,
+}
+
+impl Style {
+    pub fn for_stdout() -> Self {
+        let no_color = std::env::var_os("NO_COLOR").is_some_and(|v| !v.is_empty());
+        Self {
+            enabled: std::io::stdout().is_terminal() && !no_color,
+        }
+    }
+
+    pub const fn plain() -> Self {
+        Self { enabled: false }
+    }
+
+    pub fn bold(&self, s: &str) -> String {
+        self.wrap("1", s)
+    }
+
+    pub fn green(&self, s: &str) -> String {
+        self.wrap("32", s)
+    }
+
+    pub fn cyan(&self, s: &str) -> String {
+        self.wrap("36", s)
+    }
+
+    pub fn yellow(&self, s: &str) -> String {
+        self.wrap("33", s)
+    }
+
+    pub fn red(&self, s: &str) -> String {
+        self.wrap("31", s)
+    }
+
+    pub fn dim(&self, s: &str) -> String {
+        self.wrap("2", s)
+    }
+
+    fn wrap(&self, code: &str, s: &str) -> String {
+        if self.enabled {
+            format!("\x1b[{code}m{s}\x1b[0m")
+        } else {
+            s.to_string()
+        }
+    }
+}
+
+/// Left-align `s` in `width` cells the way Bash `printf '%-Ns'` does: escape
+/// bytes of a styled string count, so coloured columns drift exactly as they
+/// do today (design spec, "Known quirks", item 6).
+pub fn pad_right(s: &str, width: usize) -> String {
+    let len = s.chars().count();
+    if len >= width {
+        s.to_string()
+    } else {
+        format!("{s}{}", " ".repeat(width - len))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plain_style_returns_the_text_unchanged() {
+        assert_eq!(Style::plain().red("x"), "x");
+    }
+
+    #[test]
+    fn enabled_style_wraps_with_the_bash_escape_codes() {
+        let style = Style { enabled: true };
+        assert_eq!(style.bold("x"), "\x1b[1mx\x1b[0m");
+        assert_eq!(style.dim("x"), "\x1b[2mx\x1b[0m");
+        assert_eq!(style.green("x"), "\x1b[32mx\x1b[0m");
+    }
+
+    #[test]
+    fn padding_counts_every_character_including_escapes() {
+        assert_eq!(pad_right("ab", 4), "ab  ");
+        assert_eq!(pad_right("abcdef", 4), "abcdef");
+        assert_eq!(pad_right(&Style { enabled: true }.dim("ab"), 12).len(), 12);
+    }
+}

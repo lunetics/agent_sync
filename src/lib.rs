@@ -6,6 +6,7 @@ pub mod cli;
 pub mod error;
 pub mod payload;
 pub mod project;
+pub mod style;
 pub mod tool;
 pub mod yaml_subset;
 

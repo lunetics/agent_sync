@@ -21,7 +21,7 @@ The result must preserve AgentSync's existing properties:
 - The guard hook stays plain POSIX `sh`: a teammate without the CLI must still
   be protected.
 - The 725-test bats suite stays the behavioural contract and runs against the
-  binary.
+  binary, until Phase 7 rewrites it as Rust integration tests.
 
 ## Why
 
@@ -262,9 +262,44 @@ Exit: first binary release; README and `.ai/src/AGENTS.md` updated; the
 
 Delete `lib/*.sh` and `bin/agentsync.sh`; port the Bash-unit bats files
 (`files`, `paths`, `backup`, `tmp`, `gitignore`, `update_snapshot`) to Rust
-unit tests; keep the CLI-level bats files as the conformance suite; remove
-`_native_try`, `AGENTSYNC_NATIVE`, and the Windows shard matrix; ShellCheck
-covers only the guard and installer scripts that remain.
+unit tests; keep the CLI-level bats files as the conformance suite until
+Phase 7 retires them; remove `_native_try`, `AGENTSYNC_NATIVE`, and the
+Windows shard matrix; ShellCheck covers only the guard and installer scripts
+that remain.
+
+### Phase 7 — Retire bats
+
+Port the CLI-level conformance suite (43 `.bats` files, 733 tests at the start
+of Phase 1) to Rust integration tests on `assert_cmd`, the shape
+`tests/cli.rs` already uses: one commit per bats file, Rust test names copied
+from the bats test names so a reviewer can map them one to one. Delete
+`tests/test_helper.bash`, drop bats and GNU parallel from CI, and remove the
+Windows sharding scaffolding.
+
+This cannot move earlier. The suite is the only proof of parity while both
+engines exist: the same test grades Bash under `AGENTSYNC_NATIVE=0` and the
+binary under `=1`. Rewriting it before Phase 6 would replace the contract with
+its own reimplementation. Once Bash is gone there is no second engine to grade,
+the argument expires, and bats becomes a dependency that costs a serial
+~58-minute Windows run (see the sharding comment in `.github/workflows/ci.yaml`).
+
+Exit: `cargo test` is the whole suite; no `.bats` file remains.
+
+### The shell floor
+
+Two shell scripts survive every phase, because a binary cannot do their job:
+
+- `lib/templates/guard/claude.sh` (50 lines of POSIX `sh`) — it runs in a
+  teammate's checkout where the CLI is not installed, which is the reason the
+  hook exists. The alternative is committing a per-platform binary into the
+  user's repository.
+- The installer — bootstrap: something must detect the platform and fetch the
+  binary before a binary exists. From Phase 5 cargo-dist generates it, so it
+  stops being hand-maintained code. `rustup` ships the same way.
+
+The text `shell-init` and `setup-hooks` emit stays shell because the shell
+`eval`s it and Git runs it as a hook; from Phase 4 the logic that produces that
+text is Rust, and the emitted snippet is a wrapper that calls the binary.
 
 ## Distribution
 

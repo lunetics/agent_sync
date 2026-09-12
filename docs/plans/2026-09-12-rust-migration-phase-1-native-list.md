@@ -2301,3 +2301,108 @@ Before reporting Phase 1 done, produce the completion receipt from `verification
 - Plan amended: Step 3's `git add` list. The sync updates `.ai/.sync-manifest`, which is tracked here, and its diff is exactly the two hashes for `AGENTS.md` and `CLAUDE.md`; leaving it out would leave `agentsync check` reporting drift, so the commit adds it too.
 - Next: close the phase. Append the `## Completion receipt` per the plan's `## Completion` section — every Global Constraint mapped to its file, fresh runs of `cargo test`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check`, ShellCheck over the shell entry points, and `bats --jobs 4 tests/ --tap` in both `AGENTSYNC_NATIVE` modes — then answer the language decision gate and stop for the user's verdict. The `native` CI job has not run yet: the branch is local, so that line of the receipt stays open until it is pushed.
 - Blocker: none.
+
+### 2026-09-13 — phase closed
+- Commits: `docs(native): close phase 1`
+- Verified: everything in the completion receipt below, all run fresh after the last code commit.
+- Plan amended: none.
+- Next: the user's verdict on the language decision gate, then `docs/plans/…-phase-2-….md` written from `.ai/src/commands/native-phase-plan.md`. The branch is not pushed and not merged; both are the user's call.
+- Blocker: the `native` CI job has never run — the branch is local. The receipt records that line as open.
+
+---
+
+## Completion receipt
+
+Phase 1 closed 2026-09-13. Every checkbox above is ticked; `version`, `--version`,
+`-v`, `list` and `ls` are served by the Rust binary when one is built.
+
+### Global Constraints
+
+| Constraint | Satisfied by | Evidence |
+| --- | --- | --- |
+| `.ai/src/` stays the source of truth; nothing writes under a user project | `src/` has no write outside `#[cfg(test)]` | `grep -rn 'fs::write\|create_dir_all' src/` returns only the `write()` helpers in the three test modules (`project.rs:118`, `payload.rs:68`, `cli/list.rs:152`) |
+| No binary ships to users; without one every command runs in Bash as in 0.35.2 | `bin/agentsync.sh:276-330` (`_native_try`, `_native_bin`) | `install.sh` untouched this phase; `native: without AGENTSYNC_NATIVE a missing binary falls back to Bash` in `tests/native_dispatch.bats`; `AGENTSYNC_NATIVE_BIN=/nonexistent bats tests/native_parity.bats` skips all 9 and exits 0 |
+| `bin/agentsync.sh` stays Bash 3.2-compatible and ShellCheck-clean | `bin/agentsync.sh` | the added code uses only `[[ ]]`, `local`, `for`, `echo` — no associative array, nameref or `mapfile`; `shellcheck -x -S warning -e SC1091` → exit 0 |
+| A ported command matches Bash byte for byte off a terminal | `tests/native_parity.bats` (9 fixtures) | `bats tests/native_parity.bats` → `1..9`, 9 ok; `diff` of `list` output on this repository's own `.ai/src/` (25 lines, `2 of 13 enabled, 1 payload override(s)`) → empty |
+| Terminal output uses the escape codes of `cli_colors.sh` | `src/style.rs` | `enabled_style_wraps_with_the_bash_escape_codes` asserts `\x1b[1m`, `\x1b[2m`, `\x1b[32m`, the codes at `lib/helpers/cli_colors.sh:8-13`; the `NO_COLOR` rule matches `:6`. Not exercised on a real terminal — bats never sees colour; deferred below |
+| Rust: `unsafe_code = "forbid"`, fmt and clippy clean, no YAML crate | `Cargo.toml:24`, `src/yaml_subset.rs` | dependencies are clap, include_dir, thiserror only; `yaml_subset` mirrors `lib/helpers/yaml.sh:13-235` |
+| `VERSION` is the only version source; `Cargo.toml` stays `0.0.0` | `src/lib.rs:17`, `Cargo.toml:5` | `include_str!("../VERSION")` in the crate and in `tests/cli.rs:5`; `a_stale_binary_refuses_to_run` covers the `AGENTSYNC_ENGINE_VERSION` guard |
+| Accepted deviations recorded in the design spec | `docs/specs/2026-09-12-rust-migration-design.md:337-345` | three lines: clap's exit 2 on stray arguments, byte-order slug sort, and `\r\n` read as `\n` |
+| Conventional Commits, scope `native`, no attribution trailers | the 11 commits on this branch | `git log --format='%b' main..HEAD` matches no `Co-Authored-By`, `Generated with`, or assistant signature |
+
+### Fresh verification, 2026-09-13, macOS aarch64, rustc 1.98.1
+
+| Command | Result |
+| --- | --- |
+| `cargo test` | 35 unit + 7 integration passed, 0 failed |
+| `cargo clippy --all-targets -- -D warnings` | exit 0 |
+| `cargo fmt --all --check` | exit 0 |
+| `cargo build --release` | `Finished release profile` in 7.17 s |
+| `shellcheck -x -S warning -e SC1091` over `bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh` | exit 0 |
+| `shellcheck` over `lib/templates/guard/claude.sh` | exit 0 |
+| `bats --jobs 4 tests/ --tap` | bats exit 0, `1..743`, 743 ok, 0 not ok |
+| `AGENTSYNC_NATIVE=1 bats --jobs 4 tests/ --tap` | bats exit 0, `1..743`, 743 ok, 0 not ok |
+
+743 = 725 at the 0.35.2 baseline + 1 `list` regression (Task 0b) + 8 dispatcher + 9 parity.
+
+### Timings
+
+The phase changed neither `sync` nor `check`, so the 13-tool fixture timing the
+spec asks for is not due. `list` on this repository, best of three:
+
+| Path | Wall time |
+| --- | --- |
+| `AGENTSYNC_NATIVE=0 … list` (Bash) | 0.54 s |
+| `AGENTSYNC_NATIVE=1 … list` (Bash dispatcher, then binary) | 0.02 s |
+| `target/release/agentsync list` (binary alone) | under 0.005 s |
+
+The dispatcher costs about 20 ms — that is Bash starting, resolving its version
+and sourcing `cli_colors`, `resolve` and `update` before it can delegate. It
+disappears at the Phase 5 cutover, when the binary becomes the entry point.
+
+### Skipped, deferred, open
+
+- **The `native` CI job has never run.** The branch is local and unpushed, so
+  "green on all three runners" is unverified. The job is defined in
+  `.github/workflows/ci.yaml` and runs fmt, clippy, `cargo test` and a release
+  build on Linux, macOS and Windows, plus the four ported bats files under
+  `AGENTSYNC_NATIVE=1` on the two Unix runners.
+- **Native bats on Windows is deferred to Phase 5 by design**, recorded in the
+  workflow: under Git Bash the POSIX paths in `AGENTSYNC_REPO_ROOT` and
+  `TMPDIR` never reach a native executable. `cargo test` still runs there.
+- **Colour on a real terminal is asserted by unit test only.** bats captures
+  output, so the escape codes have not been compared against Bash on a tty. A
+  `script`-driven check belongs in the phase that first prints colour a user
+  is likely to see interactively.
+- **`_NATIVE_COMMANDS` holds five entries**; every other command is Bash, which
+  is the phase's intent, not a gap.
+
+### Language decision gate
+
+The spec makes Go the fallback if the maintainer's velocity in Rust is not
+acceptable at this point. The evidence from this phase:
+
+- Tasks 1–7 — crate, dispatcher, YAML reader, config and tool layering, payload
+  discovery, `list`, parity suite — landed in seven commits between 23:01 and
+  23:55 on 2026-09-12; the whole branch, from the toolchain install through the
+  725-test baseline and the Bash prefactor, spans 22:11 to 00:01.
+- Three defects surfaced, all in the plan rather than in the language: a missing
+  lifetime annotation on `catalog::file_name` (E0106), a bare `_native_try` call
+  that `set -e` turned into an abort, and two parity fixtures that wrote into a
+  directory `clone_seed` does not create. The first is the only Rust-specific
+  one, and the compiler named the fix.
+- Nothing in the phase needed a borrow-checker fight, an explicit lifetime
+  beyond that one, `unsafe`, or a dependency outside the three planned crates.
+  The workload is what the spec predicted: files in, strings transformed,
+  strings out.
+- `Result` did the job it was chosen for: every filesystem call in `project.rs`
+  and `payload.rs` has a named failure, where the Bash original silently
+  returned empty — the `list` exit-1 bug fixed in Task 0b is exactly the class
+  of defect the type system removes.
+
+Recommendation: **stay on Rust**. The phase produced no evidence for the
+fallback. Note the honest limit of this measurement: the work executed a plan
+that already carried the design and most of the code, so it measures execution
+velocity, not design-from-scratch velocity in Rust.
+
+This gate is the user's call. Phase 2 is not planned until it is answered.

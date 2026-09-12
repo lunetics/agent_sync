@@ -966,7 +966,7 @@ git commit -m "feat(native): read the AgentSync YAML subset"
   - `catalog::base_tool_yaml(slug) -> Option<&'static str>`, `catalog::base_tools() -> Vec<String>`, `catalog::base_payload(resource, slug) -> Option<&'static include_dir::File<'static>>`.
   - `Tool { slug }` with `Tool::load(&Project, slug) -> Result<Tool>`, `base_name()`, `value(key_path) -> String`, `display_name()`, `base_payload(resource)`.
 
-- [ ] **Step 1: Write `src/catalog.rs`**
+- [x] **Step 1: Write `src/catalog.rs`**
 
 ```rust
 //! Templates shipped with the engine, embedded at build time from `lib/templates/`.
@@ -1005,7 +1005,9 @@ fn files_in(dir: &str) -> impl Iterator<Item = &'static File<'static>> {
     TEMPLATES.get_dir(dir).into_iter().flat_map(|found| found.files())
 }
 
-fn file_name(file: &File<'_>) -> Option<&str> {
+// `path()` borrows from the `File` reference, not from the embedded `'static`
+// bytes, so the returned name carries the reference's lifetime.
+fn file_name<'a>(file: &'a File<'_>) -> Option<&'a str> {
     file.path().file_name()?.to_str()
 }
 
@@ -1039,7 +1041,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Write `src/project.rs`**
+- [x] **Step 2: Write `src/project.rs`**
 
 ```rust
 //! The project being operated on: its root and `agent_sync.yaml`.
@@ -1216,7 +1218,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 3: Write `src/tool.rs`**
+- [x] **Step 3: Write `src/tool.rs`**
 
 ```rust
 //! Layered tool config: user override → shipped base → `base:` variant,
@@ -1348,7 +1350,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 4: Register the modules in `src/lib.rs`**
+- [x] **Step 4: Register the modules in `src/lib.rs`**
 
 ```rust
 //! AgentSync native engine. `main.rs` is the only place that talks to the
@@ -1369,12 +1371,12 @@ pub fn engine_version() -> &'static str {
 }
 ```
 
-- [ ] **Step 5: Run the tests, confirm green**
+- [x] **Step 5: Run the tests, confirm green**
 
 Run: `cargo test`
 Expected: the 15 `yaml_subset` tests plus 3 `catalog`, 5 `project`, 5 `tool` tests and the 4 integration tests pass.
 
-- [ ] **Step 6: Lint and commit**
+- [x] **Step 6: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings
@@ -2261,4 +2263,11 @@ Before reporting Phase 1 done, produce the completion receipt from `verification
 - Verified: `cargo test yaml_subset` → 15 passed, 0 failed, including the quirk test `an_empty_block_key_takes_the_next_dash_list_like_bash_does`; `cargo test` → 15 + 4 passed; `cargo fmt --all --check` → exit 0 after `cargo fmt --all` reflowed two expressions in `split_key` and `unwrap_quoted`; `cargo clippy --all-targets -- -D warnings` → exit 0. Step 4's Bash reference, read from the shipped Cursor template, is the literal `---\nglobs: '**/*'\nalwaysApply: true\n---` and an empty include list; a throwaway unit test over `include_str!("../lib/templates/tools/cursor.yaml")` confirmed `value` and `list` return the same, then was removed — Task 4 embeds the catalog with `include_dir!`, so a test pinned to a repo-relative path would be churn.
 - Plan amended: none. Before writing, the port was read against `lib/helpers/yaml.sh:13-30` (`_yaml_normalize_scalar_reply`), `:40-119` (`parse_yaml_value_r`) and `:133-235` (`parse_yaml_list`); the only divergence found is that Bash `[[:space:]]` includes a vertical tab and Rust's `is_ascii_whitespace` does not, which no config exercises.
 - Next: Task 4 Step 1 — write `src/catalog.rs`, the `include_dir!` embedding of `lib/templates/`.
+- Blocker: none.
+
+### 2026-09-12 — Task 4 done
+- Commits: `feat(native): resolve project config and layered tool values`
+- Verified: `cargo test` → 28 unit (15 `yaml_subset`, 3 `catalog`, 5 `project`, 5 `tool`) + 4 integration, 0 failed, the count Step 5 predicts; `cargo fmt --all --check` → exit 0 after `cargo fmt --all` expanded the one-line `if` in `display_name`; `cargo clippy --all-targets -- -D warnings` → exit 0. The layering assertions were confirmed against the Bash resolver rather than read off it: in a temp project with `.ai/src/tools/claude.yaml` holding only `base: cursor`, `get_tool_value claude targets.rules.extension` → empty and `targets.rules.dest` → `.claude/rules` (a shipped base answers even empty and blocks the variant fallback), and for a `claude-hub` variant `targets.rules.dest` → `.claude/rules` while `name` → empty, which is why `display_name` falls back to the slug. Catalog facts checked against `lib/templates/`: 13 tool YAMLs plus `_TEMPLATE`, `settings/claude.json` present, no `hooks/zed`.
+- Plan amended: Step 1's `file_name` helper. `fn file_name(file: &File<'_>) -> Option<&str>` does not compile — E0106, the return borrows from one of the `File`'s two lifetimes and the signature does not say which. Now `fn file_name<'a>(file: &'a File<'_>) -> Option<&'a str>`, since `path()` borrows from the reference and not from the embedded `'static` bytes.
+- Next: Task 5 Step 1 — write `src/payload.rs` with its tests.
 - Blocker: none.

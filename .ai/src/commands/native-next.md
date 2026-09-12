@@ -39,8 +39,8 @@ Run log of the current plan (the previous runs' handoff notes):
 
 Work through the list in order; the first matching line is this run's unit of work.
 
-1. If the highest-numbered phase is closed and the branch is ahead of `main`, stop and ask the user to merge and release. Merging, pushing, and releasing are not done by this command. After merging, the user runs this command from `main`, which is how a squash merge also reads as merged.
-2. If the current branch is not `feat/native-engine-phase-<n>` for the current phase, `git switch` to it, creating it from `main` (`git switch -c feat/native-engine-phase-<n> main`) when it does not exist. Nothing is committed on `main`.
+1. If Phase 5 is closed, stop and ask the user to merge and release: that is the cutover, the first version that ships a binary. Before Phase 5 a closed phase is not a release point — every phase accumulates on the one migration branch, because a half-migrated engine still ships the same Bash to users. Merging, pushing, and releasing are never done by this command.
+2. If the current branch is not the migration branch, `git switch` to it, creating it from `main` when it does not exist. One branch carries every phase. Nothing is committed on `main`.
 3. If the design spec, a plan, or the `.ai/src` migration tooling (skill `native-port`, commands `native-*`, rule `native-engine.md`) is untracked, commit it on the phase branch as `docs(native): …` before anything else. On that first commit set the spec's `Status:` line to `In progress since <today>`.
 4. If `cargo` is missing, stop. Print the rustup command from Phase 1 Task 0 Step 1 and ask the user to run it. A toolchain is never installed by this command.
 5. If the current phase has no plan with an unchecked task and is not closed, write the next plan by following `.ai/src/commands/native-phase-plan.md` (for Phase 4, the next command family named in the spec's Phase 4 section that has no plan yet), commit it as `docs(native): plan phase <n>`, and stop so the plan can be reviewed.
@@ -48,7 +48,7 @@ Work through the list in order; the first matching line is this run's unit of wo
 7. If every task of a plan is checked and that plan has no `## Completion receipt`, close it. See "Closing a phase".
 8. If Phase 6 is closed and `bin/agentsync.sh` no longer exists, report that the migration is complete and stop.
 
-Definitions. A plan is closed when it has no `- [ ]` left and carries a `## Completion receipt`. A phase is closed when every plan file for it is closed; Phase 4 additionally needs a plan for every command family named in the spec's Phase 4 section. The current phase is the highest phase number among the plan files, or that number plus one once that phase is closed and no longer ahead of `main`; with no plan files at all it is 1.
+Definitions. A plan is closed when it has no `- [ ]` left and carries a `## Completion receipt`. A phase is closed when every plan file for it is closed; Phase 4 additionally needs a plan for every command family named in the spec's Phase 4 section. The current phase is the highest phase number among the plan files, or that number plus one once that phase is closed; with no plan files at all it is 1. The migration branch is the one whose name starts with `feat/native-engine`; it stays checked out from Phase 1 to the cutover and is never merged before it.
 
 ## Executing a task
 

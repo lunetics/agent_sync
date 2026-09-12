@@ -181,9 +181,17 @@ decision, taken with the quirk list below in hand.
 
 ## Phases
 
-Each phase ends with the full suite green in both modes and a release from
-`main`. Phase 1 has an executable plan; each later phase gets its own plan when
-its turn comes, written against what the previous phase revealed.
+Each phase ends with the full suite green in both modes. Phase 1 has an
+executable plan; each later phase gets its own plan when its turn comes,
+written against what the previous phase revealed.
+
+Every phase lands on one long-lived branch, and nothing is released until the
+cutover. A half-migrated engine has nothing to offer a user — the binary does
+not ship before Phase 5, so a release from Phase 1 through 4 would carry the
+same Bash engine under a new version number, while asking every install to
+absorb the churn. The first release is Phase 5's, the one that replaces the
+git clone with a binary. Phase 6 and Phase 7 release as ordinary versions
+after it.
 
 ### Phase 1 — Foundation and `list`
 

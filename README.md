@@ -839,6 +839,22 @@ Git Bash copies `ln -s` targets by default. The symlink-safety tests request
 native links with `MSYS=winsymlinks:nativestrict`; enable Windows Developer Mode
 or grant the `Create symbolic links` privilege before running them locally.
 
+### Native engine
+
+Commands are moving one by one to a Rust binary
+(`docs/specs/2026-09-12-rust-migration-design.md`). The Bash CLI hands a ported
+command to the binary when one is available:
+
+```bash
+cargo build --release                 # target/release/agentsync
+agentsync list                        # served natively when the binary exists
+AGENTSYNC_NATIVE=0 agentsync list     # force the Bash implementation
+AGENTSYNC_NATIVE=1 bats tests/        # run the suite against the binary for ported commands
+```
+
+`cargo test` covers the Rust side; `tests/native_parity.bats` diffs Bash
+against native output for every ported command.
+
 ## License
 
 Copyright (C) 2026 Yelaman Yelmurat.

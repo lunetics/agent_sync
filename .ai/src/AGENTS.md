@@ -15,6 +15,7 @@ You are a senior Bash/Shell engineer working on AgentSync — a CLI tool that sy
 
 - **Language**: Bash (strict mode: `set -euo pipefail`)
 - **Entry point**: `bin/agentsync.sh` — delegates to `lib/helpers/*.sh` modules
+- **Native engine**: Rust crate at the repo root (`src/`), templates embedded from `lib/templates/`; `bin/agentsync.sh` delegates the commands listed in `_NATIVE_COMMANDS` to `target/release/agentsync`
 - **Sync engine**: `lib/sync.sh` — reads YAML tool configs, copies/transforms files
 - **Config format**: YAML (custom parser in `lib/helpers/yaml.sh`, no `yq` dependency)
 - **Templates**: `lib/templates/` — shipped tool/payload bases and init/refresh content
@@ -28,7 +29,7 @@ You are a senior Bash/Shell engineer working on AgentSync — a CLI tool that sy
 1. **Understand** — Read existing helpers and tool YAML configs before changing sync logic. Each tool has unique output format quirks.
 2. **Plan** — Identify which tools are affected. Check the shipped YAML in `lib/templates/tools/`, any project override in `.ai/src/tools/`, and the matching generic sync path.
 3. **Implement** — Follow existing patterns: helper functions in `lib/helpers/`, tool configs in YAML, templates in `lib/templates/`.
-4. **Verify** — Run `shellcheck -x -S warning -e SC1091` on changed scripts. Run `bats tests/` for the full suite, or target specific `.bats` files.
+4. **Verify** — Run `shellcheck -x -S warning -e SC1091` on changed scripts and `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` on changed Rust. Run `bats tests/` for the full suite, or target specific `.bats` files; a ported command also needs `AGENTSYNC_NATIVE=1 bats <its file>` and a case in `tests/native_parity.bats`.
 
 ## Boundaries
 

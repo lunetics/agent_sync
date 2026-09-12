@@ -2175,7 +2175,7 @@ git commit -m "test(native): diff Bash against native output for ported commands
 - Consumes: everything above.
 - Produces: the two places a contributor reads before touching the engine.
 
-- [ ] **Step 1: Add a subsection to `README.md` under `## Development`, before `## License`**
+- [x] **Step 1: Add a subsection to `README.md` under `## Development`, before `## License`**
 
 ````markdown
 ### Native engine
@@ -2195,7 +2195,7 @@ AGENTSYNC_NATIVE=1 bats tests/        # run the suite against the binary for por
 against native output for every ported command.
 ````
 
-- [ ] **Step 2: Update `.ai/src/AGENTS.md`**
+- [x] **Step 2: Update `.ai/src/AGENTS.md`**
 
 In `## Tech Stack`, after the `**Entry point**` line:
 
@@ -2211,7 +2211,7 @@ In `## Approach`, replace step 4 with:
 
 Then regenerate the local agent files: `bash bin/agentsync.sh sync` (outputs are gitignored in this repository).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add README.md .ai/src/AGENTS.md
@@ -2293,4 +2293,11 @@ Before reporting Phase 1 done, produce the completion receipt from `verification
 - Verified: `bats tests/native_parity.bats --tap` → `1..9`, 9 ok against the release binary; `AGENTSYNC_NATIVE_BIN=/nonexistent bats tests/native_parity.bats` → all 9 skipped, exit 0, so a checkout without a build stays green. Whole suite both ways: `bats --jobs 4 tests/ --tap` → bats exit 0, `1..743`, 743 ok, 0 not ok, and `AGENTSYNC_NATIVE=1 bats --jobs 4 tests/ --tap` → the same, which is the proof that a present binary leaves every unported command alone. 743 = 725 baseline + 1 `list` regression + 8 dispatcher + 9 parity, the count Step 5 predicts.
 - Plan amended: the last two fixtures in Step 1. `printf … > .ai/src/tools/mytool.yaml` and the `claude-hub.yaml` twin failed with `No such file or directory` — `clone_seed` leaves no `.ai/src/tools/`, which the earlier fixtures happen to create with their own `mkdir -p`. Both now create the directory first. A setup bug in the fixture, not an engine difference.
 - Next: Task 8 Step 1 — add the `### Native engine` subsection to `README.md` under `## Development`.
+- Blocker: none.
+
+### 2026-09-13 — Task 8 done, all 61 plan steps checked
+- Commits: `docs: describe the native engine and how to run it`
+- Verified: `bash bin/agentsync.sh sync` → `Synced 2/13 tools (11 skipped)`, backup `.ai/backups/20260912T190120Z-sync-6037`; the regenerated `CLAUDE.md` carries both new lines. The first attempt failed under the agent sandbox with `Can't create '.claude/commands/…': Operation not permitted` and rolled back whole — `[ERROR] Could not back up sync targets; no files were changed` — which is the transaction behaving as specified.
+- Plan amended: Step 3's `git add` list. The sync updates `.ai/.sync-manifest`, which is tracked here, and its diff is exactly the two hashes for `AGENTS.md` and `CLAUDE.md`; leaving it out would leave `agentsync check` reporting drift, so the commit adds it too.
+- Next: close the phase. Append the `## Completion receipt` per the plan's `## Completion` section — every Global Constraint mapped to its file, fresh runs of `cargo test`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check`, ShellCheck over the shell entry points, and `bats --jobs 4 tests/ --tap` in both `AGENTSYNC_NATIVE` modes — then answer the language decision gate and stop for the user's verdict. The `native` CI job has not run yet: the branch is local, so that line of the receipt stays open until it is pushed.
 - Blocker: none.

@@ -88,14 +88,15 @@ verified by the existing suite.
 
 ### Language
 
-Rust, for the reasons recorded in the discussion that produced this document:
+Rust. Confirmed at the Phase 1 gate on 2026-09-13 — the evidence is in that
+plan's completion receipt, and the Go fallback is closed. The original reasons,
+from the discussion that produced this document:
 `Result` forces every filesystem failure to be handled, `Path` is typed, the
 workload (files in, strings transformed, files out; no concurrency) is the easy
 part of the language, and cargo-dist produces the `curl | sh` installer,
-checksums, and release workflow. Go is the fallback if, at the end of Phase 1,
-the maintainer's velocity in Rust is not acceptable: the dispatcher, the parity
-suite, and the CI shape are language-agnostic, and only the crate would be
-replaced.
+checksums, and release workflow. Go was the fallback had velocity at the end of
+Phase 1 been unacceptable: the dispatcher, the parity suite, and the CI shape
+are language-agnostic, and only the crate would have been replaced.
 
 ## Architecture
 
@@ -358,8 +359,8 @@ Appended one line at a time as they are found, with the phase:
 - **Feature work during migration.** A feature on an unported command lands in
   Bash; after Phase 3 a feature on `sync` lands in Rust only. The dispatcher's
   list makes the owner explicit.
-- **Maintainer velocity.** The decision gate at the end of Phase 1 exists for
-  this; Go is the fallback with the same architecture.
+- **Maintainer velocity.** The decision gate at the end of Phase 1 existed for
+  this and was answered on 2026-09-13: Rust stays, Go is off the table.
 
 ## Definition of Done
 

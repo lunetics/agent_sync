@@ -2405,4 +2405,5 @@ fallback. Note the honest limit of this measurement: the work executed a plan
 that already carried the design and most of the code, so it measures execution
 velocity, not design-from-scratch velocity in Rust.
 
-This gate is the user's call. Phase 2 is not planned until it is answered.
+**Verdict, 2026-09-13: Rust stays.** The gate is answered, the Go fallback is
+closed in the design spec, and Phase 2 can be planned.

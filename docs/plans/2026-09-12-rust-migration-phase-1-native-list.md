@@ -1396,7 +1396,7 @@ git commit -m "feat(native): resolve project config and layered tool values"
 - Consumes: `Project`, `Tool::base_payload`, `Error`.
 - Produces: `payload::find_new_override(&Project, slug, resource) -> Result<Option<PathBuf>>` (`.ai/src/tools/<slug>/<resource>.*`) and `payload::legacy_override_path(&Project, &Tool, resource) -> Option<PathBuf>` (`.ai/src/<resource>/<slug>.<ext>` with the shipped payload's extension; the caller checks existence).
 
-- [ ] **Step 1: Write `src/payload.rs` with its tests**
+- [x] **Step 1: Write `src/payload.rs` with its tests**
 
 ```rust
 //! Where a tool's settings, mcp, or hooks override lives, mirroring the lookups
@@ -1485,16 +1485,16 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Register the module in `src/lib.rs`**
+- [x] **Step 2: Register the module in `src/lib.rs`**
 
 Add `pub mod payload;` between `pub mod error;` and `pub mod project;`.
 
-- [ ] **Step 3: Run the tests, confirm green**
+- [x] **Step 3: Run the tests, confirm green**
 
 Run: `cargo test payload`
 Expected: 2 tests pass.
 
-- [ ] **Step 4: Lint and commit**
+- [x] **Step 4: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings
@@ -2270,4 +2270,11 @@ Before reporting Phase 1 done, produce the completion receipt from `verification
 - Verified: `cargo test` → 28 unit (15 `yaml_subset`, 3 `catalog`, 5 `project`, 5 `tool`) + 4 integration, 0 failed, the count Step 5 predicts; `cargo fmt --all --check` → exit 0 after `cargo fmt --all` expanded the one-line `if` in `display_name`; `cargo clippy --all-targets -- -D warnings` → exit 0. The layering assertions were confirmed against the Bash resolver rather than read off it: in a temp project with `.ai/src/tools/claude.yaml` holding only `base: cursor`, `get_tool_value claude targets.rules.extension` → empty and `targets.rules.dest` → `.claude/rules` (a shipped base answers even empty and blocks the variant fallback), and for a `claude-hub` variant `targets.rules.dest` → `.claude/rules` while `name` → empty, which is why `display_name` falls back to the slug. Catalog facts checked against `lib/templates/`: 13 tool YAMLs plus `_TEMPLATE`, `settings/claude.json` present, no `hooks/zed`.
 - Plan amended: Step 1's `file_name` helper. `fn file_name(file: &File<'_>) -> Option<&str>` does not compile — E0106, the return borrows from one of the `File`'s two lifetimes and the signature does not say which. Now `fn file_name<'a>(file: &'a File<'_>) -> Option<&'a str>`, since `path()` borrows from the reference and not from the embedded `'static` bytes.
 - Next: Task 5 Step 1 — write `src/payload.rs` with its tests.
+- Blocker: none.
+
+### 2026-09-12 — Task 5 done
+- Commits: `feat(native): locate payload overrides`
+- Verified: `cargo test payload` → both `payload::` tests pass; `cargo test` → 30 unit + 4 integration, 0 failed; `cargo fmt --all --check` → exit 0 with no reflow needed; `cargo clippy --all-targets -- -D warnings` → exit 0. The legacy paths were confirmed against Bash with `REPO_ROOT=/tmp/proj`: `_payload_override_legacy_path claude settings` → `/tmp/proj/.ai/src/settings/claude.json`, `claude hooks` → empty, `codex settings` → `/tmp/proj/.ai/src/settings/codex.toml` — the three values the unit test asserts.
+- Plan amended: none. Read against `lib/helpers/tool_resolver.sh:257-269` (`_find_new_payload_override`, glob `<resource>.*` with the first existing file winning) and `:272-280` (`_payload_override_legacy_path`, extension taken from `_find_base_payload` at `:214-236`, which falls back to the `base:` tool exactly as `Tool::base_payload` does).
+- Next: Task 6 Step 1 — write `src/style.rs`, the mirror of `lib/helpers/cli_colors.sh`.
 - Blocker: none.

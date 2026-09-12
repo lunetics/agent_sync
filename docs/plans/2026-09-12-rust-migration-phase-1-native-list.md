@@ -2008,7 +2008,7 @@ git commit -m "feat(native): port list"
 - Consumes: the binary, `_native_try`, `seed_project`/`clone_seed`/`enable_tools` from `tests/test_helper.bash`.
 - Produces: `assert_parity <args...>` (a bats helper local to the file) and one fixture per `list` situation; later phases add tests here for each ported command.
 
-- [ ] **Step 1: Write `tests/native_parity.bats`**
+- [x] **Step 1: Write `tests/native_parity.bats`**
 
 ```bash
 #!/usr/bin/env bats
@@ -2090,11 +2090,13 @@ assert_parity() {
 }
 
 @test "parity: list with a custom tool enabled the legacy way" {
+    mkdir -p .ai/src/tools
     printf 'name: "My Tool"\nenabled: true\n' > .ai/src/tools/mytool.yaml
     assert_parity list
 }
 
 @test "parity: list with a profile variant tool" {
+    mkdir -p .ai/src/tools
     printf 'base: claude\nprofile_home: ".claude-hub"\n' > .ai/src/tools/claude-hub.yaml
     assert_parity list
 }
@@ -2105,7 +2107,7 @@ assert_parity() {
 }
 ```
 
-- [ ] **Step 2: Run it against the built binary, confirm green**
+- [x] **Step 2: Run it against the built binary, confirm green**
 
 ```bash
 cargo build --release
@@ -2114,12 +2116,12 @@ bats tests/native_parity.bats
 
 Expected: 9 tests pass. A failure prints a unified diff of the two outputs; fix the native side, never the fixture.
 
-- [ ] **Step 3: Run it without a binary, confirm it skips**
+- [x] **Step 3: Run it without a binary, confirm it skips**
 
 Run: `AGENTSYNC_NATIVE_BIN=/nonexistent bats tests/native_parity.bats`
 Expected: 9 tests reported as skipped, exit 0.
 
-- [ ] **Step 4: Extend the `native` CI job**
+- [x] **Step 4: Extend the `native` CI job**
 
 Append these steps to the `native` job in `.github/workflows/ci.yaml`, after `cargo build --release`:
 
@@ -2145,7 +2147,7 @@ Append these steps to the `native` job in `.github/workflows/ci.yaml`, after `ca
         run: bats tests/cli.bats tests/list.bats tests/native_dispatch.bats tests/native_parity.bats --tap
 ```
 
-- [ ] **Step 5: Run the whole suite in both modes one last time**
+- [x] **Step 5: Run the whole suite in both modes one last time**
 
 ```bash
 bats --jobs 4 tests/ --tap | tail -3
@@ -2154,7 +2156,7 @@ AGENTSYNC_NATIVE=1 bats --jobs 4 tests/ --tap | tail -3
 
 Expected: `1..743` (725 + 1 list regression + 8 dispatcher + 9 parity) with no `not ok` in both runs. The second run proves an unported command is unaffected by a present binary.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add tests/native_parity.bats .github/workflows/ci.yaml
@@ -2284,4 +2286,11 @@ Before reporting Phase 1 done, produce the completion receipt from `verification
 - Verified: the three smoke tests failed first with clap's `unrecognized subcommand 'list'`, exit 2, as Step 2 predicts. After the port, `cargo test` → 35 unit + 7 integration, 0 failed, including the two `cli::list` tests that assert exact table rows; `cargo fmt --all --check` → exit 0 after `cargo fmt --all` reflowed four assertions and one `push_str`; `cargo clippy --all-targets -- -D warnings` → exit 0. `cargo build --release`, then `bats tests/list.bats tests/cli.bats tests/native_dispatch.bats --tap` → `1..24`, 24 ok in Bash mode and 24 ok under `AGENTSYNC_NATIVE=1`; `shellcheck -x -S warning -e SC1091 bin/agentsync.sh` → exit 0. Byte parity on a real fixture, this repository itself (25 lines, `2 of 13 enabled, 1 payload override(s)`, shared-MCP line present): `diff <(AGENTSYNC_NATIVE=0 … list) <(AGENTSYNC_NATIVE=1 … list)` → no output.
 - Plan amended: none. `lib/helpers/list.sh:120` (`printf "    %s %s  %-22s %-13s %-10s  %s\n"`) and `lib/helpers/cli_colors.sh:5-13` were read before writing; the escape codes and the `NO_COLOR` rule (colour only when stdout is a terminal and `NO_COLOR` is unset or empty) match the port.
 - Next: Task 7 Step 1 — write `tests/native_parity.bats`.
+- Blocker: none.
+
+### 2026-09-12 — Task 7 done
+- Commits: `test(native): diff Bash against native output for ported commands`
+- Verified: `bats tests/native_parity.bats --tap` → `1..9`, 9 ok against the release binary; `AGENTSYNC_NATIVE_BIN=/nonexistent bats tests/native_parity.bats` → all 9 skipped, exit 0, so a checkout without a build stays green. Whole suite both ways: `bats --jobs 4 tests/ --tap` → bats exit 0, `1..743`, 743 ok, 0 not ok, and `AGENTSYNC_NATIVE=1 bats --jobs 4 tests/ --tap` → the same, which is the proof that a present binary leaves every unported command alone. 743 = 725 baseline + 1 `list` regression + 8 dispatcher + 9 parity, the count Step 5 predicts.
+- Plan amended: the last two fixtures in Step 1. `printf … > .ai/src/tools/mytool.yaml` and the `claude-hub.yaml` twin failed with `No such file or directory` — `clone_seed` leaves no `.ai/src/tools/`, which the earlier fixtures happen to create with their own `mkdir -p`. Both now create the directory first. A setup bug in the fixture, not an engine difference.
+- Next: Task 8 Step 1 — add the `### Native engine` subsection to `README.md` under `## Development`.
 - Blocker: none.

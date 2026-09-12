@@ -134,3 +134,22 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
       - run: cargo build --release
+      - name: Install bats-core
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            sudo apt-get install -y bats
+          else
+            brew install bats-core
+          fi
+      # Windows joins in Phase 5, when the binary is the entry point: under
+      # Git Bash the POSIX paths in AGENTSYNC_REPO_ROOT and TMPDIR do not reach
+      # a native executable.
+      - name: Ported commands through the Bash suite
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          TERM: xterm
+          AGENTSYNC_NATIVE: "1"
+        run: bats tests/cli.bats tests/list.bats tests/native_dispatch.bats tests/native_parity.bats --tap

@@ -2306,7 +2306,7 @@ Before reporting Phase 1 done, produce the completion receipt from `verification
 - Commits: `docs(native): close phase 1`
 - Verified: everything in the completion receipt below, all run fresh after the last code commit.
 - Plan amended: none.
-- Next: the user's verdict on the language decision gate, then `docs/plans/…-phase-2-….md` written from `.ai/src/commands/native-phase-plan.md`. The branch is not pushed and not merged; both are the user's call.
+- Next: the user's verdict on the language decision gate, then `docs/plans/…-phase-2-….md` written from `.ai/src/commands/native-phase-plan.md`. The branch is not pushed and not merged; both are the user's call. The two toolchain caveats the earlier entries carry are fixed and no longer apply: `~/.cargo` is in the agent sandbox's write allowlist (with `~/.cargo/bin` denied), and `~/.zshrc` now sources `~/.cargo/env`, which rustup had written only to `~/.profile` — a file zsh never reads. `cargo` runs sandboxed and resolves on `PATH`.
 - Blocker: the `native` CI job has never run — the branch is local. The receipt records that line as open.
 
 ---

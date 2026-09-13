@@ -9,26 +9,28 @@ Tier 0 — no dependencies
 lib/helpers/yaml.sh              → src/yaml_subset.rs      value(), list(); mirrors the reader, no YAML crate
 lib/helpers/filters.sh           → src/filters.rs          matches_filter; exclude wins, empty include = all
 lib/helpers/cli_colors.sh        → src/style.rs            bold/green/cyan/yellow/red/dim, pad_right
-lib/helpers/logging.sh           → src/log.rs              [INFO]/[SUCCESS]/[WARNING]/[ERROR]/[DONE], step, separator, display_path
+lib/helpers/logging.sh           → src/log.rs              plain [INFO]/[SUCCESS]/[WARNING]/[ERROR], step, separator, tail; display_path is in src/paths.rs
 lib/helpers/tmp.sh               → tempfile crate          run dir + staging siblings; tmp_sibling stays on one filesystem
 lib/helpers/resolve.sh           → (none)                  engine dir lookup; templates are embedded
+(bash builtins)                  → src/text.rs             read loops, [[:space:]], printf '%b', $(...) newlines, JSON/TOML escapes
+(check.sh tar copy)              → src/workspace.rs        in-memory tree: disk index, embedded engine at /<agentsync>, overlays at /<agentsync-overlay>
 
 Tier 1
 lib/helpers/version.sh           → src/version.rs          engine_version, pinned_version, mismatch hint
 lib/helpers/format.sh            → src/format_rev.rs       project format revision, pending notes
 lib/helpers/paths.sh             → src/paths.rs            normalise, containment, existing-ancestor canonicalise, repo-relative
 lib/helpers/tool_resolver.sh     → src/tool.rs, src/catalog.rs, src/payload.rs
-lib/helpers/profiles.sh          → src/profiles.rs         profile_rewrite_dest, active profiles, profile tools
+lib/helpers/profiles.sh          → src/profiles.rs         names, overlay dir, tools, active; profile_rewrite_dest waits for `profile`
 
 Tier 2
-lib/helpers/manifest.sh          → src/manifest.rs         "<rel>\t<sha256>", LC_ALL=C sort -u; missing dest is not drift
+lib/helpers/manifest.sh          → src/session.rs (record_write, was_touched, record_tree; Phase 2), src/manifest.rs (load, drift, write; Phase 3)
 lib/helpers/file_ops.sh          → src/file_ops.rs         ensure_dir, cleanup_path, copy_file, sync_dir, prune-vs-preserve
 
 Tier 3
 lib/helpers/rule_operations.sh   → src/rules.rs            headers, frontmatter merge, append_imports, merge_to_file, inliners, commands as skills
-lib/helpers/format_conversion.sh → src/convert/{toml,amazonq,opencode_md}.rs
-lib/helpers/opencode.sh          → src/convert/opencode_json.rs
-lib/helpers/shared.sh            → src/overlay.rs          shared:, base-skills, and profile overlays
+lib/helpers/format_conversion.sh → src/convert.rs          frontmatter and per-file converters; directory loops live in src/rules.rs
+lib/helpers/opencode.sh          → src/opencode_json.rs    awk composer, exit codes 20-26
+lib/helpers/shared.sh            → src/overlay.rs          base-src and profile overlays, shared parent merge for check
 lib/helpers/gitignore.sh         → src/gitignore.rs        managed block between START/END markers
 lib/helpers/backup.sh            → src/backup.rs           same on-disk layout; restore on failure via a Drop guard
 lib/helpers/yaml_edit.sh         → src/yaml_edit.rs        line-oriented, comment-preserving, atomic write
@@ -39,8 +41,8 @@ lib/helpers/edit_paths.sh        → src/edit_paths.rs
 
 Commands
 lib/helpers/list.sh              → src/cli/list.rs         Phase 1
-lib/check.sh                     → src/cli/check.rs        render + compare, no tar; Phase 2
-lib/sync.sh                      → src/cli/sync.rs + src/render.rs   Phase 3
+lib/check.sh                     → src/cli/check.rs        render + compare, no tar; Phase 2, ported
+lib/sync.sh                      → src/render.rs (forced render, Phase 2) + src/cli/sync.rs (transaction, Phase 3)
 lib/helpers/backup.sh (rollback) → src/cli/rollback.rs     Phase 3
 lib/helpers/enable.sh            → src/cli/enable.rs       Phase 4, yaml_edit family
 lib/helpers/customize.sh         → src/cli/{customize,show,diff}.rs

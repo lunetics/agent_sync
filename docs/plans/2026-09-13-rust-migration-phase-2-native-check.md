@@ -6905,7 +6905,7 @@ git commit -m "feat(native): port check"
 - Consumes: the binary, `assert_parity`, `_run_engine`, `enable_tools`.
 - Produces: `assert_parity_head <lines> <args…>` and `_bash_sync` for later phases; 15 fixtures covering the spec's Phase 2 exit list — never-synced and 13-tool golden outputs (`sync.bats` fixtures), edits and deletions, disabled-tool cleanup, `shared`, `base_skills`, `profiles`, `opencode`, `resource_resolver` payload order, filters and every rules option, the version pin, the two failure paths, and this repository's own `.ai/src/` with all 13 tools.
 
-- [ ] **Step 1: Append to `tests/native_parity.bats`**
+- [x] **Step 1: Append to `tests/native_parity.bats`**
 
 ```bash
 
@@ -7090,7 +7090,7 @@ YAML
 }
 ```
 
-- [ ] **Step 2: Run the parity suite, confirm green**
+- [x] **Step 2: Run the parity suite, confirm green**
 
 ```bash
 cargo build --release
@@ -7100,7 +7100,7 @@ AGENTSYNC_NATIVE_BIN=/nonexistent bats tests/native_parity.bats --tap | grep -c 
 
 Expected: `24` (9 Phase 1 + 15 `check`); `24` skipped without a binary. A failure prints the diff between the engines; fix the native side, never the fixture. The `.ai/src` golden fixture is the slowest — expect minutes serially.
 
-- [ ] **Step 3: Extend the `native` CI job**
+- [x] **Step 3: Extend the `native` CI job**
 
 In `.github/workflows/ci.yaml`, `native` job: raise `timeout-minutes: 20` to `timeout-minutes: 40`, install GNU parallel with bats, and run the files that call `check`:
 
@@ -7132,7 +7132,7 @@ In `.github/workflows/ci.yaml`, `native` job: raise `timeout-minutes: 20` to `ti
 
 These replace the job's existing `Install bats-core` and `Ported commands through the Bash suite` steps.
 
-- [ ] **Step 4: Run the whole suite in both modes**
+- [x] **Step 4: Run the whole suite in both modes**
 
 ```bash
 bats --jobs 4 tests/ --tap | head -1
@@ -7142,7 +7142,7 @@ AGENTSYNC_NATIVE=1 bats --jobs 4 tests/ --tap | grep -c '^not ok'
 
 Expected: `1..762` (745 + 1 Task 0b + 1 Task 0c + 15 parity) and `0` failures in both modes.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add tests/native_parity.bats .github/workflows/ci.yaml

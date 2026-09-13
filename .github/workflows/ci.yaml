@@ -123,7 +123,7 @@ jobs:
   native:
     name: Native engine (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -138,14 +138,14 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
       - run: cargo build --release
-      - name: Install bats-core
+      - name: Install bats-core and GNU parallel
         if: runner.os != 'Windows'
         shell: bash
         run: |
           if [[ "$RUNNER_OS" == "Linux" ]]; then
-            sudo apt-get install -y bats
+            sudo apt-get install -y bats parallel
           else
-            brew install bats-core
+            brew install bats-core parallel
           fi
       # Windows joins in Phase 5, when the binary is the entry point: under
       # Git Bash the POSIX paths in AGENTSYNC_REPO_ROOT and TMPDIR do not reach
@@ -156,4 +156,8 @@ jobs:
         env:
           TERM: xterm
           AGENTSYNC_NATIVE: "1"
-        run: bats tests/cli.bats tests/list.bats tests/native_dispatch.bats tests/native_parity.bats --tap
+        run: >-
+          bats --jobs 4 --tap
+          tests/cli.bats tests/list.bats tests/native_dispatch.bats tests/native_parity.bats
+          tests/check.bats tests/base_skills.bats tests/team_workflow.bats tests/profiles.bats
+          tests/version_pin.bats tests/sync_options.bats

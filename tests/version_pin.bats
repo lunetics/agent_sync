@@ -17,6 +17,19 @@ pin_version() {
     mv .ai/agent_sync.yaml.tmp .ai/agent_sync.yaml
 }
 
+set_version_pin_mode() {
+    awk -v mode="$1" '
+        /^agentsync_version:/ {
+            print
+            print "version_pin:"
+            print "  mode: " mode
+            next
+        }
+        { print }
+    ' .ai/agent_sync.yaml > .ai/agent_sync.yaml.tmp
+    mv .ai/agent_sync.yaml.tmp .ai/agent_sync.yaml
+}
+
 @test "version pin: committed mode refuses to sync with a different engine" {
     run_agentsync init --tools claude --yes --no-sync >/dev/null 2>&1
     pin_version 0.1.0
@@ -40,10 +53,40 @@ pin_version() {
 @test "version pin: local mode only warns and still syncs" {
     run_agentsync init --tools claude --yes --no-sync --outputs local >/dev/null 2>&1
     pin_version 0.1.0
+    set_version_pin_mode warn
     run run_agentsync sync
     [ "$status" -eq 0 ]
     [[ "$output" == *"pins agentsync 0.1.0"* ]]
     [ -f CLAUDE.md ]
+}
+
+@test "version pin: local mode can be made strict for sync" {
+    run_agentsync init --tools claude --yes --no-sync --outputs local >/dev/null 2>&1
+    pin_version 0.1.0
+    set_version_pin_mode strict
+    run run_agentsync sync
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"pins agentsync 0.1.0"* ]]
+    [ ! -f CLAUDE.md ]
+}
+
+@test "version pin: local strict mode also fails check" {
+    run_agentsync init --tools claude --yes --no-sync --outputs local >/dev/null 2>&1
+    run_agentsync sync >/dev/null 2>&1
+    pin_version 0.1.0
+    set_version_pin_mode strict
+    run run_agentsync check
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"pins agentsync 0.1.0"* ]]
+}
+
+@test "version pin: unknown mode fails before writing" {
+    run_agentsync init --tools claude --yes --no-sync --outputs local >/dev/null 2>&1
+    set_version_pin_mode refuse
+    run run_agentsync sync
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Unknown version_pin.mode 'refuse'"* ]]
+    [ ! -f CLAUDE.md ]
 }
 
 @test "version pin: a matching pin is silent" {

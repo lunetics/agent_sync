@@ -70,10 +70,13 @@ _check_version_pin() {
     config=$(resolve_check_config_path) || exit 1
     [[ -n "$config" ]] || return 0
 
+    local version_mode
+    version_mode=$(version_pin_mode "$config") || exit 1
+
     local outputs
     outputs=$(parse_yaml_value "$config" "outputs")
     outputs="${outputs//\"/}"
-    [[ "$outputs" == "committed" ]] || return 0
+    [[ "$outputs" == "committed" || "$version_mode" == "strict" ]] || return 0
 
     local pinned engine
     pinned=$(pinned_version "$config")

@@ -756,6 +756,34 @@ already existed when the operation began.
 
 The transaction covers declared tool destinations plus `.ai/.sync-manifest` and the managed `.gitignore` state. A trusted `post_sync` hook can execute arbitrary commands; side effects it makes outside those paths are outside AgentSync's rollback boundary.
 
+Rollback first compares every target with the state recorded **after** the
+selected operation. Later additions, edits, deletions, type or permission
+changes, and foreign children inside a directory cause the entire rollback to
+abort before any target is restored. This also applies to declared native or
+disabled destinations: a file recorded as absent is not permission to delete a
+file someone created later. `--yes` skips confirmation only; it does not bypass
+conflict checks. `--dry-run` runs the same preflight.
+
+New snapshots receive an `after.tsv` record once init, sync, or rollback has
+finished. It binds the expected result to the target list and saved contents.
+Undo uses the result of the preceding rollback as its expected state. Historical
+snapshots, interrupted operations without a completed record, and damaged
+records are refused conservatively. They remain available for inspection via
+`rollback --list` and in the backup store; there is no force override.
+
+Symlinks are compared by their link text, without inspecting or restoring their
+destination contents. Changes to mutable knowledge behind an unchanged link
+therefore neither block rollback nor get reverted. Replacing a link itself is
+a conflict; targets reached through an ancestor symlink are refused.
+
+The preflight is repeated after confirmation and after creating the safety
+snapshot, before enabling restore/recovery. These checks are not an atomic
+filesystem transaction or a lock: concurrent writers can still change files or
+links during a scan or between the final check and a write (TOCTOU). Stop other
+writers while syncing or rolling back. Internal recovery of a failing operation
+remains separate from the guarded user-requested rollback; the snapshot witness
+does not authenticate data against an actor who can rewrite the backup store.
+
 ### Drift detection
 
 After every successful sync, AgentSync writes `.ai/.sync-manifest` — one line per generated file with its SHA-256 hash. It records what *this clone* generated, so sync adds it to the managed `.gitignore` block next to the outputs it describes: a committed manifest beside ignored outputs would make every teammate's next sync read a `git pull` as manual edits. On the next sync, every destination is compared against the manifest:

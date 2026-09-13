@@ -60,7 +60,7 @@ Out of this phase, and left to Phase 3 with `sync` itself: manifest load, drift,
 - Consumes: branch `feat/native-engine-phase-1` with Phase 1 closed; `cargo` on `PATH` (or `~/.cargo/bin/cargo`).
 - Produces: a recorded green baseline to count against.
 
-- [ ] **Step 1: Confirm the branch and the toolchain**
+- [x] **Step 1: Confirm the branch and the toolchain**
 
 ```bash
 git branch --show-current
@@ -70,7 +70,7 @@ cargo --version
 
 Expected: `feat/native-engine-phase-1`; empty status; `cargo 1.85` or newer.
 
-- [ ] **Step 2: Record the baseline**
+- [x] **Step 2: Record the baseline**
 
 ```bash
 cargo test 2>&1 | grep 'test result'
@@ -93,7 +93,7 @@ Expected: `35 passed` (unit) and `7 passed` (integration); the TAP plan is `1..7
 - Consumes: nothing new.
 - Produces: `resolve_source_path_r` returns the project path for a source that does not exist instead of falling back to `$DEFAULT_REPO_ROOT/<path>`. Found while mapping the source resolution: a project with only `.ai/src/AGENTS.md` syncs the engine checkout's own `.ai/src/rules` — seven maintainer rules, `native-engine.md` among them — into `.claude/rules`, because the fallback resolves `.ai/src/rules` against the install directory, which `install.sh` fills with a `git clone`. A binary has no checkout to fall back to, so the parity reference must not either. The fix changes one documented-by-test behaviour: `tests/shared.bats` built a child project without any `AGENTS.md`, and its sync only passed because it read the engine's. The recommended resolution keeps `AGENTS.md` required (`Source agents file not found`, the existing error) and gives the fixture an `AGENTS.md` outside `.ai/src/`, which keeps that test's intent — an overlay without `AGENTS.md`. **This is a decision for the plan's review**: the alternative, a sync that tolerates a project without `AGENTS.md`, is a product change and would need its own task.
 
-- [ ] **Step 1: Write the failing test at the end of `tests/paths.bats`**
+- [x] **Step 1: Write the failing test at the end of `tests/paths.bats`**
 
 ```bash
 @test "paths: resolve_source_path keeps a missing project source in the project" {
@@ -103,12 +103,12 @@ Expected: `35 passed` (unit) and `7 passed` (integration); the TAP plan is `1..7
 }
 ```
 
-- [ ] **Step 2: Run it, confirm it fails**
+- [x] **Step 2: Run it, confirm it fails**
 
 Run: `bats tests/paths.bats`
 Expected: the new test fails at `[ "$REPLY" = "$REPO_ROOT/.ai/src/rules" ]` (the reply is `…/engine/.ai/src/rules`); the other 26 pass.
 
-- [ ] **Step 3: Drop the engine fallback from `resolve_source_path_r` in `lib/helpers/paths.sh`**
+- [x] **Step 3: Drop the engine fallback from `resolve_source_path_r` in `lib/helpers/paths.sh`**
 
 Replace the whole function with:
 
@@ -139,12 +139,12 @@ resolve_source_path_r() {
 }
 ```
 
-- [ ] **Step 4: Run the suite, confirm the one fixture that relied on the fallback**
+- [x] **Step 4: Run the suite, confirm the one fixture that relied on the fallback**
 
 Run: `bats --jobs 4 tests/ --tap | grep '^not ok'`
 Expected: exactly one line, `not ok … shared: sync succeeds when overlay omits commands, agents, and AGENTS.md` — its child has no `AGENTS.md`, and sync now says `Source agents file not found`.
 
-- [ ] **Step 5: Give the sparse fixture an `AGENTS.md` outside `.ai/src/`**
+- [x] **Step 5: Give the sparse fixture an `AGENTS.md` outside `.ai/src/`**
 
 In `tests/shared.bats`, `_shared_make_sparse_pair`, after the line `echo "child-rule" > "$child_dir/.ai/src/rules/child-only.md"`, add:
 
@@ -156,7 +156,7 @@ In `tests/shared.bats`, `_shared_make_sparse_pair`, after the line `echo "child-
 
 `init` writes `source.agents: ".ai/src/AGENTS.md"` explicitly, so the flat-layout detection alone does not find `.ai/AGENTS.md`; the config line has to move with the file.
 
-- [ ] **Step 6: Run the affected files, confirm green**
+- [x] **Step 6: Run the affected files, confirm green**
 
 ```bash
 bats tests/paths.bats tests/shared.bats tests/sync_options.bats tests/resource_resolver.bats
@@ -166,7 +166,7 @@ bats --jobs 4 tests/ --tap | grep -c '^not ok'
 
 Expected: 27 + 12 + 17 + 19 tests pass; ShellCheck exits 0; `0`. The full plan is now `1..746`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add lib/helpers/paths.sh tests/paths.bats tests/shared.bats

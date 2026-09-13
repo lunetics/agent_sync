@@ -755,6 +755,7 @@ _load_run_config() {
     fi
 
     resolve_project_config_path
+    backup_configure "$REPO_ROOT" || return 1
     [[ -n "$PROJECT_CONFIG_PATH" ]] || return 0
 
     local cfg_default_enabled cfg_default_cleanup cfg_skip_post_sync

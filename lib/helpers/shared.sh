@@ -254,7 +254,7 @@ base_src_setup_overlay() {
     # The child is whatever the earlier overlays resolved to, so this layer
     # composes instead of replacing them.
     local child_src="$REPO_ROOT/.ai/src"
-    [[ -n "$SHARED_OVERLAY_DIR" ]] && child_src="$SHARED_OVERLAY_DIR"
+    [[ -n "$SHARED_OVERLAY_DIR" ]] && child_src="$SHARED_OVERLAY_DIR/src"
     [[ -d "$child_src" ]] || return 0
 
     local tmpdir

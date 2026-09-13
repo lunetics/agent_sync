@@ -2254,7 +2254,7 @@ git commit -m "feat(native): port frontmatter parsing and the file converters"
 - Consumes: nothing.
 - Produces: `opencode_json::compose(settings: &str, mcp: &str) -> Result<String, ComposeError>`; `ComposeError { pub code: u8, pub message: String }` — the awk exit code (20–26) and the diagnostic line `sync_opencode_config` logs.
 
-- [ ] **Step 1: Write `src/opencode_json.rs`**
+- [x] **Step 1: Write `src/opencode_json.rs`**
 
 ```rust
 //! `opencode.json` composition: settings plus the canonical MCP source,
@@ -3124,7 +3124,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Register the module in `src/lib.rs`**
+- [x] **Step 2: Register the module in `src/lib.rs`**
 
 ```rust
 //! AgentSync native engine. `main.rs` is the only place that talks to the
@@ -3154,12 +3154,12 @@ pub fn engine_version() -> &'static str {
 }
 ```
 
-- [ ] **Step 3: Run the tests, confirm green**
+- [x] **Step 3: Run the tests, confirm green**
 
 Run: `cargo test --lib`
 Expected: `73 passed` (69 + 4 `opencode_json`).
 
-- [ ] **Step 4: Cross-check two failures against the awk program**
+- [x] **Step 4: Cross-check two failures against the awk program**
 
 ```bash
 dir=$(mktemp -d "${TMPDIR:-/tmp}/oc.XXXXXX")
@@ -3172,7 +3172,7 @@ bash -c 'source lib/helpers/logging.sh; source lib/helpers/tmp.sh; source lib/he
 
 Expected: `20 expected comma in JSON object` and `25 server 's' has unsupported field 'cwd'`, as `failures_carry_the_awk_exit_codes` asserts.
 
-- [ ] **Step 5: Lint and commit**
+- [x] **Step 5: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings

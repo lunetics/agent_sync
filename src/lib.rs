@@ -7,6 +7,7 @@ pub mod convert;
 pub mod error;
 pub mod filters;
 pub mod log;
+pub mod opencode_json;
 pub mod paths;
 pub mod payload;
 pub mod project;

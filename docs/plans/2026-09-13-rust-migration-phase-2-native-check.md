@@ -272,7 +272,7 @@ git commit -m "fix(check): inherit only the shared categories sync materialises"
   - `log::Log` (`Default`) with `info`, `success`, `warning`, `error`, `step`, `separator` (all `&mut self, &str` except `separator`), `out(String)`, `err(String)`, `lines() -> &[(Stream, String)]`, `tail(n) -> Vec<&str>`; `log::Stream { Out, Err }`; `log::SEPARATOR`. Plain voice only: the render log is always captured.
   - `text::lines(&[u8]) -> Vec<&[u8]>`, `is_space(u8)`, `trim_start_space`, `trim_end_space`, `after_key(line, key) -> Option<&[u8]>`, `strip_quotes`, `strip_trailing_newlines(&mut Vec<u8>)`, `json_escape(&[u8]) -> Vec<u8>`, `printf_b(&[u8]) -> (Vec<u8>, bool)` (the bool is `\c`).
 
-- [ ] **Step 1: Write `src/filters.rs`**
+- [x] **Step 1: Write `src/filters.rs`**
 
 ```rust
 //! Include/exclude filters, mirroring `matches_filter` in `lib/helpers/filters.sh`.
@@ -402,7 +402,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Write `src/log.rs`**
+- [x] **Step 2: Write `src/log.rs`**
 
 ```rust
 //! The engine's log voice, mirroring `lib/helpers/logging.sh` without colour:
@@ -513,7 +513,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 3: Write `src/text.rs`**
+- [x] **Step 3: Write `src/text.rs`**
 
 ```rust
 //! Byte-level string handling the Bash engine gets from its builtins: `read`
@@ -690,7 +690,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 4: Register the modules in `src/lib.rs`**
+- [x] **Step 4: Register the modules in `src/lib.rs`**
 
 ```rust
 //! AgentSync native engine. `main.rs` is the only place that talks to the
@@ -716,12 +716,12 @@ pub fn engine_version() -> &'static str {
 }
 ```
 
-- [ ] **Step 5: Run the tests, confirm green**
+- [x] **Step 5: Run the tests, confirm green**
 
 Run: `cargo test --lib`
 Expected: `46 passed` (35 + 4 `filters` + 3 `log` + 4 `text`).
 
-- [ ] **Step 6: Cross-check the glob and `%b` rules against Bash 3.2**
+- [x] **Step 6: Cross-check the glob and `%b` rules against Bash 3.2**
 
 ```bash
 /bin/bash -c 'f(){ [[ $1 == $2 ]] && echo y || echo n; }; f "[x" "[x"; f "*" "\\*"; f bx "[!a-c]x"; f dir/a.md "*.md"; f .hidden "*"'
@@ -730,7 +730,7 @@ Expected: `46 passed` (35 + 4 `filters` + 3 `log` + 4 `text`).
 
 Expected: `y`, `y`, `n`, `y`, `y` on five lines, then an `od` dump reading `A | A | A | \ u 0 0 4 1 | 033 [ | \ z | \0 8 |` — the values `glob_match` and `printf_b` assert.
 
-- [ ] **Step 7: Lint and commit**
+- [x] **Step 7: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings

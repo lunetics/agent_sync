@@ -4,9 +4,12 @@
 pub mod catalog;
 pub mod cli;
 pub mod error;
+pub mod filters;
+pub mod log;
 pub mod payload;
 pub mod project;
 pub mod style;
+pub mod text;
 pub mod tool;
 pub mod yaml_subset;
 

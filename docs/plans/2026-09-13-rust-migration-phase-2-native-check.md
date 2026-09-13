@@ -7220,3 +7220,82 @@ Before reporting Phase 2 done, append the completion receipt from `verification.
 - Plan amended: none. Decisions taken at the start of this run, as the plan's review asked: Task 0b keeps `AGENTS.md` required (the recommended option), and the seven proposed deviations are ratified and recorded in the spec by Task 9. Execution notes: Task 11's `sync` is refused by the agent sandbox (`Can't create '.claude/agents/code-reviewer.md': Operation not permitted`, rolled back whole) and ran with the sandbox disabled; `cli::check` exposes `check() -> Report` rather than `render() -> String`, because the command owns two streams and a status.
 - Next: close the phase — append `## Completion receipt` per the `## Completion` section, with the 13-tool fixture golden run and `check` timings from `scripts/perf/bench.sh`.
 - Blocker: none. The `native` CI job has not run: the branch is local.
+
+### 2026-09-13 — phase closed
+- Commits: `docs(native): close phase 2`
+- Verified: everything in the completion receipt below; the Rust gates and the fixture runs are fresh after the last commit, the two-mode suite ran at `2a5ad23`, after which only the module map changed.
+- Plan amended: none.
+- Next: Phase 3 — `sync` transaction and `rollback`. Its plan is written from `.ai/src/commands/native-phase-plan.md` and stops for review. The branch is not pushed; pushing, and so the `native` CI job, is the user's call.
+- Blocker: none.
+
+---
+
+## Completion receipt
+
+Phase 2 closed 2026-09-13. Every checkbox above is ticked; `version`, `--version`,
+`-v`, `list`, `ls`, and `check` are served by the Rust binary when one is built.
+
+### Global Constraints
+
+| Constraint | Satisfied by | Evidence |
+| --- | --- | --- |
+| `.ai/src/` stays the source of truth; native `check` never writes under a project | `src/workspace.rs`, `src/cli/check.rs` | every `std::fs::write` and `std::fs::create_dir_all` in `src/` sits in a `#[cfg(test)]` module (`project.rs:118`, `payload.rs:195`, `workspace.rs:354`, `overlay.rs:302`, `cli/check.rs:226`, `cli/list.rs:152`); render writes go to `Workspace` entries only; `check leaves no temp artifacts behind` passes natively |
+| No binary ships; without one every command runs in Bash | `bin/agentsync.sh:280-330` | `install.sh` untouched; `AGENTSYNC_NATIVE_BIN=/nonexistent bats tests/native_parity.bats` → 24 skipped |
+| Bash stays 3.2-compatible and ShellCheck-clean | `lib/helpers/paths.sh`, `lib/helpers/shared.sh`, `lib/check.sh`, `bin/agentsync.sh` | the changes use `[[ ]]`, `case`, `local`, `${var:+}` only; ShellCheck exit 0 |
+| A ported command matches Bash byte for byte off a terminal | `tests/native_parity.bats` (15 `check` fixtures) | 24 ok; generated 13-tool fixture: identical `check` output and exit 0 over 3465 managed files |
+| fmt and clippy clean, `unsafe_code = "forbid"`, no YAML or JSON crate | `Cargo.toml` | dependencies unchanged (clap, include_dir, thiserror); `opencode_json.rs` ports the awk composer |
+| Disk-touching unit tests are `#[cfg(unix)]` | `paths.rs`, `workspace.rs`, `overlay.rs`, `cli/check.rs` | the other tests run on an in-memory `Workspace` at `/proj`; not run on Windows here, see below |
+| `VERSION` is the only version source | `src/lib.rs`, `src/render.rs`, `src/cli/check.rs` | the pin gates compare with `engine_version()`; `parity: check with a committed version pin mismatch` ok |
+| Phase 1 deviations still hold | `docs/specs/2026-09-12-rust-migration-design.md` | unchanged lines |
+| Seven Phase 2 deviations ratified and recorded | same file, "Accepted deviations" | byte-order listings, render log paths, `.ai` copy message, `shared:` block in place, followed symlinks, lossy non-UTF-8 config and JSON, Bash 3.2 `%b` |
+| Quirks 9–11 recorded and tested | same file, "Known quirks"; `convert.rs`, `rules.rs`, `render.rs` | `read_field_takes_the_last_occurrence_like_bash_does`, `a_paths_scoped_rule_takes_every_list_item_like_bash_does`, `skill_descriptions_come_from_the_frontmatter_scalar_or_its_first_folded_line` |
+| Conventional Commits, no attribution trailers | the 14 commits since `f5ab658` | `fix(sync)`, `fix(check)`, `feat(native)` ×9, `test(native)`, `docs(native)` ×2 |
+
+### Fresh verification, 2026-09-13, macOS arm64, rustc 1.98.1
+
+| Command | Result |
+| --- | --- |
+| `cargo test` | 112 unit + 7 integration passed, 0 failed |
+| `cargo clippy --all-targets -- -D warnings` | exit 0 |
+| `cargo fmt --all --check` | exit 0 |
+| `shellcheck -x -S warning -e SC1091` over `bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh` | exit 0 |
+| `shellcheck lib/templates/guard/claude.sh` | exit 0 |
+| `bats --jobs 4 tests/ --tap` (at `2a5ad23`) | `1..762`, 762 ok, exit 0 |
+| `AGENTSYNC_NATIVE=1 bats --jobs 4 tests/ --tap` (at `2a5ad23`) | `1..762`, 762 ok, exit 0 |
+
+762 = 745 baseline + 1 `paths` regression (Task 0b) + 1 `check` regression (Task 0c) + 15 parity.
+
+### Golden outputs and timings
+
+`scripts/perf/make-fixture.sh` with defaults (389 source files, 13 tools), a Bash
+`sync` (3465 managed files), then `check` in both engines: exit 0 and identical
+output. `bash scripts/perf/bench.sh --runs 3`, best and median seconds:
+
+| Command | Bash | Native |
+| --- | --- | --- |
+| `list` | 0.55 / 0.55 | 0.02 / 0.02 |
+| `check` | 67.45 / 68.86 | 0.24 / 0.25 |
+| `sync` | 55.15 / 56.97 | 53.68 / 54.56 |
+| `sync --if-stale` | 0.12 / 0.13 | 0.13 / 0.13 |
+| `list`, binary without the Bash entry point | — | under 0.005 |
+
+`check` falls from 67 s to 0.24 s, including the Bash dispatcher's ~20 ms. The
+Bash column is about 4 s slower than the 63.33 s of the baseline file on the same
+machine, so absolute numbers drift between sessions; the ratio is the finding.
+`sync` is not ported, and its two columns agreeing is again the harness control.
+
+### Skipped, deferred, open
+
+- **The `native` CI job has never run.** The branch is local; the job now runs
+  ten bats files with GNU parallel and a 40-minute timeout.
+- **`cargo test` on Windows is unverified here.** The disk-free design is meant
+  for it, but only the CI runner can prove it.
+- **Deferred to Phase 3 by the plan:** manifest load, drift, and write; backups;
+  `.gitignore`; `--dry-run`, `--only`, `--skip`, `--profile`, `--if-stale`,
+  `--workspace`; post-sync hooks; `sync`'s own `shared:` overlay; the
+  transaction's log lines; symlinked subdirectories below the root.
+- **`cli::check` returns `Report`, not `String`.** `native-engine.md` describes a
+  command as `render() -> String`; `check` owns two streams and a status, so it
+  returns all three. Worth a line in that rule when Phase 3 adds `sync`.
+- **Task 11's `sync` needed the sandbox disabled**: the agent sandbox denies writes
+  under `.claude/`.

@@ -32,6 +32,30 @@ pub fn base_payload(resource: &str, slug: &str) -> Option<&'static File<'static>
     matches.first().copied()
 }
 
+/// `lib/config.yaml`, the install-dir global config `sync.sh` reads source defaults from.
+pub const GLOBAL_CONFIG: &str = include_str!("../lib/config.yaml");
+
+/// Every embedded engine file as its `/`-separated path below the engine root.
+pub fn engine_files() -> Vec<(String, &'static [u8])> {
+    let mut files = vec![("lib/config.yaml".to_string(), GLOBAL_CONFIG.as_bytes())];
+    collect_files(&TEMPLATES, &mut files);
+    files
+}
+
+fn collect_files(dir: &'static Dir<'static>, out: &mut Vec<(String, &'static [u8])>) {
+    for file in dir.files() {
+        let rel: Vec<String> = file
+            .path()
+            .components()
+            .map(|c| c.as_os_str().to_string_lossy().into_owned())
+            .collect();
+        out.push((format!("lib/templates/{}", rel.join("/")), file.contents()));
+    }
+    for sub in dir.dirs() {
+        collect_files(sub, out);
+    }
+}
+
 fn files_in(dir: &str) -> impl Iterator<Item = &'static File<'static>> {
     TEMPLATES
         .get_dir(dir)

@@ -1165,7 +1165,7 @@ git commit -m "feat(native): port path normalisation, containment, and display"
 - Consumes: `paths::{ENGINE_ROOT, is_within, is_virtual, parent}` (Task 2), `catalog`.
 - Produces: `catalog::GLOBAL_CONFIG: &str` (`lib/config.yaml`), `catalog::engine_files() -> Vec<(String, &'static [u8])>`; `workspace::Content { Disk(PathBuf), Embedded(&'static [u8]), Bytes(Vec<u8>) }`; `workspace::Workspace` with `new(root)` (engine mounted), `root()`, `seed_from_disk(at, disk: &Path, skip: &dyn Fn(&str) -> bool) -> Result<(), Error>`, `insert_file(path, Content)`, `create_dir_all`, `is_file`, `is_dir`, `exists`, `content(&str) -> Option<&Content>`, `read(&str) -> Result<Vec<u8>, Error>`, `list(dir) -> Vec<String>` (byte order, dotfiles), `glob(dir)` (no dotfiles), `files_under(dir)`, `write(path, Vec<u8>)` and `append(path, &[u8])` (parent must exist), `remove` (`rm -rf`), `copy(src, dst)` (`cp -r`).
 
-- [ ] **Step 1: Replace `src/catalog.rs`**
+- [x] **Step 1: Replace `src/catalog.rs`**
 
 ```rust
 //! Templates shipped with the engine, embedded at build time from `lib/templates/`.
@@ -1270,7 +1270,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Write `src/workspace.rs`**
+- [x] **Step 2: Write `src/workspace.rs`**
 
 ```rust
 //! The file tree a render reads and writes, held in memory.
@@ -1638,7 +1638,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 3: Register the module in `src/lib.rs`**
+- [x] **Step 3: Register the module in `src/lib.rs`**
 
 ```rust
 //! AgentSync native engine. `main.rs` is the only place that talks to the
@@ -1666,12 +1666,12 @@ pub fn engine_version() -> &'static str {
 }
 ```
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 Run: `cargo test --lib`
 Expected: `60 passed` (54 + 6 `workspace`).
 
-- [ ] **Step 5: Lint and commit**
+- [x] **Step 5: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings

@@ -12,6 +12,7 @@ pub mod project;
 pub mod style;
 pub mod text;
 pub mod tool;
+pub mod workspace;
 pub mod yaml_subset;
 
 pub use error::Error;

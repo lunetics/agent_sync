@@ -5219,7 +5219,7 @@ git commit -m "feat(native): resolve payloads, profiles, and source overlays"
 - Consumes: everything from Tasks 1–7.
 - Produces: `render::render(&mut Session, &Env) -> Result<(), Stop>`; `render::Env { pub config_path: Option<String> }` (`Default`; `AGENTSYNC_CONFIG_PATH`); `render::Stop(pub u8)` — the status `sync.sh` would exit with, after its log lines. On success the session's workspace holds every output and `touched()` the manifest's new paths. The render is `sync --force` with `AGENTSYNC_SKIP_POST_SYNC=true` and no backup: the run `lib/check.sh` started.
 
-- [ ] **Step 1: Write `src/render.rs`**
+- [x] **Step 1: Write `src/render.rs`**
 
 ```rust
 //! What `lib/sync.sh --force` computes, without the transaction: config and
@@ -6280,7 +6280,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Register the module in `src/lib.rs`**
+- [x] **Step 2: Register the module in `src/lib.rs`**
 
 ```rust
 //! AgentSync native engine. `main.rs` is the only place that talks to the
@@ -6316,7 +6316,7 @@ pub fn engine_version() -> &'static str {
 }
 ```
 
-- [ ] **Step 3: Record the quirk in the design spec**
+- [x] **Step 3: Record the quirk in the design spec**
 
 After item 10 under "Known quirks", add:
 
@@ -6325,12 +6325,12 @@ After item 10 under "Known quirks", add:
     skill with the description `-`.
 ```
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 Run: `cargo test --lib`
 Expected: `106 passed` (99 + 7 `render`).
 
-- [ ] **Step 5: Lint and commit**
+- [x] **Step 5: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings

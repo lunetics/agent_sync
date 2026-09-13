@@ -350,6 +350,8 @@ cleanup has a list:
    comment promises the first.
 10. `_rule_paths_csv` collects every list item in a rule's frontmatter once it
     has a bare `paths:` key, not only the items under `paths:`.
+11. The inline skill index strips `>` from `description: >-` and indexes the
+    skill with the description `-`.
 
 ## Accepted deviations
 

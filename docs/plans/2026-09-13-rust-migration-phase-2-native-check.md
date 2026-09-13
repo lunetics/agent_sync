@@ -1692,7 +1692,7 @@ git commit -m "feat(native): hold the render workspace in memory"
 - Consumes: `text` (Task 1).
 - Produces: `convert::Frontmatter { name, description, model, tools: Vec<Vec<u8>>, tools_declared, readonly, body }` (all `pub`, bytes); `parse_frontmatter(&[u8]) -> Frontmatter` (`_parse_md_frontmatter`); `read_field(source, field) -> Vec<u8>` (`read_frontmatter_field`); `replace_all(line, from, to) -> Vec<u8>`; `command_to_toml(source)`, `agent_to_toml(stem, source)`, `agent_to_amazonq_json(stem, source)`, `agent_to_opencode_md(stem, source)`, `command_to_skill(name, source)` — each `-> Vec<u8>`, the file the Bash converter writes.
 
-- [ ] **Step 1: Write `src/convert.rs`**
+- [x] **Step 1: Write `src/convert.rs`**
 
 ```rust
 //! Markdown frontmatter and the per-file converters of
@@ -2173,7 +2173,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Register the module in `src/lib.rs`**
+- [x] **Step 2: Register the module in `src/lib.rs`**
 
 ```rust
 //! AgentSync native engine. `main.rs` is the only place that talks to the
@@ -2202,7 +2202,7 @@ pub fn engine_version() -> &'static str {
 }
 ```
 
-- [ ] **Step 3: Record the quirk in the design spec**
+- [x] **Step 3: Record the quirk in the design spec**
 
 Under "Known quirks to reproduce now and fix after cutover", after item 8, add:
 
@@ -2211,12 +2211,12 @@ Under "Known quirks to reproduce now and fix after cutover", after item 8, add:
    comment promises the first.
 ```
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 Run: `cargo test --lib`
 Expected: `69 passed` (60 + 9 `convert`).
 
-- [ ] **Step 5: Cross-check the converters against Bash**
+- [x] **Step 5: Cross-check the converters against Bash**
 
 ```bash
 dir=$(mktemp -d "${TMPDIR:-/tmp}/conv.XXXXXX")
@@ -2234,7 +2234,7 @@ $'description = "Say \\"hi"\nprompt = """\nRun !{git status} for {{args}}"""\nx'
 $'---\ndescription: "Reviews code carefully"\nmode: subagent\npermission:\n  "*": deny\n  "read": allow\n  "grep": allow\n---\n\nYou review.\nx'
 ```
 
-- [ ] **Step 6: Lint and commit**
+- [x] **Step 6: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings

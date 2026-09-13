@@ -346,6 +346,8 @@ cleanup has a list:
    means `committed`; the rule is duplicated in three files.
 8. Tool listings are sorted with locale `sort`; the native engine uses byte
    order (accepted deviation, see below).
+9. `read_frontmatter_field` returns the last occurrence of a key, although its
+   comment promises the first.
 
 ## Accepted deviations
 

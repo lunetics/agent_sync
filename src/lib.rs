@@ -3,6 +3,7 @@
 
 pub mod catalog;
 pub mod cli;
+pub mod convert;
 pub mod error;
 pub mod filters;
 pub mod log;

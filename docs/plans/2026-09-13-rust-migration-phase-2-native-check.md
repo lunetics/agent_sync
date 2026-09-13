@@ -186,7 +186,7 @@ git commit -m "fix(sync): resolve a missing source inside the project, not the e
 - Consumes: nothing new.
 - Produces: `shared_inherit_categories "<raw>"` prints the CSV of `rules|skills|commands|agents` tokens (`subagents` read as `agents`), and `lib/check.sh` builds its overlay from it. Found while mapping `check`: `sync`'s `shared_setup_overlay` skips an unknown category with a warning, but `check.sh` passed the raw `shared.inherit` to `build_overlay_tree`, so `inherit: rules, tools` copied the parent's tool YAMLs into `check`'s workspace and `check` reported drift right after a clean `sync` (`Missing: OTHER.md` for a parent `claude.yaml` with another agents dest). The native `check` needs a Bash reference that agrees with `sync`.
 
-- [ ] **Step 1: Write the failing test at the end of `tests/check.bats`**
+- [x] **Step 1: Write the failing test at the end of `tests/check.bats`**
 
 ```bash
 @test "check agrees with sync when shared.inherit names a category sync skips" {
@@ -202,12 +202,12 @@ git commit -m "fix(sync): resolve a missing source inside the project, not the e
 }
 ```
 
-- [ ] **Step 2: Run it, confirm it fails**
+- [x] **Step 2: Run it, confirm it fails**
 
 Run: `bats tests/check.bats`
 Expected: the new test fails at the second `[ "$status" -eq 0 ]`; the other 9 pass.
 
-- [ ] **Step 3: Add the helper to `lib/helpers/shared.sh`, after `shared_parent_src`**
+- [x] **Step 3: Add the helper to `lib/helpers/shared.sh`, after `shared_parent_src`**
 
 ```bash
 # Echo the CSV of `shared.inherit` categories shared_setup_overlay materialises:
@@ -225,7 +225,7 @@ shared_inherit_categories() {
 }
 ```
 
-- [ ] **Step 4: Use it in `lib/check.sh`**
+- [x] **Step 4: Use it in `lib/check.sh`**
 
 Replace the line
 
@@ -239,7 +239,7 @@ with
         inherit=$(shared_inherit_categories "$(parse_yaml_value "$REPO_ROOT/$config_rel" "shared.inherit")")
 ```
 
-- [ ] **Step 5: Run the affected files, confirm green**
+- [x] **Step 5: Run the affected files, confirm green**
 
 ```bash
 bats tests/check.bats tests/shared.bats tests/base_skills.bats
@@ -248,7 +248,7 @@ shellcheck -x -S warning -e SC1091 lib/check.sh lib/helpers/shared.sh
 
 Expected: 10 + 12 + 12 tests pass; ShellCheck exits 0. The full plan is now `1..747`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add lib/helpers/shared.sh lib/check.sh tests/check.bats

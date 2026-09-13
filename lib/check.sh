@@ -137,7 +137,7 @@ config_rel=".ai/agent_sync.yaml"
 [[ -f "$REPO_ROOT/$config_rel" ]] || config_rel="agent_sync.yaml"
 if [[ -f "$REPO_ROOT/$config_rel" ]]; then
     if parent_src=$(shared_parent_src "$REPO_ROOT/$config_rel" "$REPO_ROOT"); then
-        inherit=$(parse_yaml_value "$REPO_ROOT/$config_rel" "shared.inherit")
+        inherit=$(shared_inherit_categories "$(parse_yaml_value "$REPO_ROOT/$config_rel" "shared.inherit")")
         overlay=$(build_overlay_tree "$TEMP_ROOT/.ai/src" "$parent_src" "$inherit")
         mkdir -p "$TEMP_ROOT/.ai/src"
         cp -R "$overlay/src/." "$TEMP_ROOT/.ai/src/"

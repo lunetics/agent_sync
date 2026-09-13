@@ -122,3 +122,15 @@ require_unreadable_dirs() {
     [ "$status" -eq 0 ]
     [ -z "$(ls -A "$sandbox" 2>/dev/null)" ]
 }
+
+@test "check agrees with sync when shared.inherit names a category sync skips" {
+    mkdir -p parent/.ai/src/rules parent/.ai/src/tools
+    printf 'parent rule\n' > parent/.ai/src/rules/parent-only.md
+    printf 'targets:\n  agents:\n    dest: "OTHER.md"\n' > parent/.ai/src/tools/claude.yaml
+    printf '\nshared:\n  path: "parent"\n  inherit: rules, tools\n' >> .ai/agent_sync.yaml
+    run run_agentsync sync
+    [ "$status" -eq 0 ]
+    run run_agentsync check
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"synced"* ]]
+}

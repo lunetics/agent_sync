@@ -380,6 +380,20 @@ shared_parent_src() {
     echo "$parent_src"
 }
 
+# Echo the CSV of `shared.inherit` categories shared_setup_overlay materialises:
+# `subagents` reads as `agents`, and the tokens it warns about are dropped.
+# Usage: shared_inherit_categories "<raw inherit value>"
+shared_inherit_categories() {
+    local raw="${1//,/ }" tok out=""
+    for tok in $raw; do
+        [[ "$tok" == "subagents" ]] && tok="agents"
+        case "$tok" in
+            rules|skills|commands|agents) out+="${out:+,}$tok" ;;
+        esac
+    done
+    echo "$out"
+}
+
 # Is the given category being inherited via `shared:` in this project?
 # Reads PROJECT_CONFIG_PATH directly (does NOT require shared_setup_overlay
 # to have run), so it's safe to call from doctor/dedupe which don't go

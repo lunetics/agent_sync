@@ -18,6 +18,18 @@ fi
 REPO_ROOT="$(cd "$REPO_ROOT" && pwd)"
 MANIFEST_REL=".ai/.sync-manifest"
 
+# Preserve an explicitly selected external configuration while sync runs in
+# TEMP_ROOT. Relative source.* values keep their documented meaning: relative
+# to the original project root, not to the isolated output workspace.
+CHECK_CONFIG_PATH="${AGENTSYNC_CONFIG_PATH:-}"
+CHECK_SOURCE_BASE_ROOT=""
+if [[ -n "$CHECK_CONFIG_PATH" ]]; then
+    if [[ "$CHECK_CONFIG_PATH" != /* ]]; then
+        CHECK_CONFIG_PATH="$REPO_ROOT/$CHECK_CONFIG_PATH"
+    fi
+    CHECK_SOURCE_BASE_ROOT="$REPO_ROOT"
+fi
+
 # shellcheck source=helpers/tmp.sh
 source "$SCRIPT_DIR/helpers/tmp.sh"
 # shellcheck source=helpers/yaml.sh
@@ -29,8 +41,11 @@ source "$SCRIPT_DIR/helpers/version.sh"
 # "sync failed inside check" wrapper. Only committed outputs make it fatal:
 # there, every machine must generate byte-identical files.
 _check_version_pin() {
-    local config="$REPO_ROOT/.ai/agent_sync.yaml"
-    [[ -f "$config" ]] || config="$REPO_ROOT/agent_sync.yaml"
+    local config="${CHECK_CONFIG_PATH:-}"
+    if [[ -z "$config" || ! -f "$config" ]]; then
+        config="$REPO_ROOT/.ai/agent_sync.yaml"
+        [[ -f "$config" ]] || config="$REPO_ROOT/agent_sync.yaml"
+    fi
     [[ -f "$config" ]] || return 0
 
     local outputs
@@ -135,6 +150,8 @@ done < "$COPY_LIST"
 if ! AGENTSYNC_REPO_ROOT="$TEMP_ROOT" \
      AGENTSYNC_SKIP_POST_SYNC=true \
      AGENTSYNC_INTERNAL_SKIP_BACKUP=true \
+     AGENTSYNC_CONFIG_PATH="$CHECK_CONFIG_PATH" \
+     AGENTSYNC_SOURCE_BASE_ROOT="$CHECK_SOURCE_BASE_ROOT" \
      "$SCRIPT_DIR/sync.sh" --force >"$SYNC_LOG" 2>&1; then
     echo "❌ Sync script failed during check"
     echo "Sync output (last 40 lines):"

@@ -31,12 +31,18 @@ _doctor_prepare_context() {
     }
     DEFAULT_REPO_ROOT="$(cd "$system_dir/.." && pwd)"
 
-    PROJECT_CONFIG_PATH=""
-    if [[ -f "$project_dir/.ai/agent_sync.yaml" ]]; then
-        PROJECT_CONFIG_PATH="$project_dir/.ai/agent_sync.yaml"
-    elif [[ -f "$project_dir/agent_sync.yaml" ]]; then
-        PROJECT_CONFIG_PATH="$project_dir/agent_sync.yaml"
-    fi
+    tool_resolver_select_project_config
+
+    # shellcheck disable=SC2034  # consumed by paths.sh's source allowlist
+    CONFIGURED_SOURCE_ROOTS=()
+    local source_key source_value
+    for source_key in agents rules skills tools commands subagents; do
+        source_value=""
+        if [[ -n "$PROJECT_CONFIG_PATH" ]]; then
+            source_value=$(parse_yaml_value "$PROJECT_CONFIG_PATH" "source.$source_key")
+        fi
+        register_configured_source_root "$source_value"
+    done
 
     export REPO_ROOT REPO_ROOT_CANONICAL DEFAULT_REPO_ROOT PROJECT_CONFIG_PATH
 }
@@ -200,13 +206,15 @@ _doctor_check_drift() {
 
 _doctor_scan_overrides() {
     local overrides_root="$REPO_ROOT/.ai/src"
+    local tools_root
+    tools_root=$(tool_resolver_user_dir)
     local hit_count=0 invalid_count=0
     local legacy_count=0
     local resource file tool_dir
 
     # New per-tool layout (0.11+).
-    if [[ -d "$overrides_root/tools" ]]; then
-        for tool_dir in "$overrides_root/tools"/*/; do
+    if [[ -d "$tools_root" ]]; then
+        for tool_dir in "$tools_root"/*/; do
             [[ -d "$tool_dir" ]] || continue
             for resource in mcp settings hooks; do
                 for file in "$tool_dir${resource}".*; do
@@ -283,6 +291,8 @@ _doctor_check_commands_config() {
 # guard shipped silently drops the registration.
 _doctor_check_guard_wired() {
     local tool="$1"
+
+    [[ "$(get_tool_bool "$tool" "targets.guard.enabled")" == "false" ]] && return 0
 
     local guard_source
     guard_source=$(resolve_payload_source "$tool" "guard")
@@ -599,7 +609,15 @@ cmd_doctor() {
         return 2
     fi
 
-    if [[ -f "$REPO_ROOT/.ai/src/AGENTS.md" ]] || [[ -f "$REPO_ROOT/.ai/AGENTS.md" ]]; then
+    local agents_source=".ai/src/AGENTS.md"
+    if [[ -n "$PROJECT_CONFIG_PATH" ]]; then
+        local configured_agents
+        configured_agents=$(parse_yaml_value "$PROJECT_CONFIG_PATH" "source.agents")
+        [[ -n "$configured_agents" ]] && agents_source="$configured_agents"
+    fi
+    local agents_source_abs
+    agents_source_abs=$(resolve_source_path "$agents_source" "source.agents") || agents_source_abs=""
+    if [[ -f "$agents_source_abs" ]]; then
         _doctor_ok "AGENTS.md source file found"
     else
         _doctor_fail "No AGENTS.md in .ai/src/ or .ai/ — sync will fail"
@@ -712,14 +730,26 @@ cmd_doctor() {
     # ── Section 4: source directories ────────────────────────────────────────
     _bold "  Source directories"; echo ""
     local missing=0
-    local src
-    for src in AGENTS.md rules skills commands agents; do
-        if [[ -e "$REPO_ROOT/.ai/src/$src" ]]; then
-            _doctor_ok ".ai/src/$src"
+    local source_key default_source raw_source source_abs
+    for source_key in agents rules skills commands subagents; do
+        case "$source_key" in
+            agents)    default_source=".ai/src/AGENTS.md"; raw_source=".ai/src/AGENTS.md";;
+            rules)     default_source=".ai/src/rules";     raw_source=".ai/src/rules";;
+            skills)    default_source=".ai/src/skills";    raw_source=".ai/src/skills";;
+            commands)  default_source=".ai/src/commands";  raw_source=".ai/src/commands";;
+            subagents) default_source=".ai/src/agents";    raw_source=".ai/src/agents";;
+        esac
+        if [[ -n "$PROJECT_CONFIG_PATH" ]]; then
+            raw_source=$(parse_yaml_value "$PROJECT_CONFIG_PATH" "source.$source_key")
+            [[ -n "$raw_source" ]] || raw_source="$default_source"
+        fi
+        source_abs=$(resolve_source_path "$raw_source" "source.$source_key") || source_abs=""
+        if [[ -e "$source_abs" ]]; then
+            _doctor_ok "$raw_source"
         else
-            case "$src" in
-                AGENTS.md) _doctor_fail ".ai/src/$src missing (required)"; missing=$((missing+1)) ;;
-                *)         _doctor_info ".ai/src/$src not present (optional)" ;;
+            case "$source_key" in
+                agents) _doctor_fail "$raw_source missing (required)"; missing=$((missing+1)) ;;
+                *)      _doctor_info "$raw_source not present (optional)" ;
             esac
         fi
     done

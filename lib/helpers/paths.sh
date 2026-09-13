@@ -5,6 +5,32 @@
 # Each resolver has two shapes: a `_r` variant returning through $REPLY, and an
 # echo wrapper for the `$(...)` call sites. Hot loops use `_r`.
 
+# Explicit source.* paths may be outside the project root. They are read-only
+# inputs selected by the project configuration; destinations use the separate
+# resolve_dest_path_r containment check below and are never widened by this
+# allowlist.
+CONFIGURED_SOURCE_ROOTS=()
+
+register_configured_source_root() {
+    local raw_path="$1"
+    [[ -n "$raw_path" ]] || return 0
+
+    local abs_path="$raw_path"
+    if [[ "$abs_path" != /* ]]; then
+        abs_path="${AGENTSYNC_SOURCE_BASE_ROOT:-$REPO_ROOT}/$abs_path"
+    fi
+
+    local canonical_path=""
+    canonicalize_with_existing_ancestor_r "$abs_path" 2>/dev/null && canonical_path="$REPLY"
+    [[ -n "$canonical_path" ]] || return 0
+
+    local root
+    for root in "${CONFIGURED_SOURCE_ROOTS[@]+${CONFIGURED_SOURCE_ROOTS[@]}}"; do
+        [[ "$root" == "$canonical_path" ]] && return 0
+    done
+    CONFIGURED_SOURCE_ROOTS+=("$canonical_path")
+}
+
 # Parent directory of a path. Matches `dirname` for every path this module
 # handles; a pathname starting with exactly two slashes is implementation-defined
 # in POSIX and normalisation collapses it before it can reach here.
@@ -226,6 +252,12 @@ is_path_safe_source() {
     if [[ "$candidate_path" == "$DEFAULT_REPO_ROOT" || "$candidate_path" == "$DEFAULT_REPO_ROOT/"* ]]; then
         return 0
     fi
+    local configured_root
+    for configured_root in "${CONFIGURED_SOURCE_ROOTS[@]+${CONFIGURED_SOURCE_ROOTS[@]}}"; do
+        if [[ "$candidate_path" == "$configured_root" || "$candidate_path" == "$configured_root/"* ]]; then
+            return 0
+        fi
+    done
     # `shared:` overlay places child + parent files into a tmpdir; sync reads
     # from there. The tmpdir is owned by shared.sh and torn down on EXIT.
     if [[ -n "${SHARED_OVERLAY_DIR_CANONICAL:-}" ]] && \
@@ -258,8 +290,13 @@ resolve_source_path_r() {
         return 1
     fi
 
-    # First try resolving relative to REPO_ROOT (the user project)
+    # First try resolving relative to the configured source base (normally the
+    # user project; check may point it at the original project read-only).
+    local source_base="${AGENTSYNC_SOURCE_BASE_ROOT:-$REPO_ROOT}"
     normalize_absolute_path_r "$raw_path"
+    if [[ "$raw_path" != /* ]]; then
+        normalize_absolute_path_r "$source_base/$raw_path"
+    fi
     local abs_path_target="$REPLY"
     local canonical_path_target=""
     if canonicalize_with_existing_ancestor_r "$abs_path_target" 2>/dev/null; then

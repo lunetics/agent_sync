@@ -24,12 +24,7 @@ _profile_prepare_context() {
     }
     DEFAULT_REPO_ROOT="$(cd "$system_dir/.." && pwd)"
 
-    PROJECT_CONFIG_PATH=""
-    if [[ -f "$project_dir/.ai/agent_sync.yaml" ]]; then
-        PROJECT_CONFIG_PATH="$project_dir/.ai/agent_sync.yaml"
-    elif [[ -f "$project_dir/agent_sync.yaml" ]]; then
-        PROJECT_CONFIG_PATH="$project_dir/agent_sync.yaml"
-    fi
+    tool_resolver_select_project_config
 
     export REPO_ROOT REPO_ROOT_CANONICAL DEFAULT_REPO_ROOT PROJECT_CONFIG_PATH
 }
@@ -186,7 +181,8 @@ _profile_adopt_home() {
         break
     done
     # Payloads: settings/mcp/hooks into the per-variant override dir.
-    local payload_dir="$REPO_ROOT/.ai/src/tools/$variant_name"
+    local payload_dir
+    payload_dir="$(tool_resolver_user_dir)/$variant_name"
     [[ -f "$home_abs/.mcp.json" ]]      && { mkdir -p "$payload_dir"; cp "$home_abs/.mcp.json" "$payload_dir/mcp.json"; }
     [[ -f "$home_abs/settings.json" ]]  && { mkdir -p "$payload_dir"; cp "$home_abs/settings.json" "$payload_dir/settings.json"; }
     [[ -f "$home_abs/hooks.json" ]]     && { mkdir -p "$payload_dir"; cp "$home_abs/hooks.json" "$payload_dir/hooks.json"; }
@@ -348,7 +344,10 @@ _profile_remove() {
         fi
         uf=$(tool_resolver_user_file "$t")
         [[ -f "$uf" ]] && rm -f "$uf"
-        rm -rf "$REPO_ROOT/.ai/src/tools/$t"
+        local tools_dir
+        tools_dir=$(tool_resolver_user_dir)
+        [[ "$tools_dir" == /* ]] || return 1
+        rm -rf "${tools_dir:?}/$t"
     done
 
     yaml_remove_key "$PROJECT_CONFIG_PATH" "profiles.$name"

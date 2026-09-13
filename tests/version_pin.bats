@@ -67,6 +67,8 @@ set_version_pin_mode() {
     run run_agentsync sync
     [ "$status" -eq 1 ]
     [[ "$output" == *"pins agentsync 0.1.0"* ]]
+    [[ "$output" == *"version_pin.mode 'strict'"* ]]
+    [[ "$output" != *"committed outputs must come"* ]]
     [ ! -f CLAUDE.md ]
 }
 
@@ -78,6 +80,8 @@ set_version_pin_mode() {
     run run_agentsync check
     [ "$status" -eq 1 ]
     [[ "$output" == *"pins agentsync 0.1.0"* ]]
+    [[ "$output" == *"version_pin.mode 'strict'"* ]]
+    [[ "$output" != *"committed outputs must come"* ]]
 }
 
 @test "version pin: unknown mode fails before writing" {

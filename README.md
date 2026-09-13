@@ -503,6 +503,9 @@ Generated files are output, so an agent that edits them loses the change on the 
 ```yaml
 version_pin:
   mode: strict # or warn (default)
+
+# Scalar shorthand:
+version_pin: strict # or warn
 ```
 
 ## How Sync Works

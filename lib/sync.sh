@@ -1145,6 +1145,8 @@ _sync_cleanup() {
     if [[ "$SYNC_TRANSACTION_ACTIVE" == "true" ]] && [[ $status -ne 0 ]]; then
         log_warning "Sync failed; restoring pre-sync state..."
         if backup_restore "$REPO_ROOT" "$SYNC_BACKUP_PATH"; then
+            backup_seal "$REPO_ROOT" "$SYNC_BACKUP_PATH" || \
+                log_warning "Recovery has no verified post-operation state."
             log_info "Restored pre-sync state from $(display_path "$SYNC_BACKUP_PATH")"
             # A run of failing syncs would otherwise accumulate snapshots
             # forever, because prune only runs on the success path. Skipped when
@@ -1326,6 +1328,9 @@ main() {
     _run_personal_pass
     _run_profile_passes
     _finalize_run
+    if [[ -n "$SYNC_BACKUP_PATH" ]]; then
+        backup_seal "$REPO_ROOT" "$SYNC_BACKUP_PATH" || return 1
+    fi
     if [[ -n "$SYNC_BACKUP_PATH" ]] && ! backup_prune "$REPO_ROOT"; then
         log_warning "Could not prune old AgentSync backups."
     fi

@@ -2,7 +2,11 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # The migration branch accumulates every phase and is not merged before the
+    # cutover (docs/specs/2026-09-12-rust-migration-design.md, Phase 5), so it
+    # needs its own trigger or nothing is ever checked on Linux and Windows.
+    # Remove the pattern at the cutover.
+    branches: [main, 'feat/native-engine**']
   pull_request:
     branches: [main]
 

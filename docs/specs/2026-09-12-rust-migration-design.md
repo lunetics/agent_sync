@@ -362,6 +362,23 @@ Appended one line at a time as they are found, with the phase:
 - Phase 1: tool slugs sort in byte order; Bash used the locale's `sort`.
 - Phase 1: `\r\n` line endings in config files read as `\n`; Bash kept a
   trailing `\r` that normalisation then trimmed, so values agree.
+- Phase 2: directory listings and globs read in byte order; Bash globs followed
+  the locale's collation, so merged rules, indexes, and imports can order
+  differently for names the locale sorts otherwise.
+- Phase 2: when `check`'s render fails, the log tail names project paths and
+  the virtual `/<agentsync>` and `/<agentsync-overlay>` roots where Bash named
+  its random temporary workspace and overlay directories.
+- Phase 2: `check` without `.ai/` reports `Incomplete copy — missing: .ai` on
+  stderr where Bash printed `tar`'s platform-specific error.
+- Phase 2: `check` reads `agent_sync.yaml` with its `shared:` block in place;
+  Bash removed the block from a temporary copy. They differ only when another
+  key's lookup falls through into that block (quirk 1).
+- Phase 2: symlinks under `.ai/` and among the outputs are followed; Bash's
+  `tar` copy kept them as links.
+- Phase 2: `agent_sync.yaml` and OpenCode JSON that are not valid UTF-8 are read
+  with replacement characters; Markdown transforms stay byte-exact.
+- Phase 2: `printf '%b'` escapes in rule headers expand as Bash 3.2 does,
+  leaving `\u` literal where Bash 5 expanded it.
 
 ## Risks
 

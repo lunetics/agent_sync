@@ -6353,7 +6353,7 @@ git commit -m "feat(native): render sync outputs into the workspace"
 - Consumes: `render` (Task 8), `overlay::{shared_parent_src, inherit_categories, merge_shared_parent}` (Task 7).
 - Produces: `cli::check::check(root: &str, &Env) -> Result<Report, Error>`; `cli::check::Report { pub stdout: String, pub stderr: String, pub status: u8 }`; `cli::check::run(root, &Env, out, err) -> Result<u8, Error>`; `Command::Check`; `main::run` returning the process status. From this task, `agentsync check` with a built binary is answered natively.
 
-- [ ] **Step 1: Write `src/cli/check.rs`**
+- [x] **Step 1: Write `src/cli/check.rs`**
 
 ```rust
 //! `agentsync check`: render what `sync --force` would write and compare every
@@ -6698,7 +6698,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Replace `src/cli/mod.rs`**
+- [x] **Step 2: Replace `src/cli/mod.rs`**
 
 ```rust
 pub mod check;
@@ -6736,7 +6736,7 @@ pub enum Command {
 }
 ```
 
-- [ ] **Step 3: Replace `src/main.rs`**
+- [x] **Step 3: Replace `src/main.rs`**
 
 ```rust
 use std::ffi::OsString;
@@ -6837,12 +6837,12 @@ fn guard_engine_version() -> Result<(), Error> {
 }
 ```
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 Run: `cargo test`
 Expected: `112 passed` (106 + 6 `cli::check`, all `#[cfg(unix)]`) and the 7 integration tests.
 
-- [ ] **Step 5: Declare `check` ported in `bin/agentsync.sh`**
+- [x] **Step 5: Declare `check` ported in `bin/agentsync.sh`**
 
 ```bash
 _NATIVE_COMMANDS=" version --version -v list ls check "
@@ -6850,7 +6850,7 @@ _NATIVE_COMMANDS=" version --version -v list ls check "
 
 `check --help` keeps printing the Bash usage: the dispatcher intercepts `--help` for `check` before `_native_try`.
 
-- [ ] **Step 6: Record the accepted deviations in the design spec**
+- [x] **Step 6: Record the accepted deviations in the design spec**
 
 Under "Accepted deviations", after the Phase 1 lines, add:
 
@@ -6874,7 +6874,7 @@ Under "Accepted deviations", after the Phase 1 lines, add:
   leaving `\u` literal where Bash 5 expanded it.
 ```
 
-- [ ] **Step 7: Prove the bats files that call `check` against the binary**
+- [x] **Step 7: Prove the bats files that call `check` against the binary**
 
 ```bash
 cargo build --release
@@ -6885,7 +6885,7 @@ shellcheck -x -S warning -e SC1091 bin/agentsync.sh
 
 Expected: 73 tests pass in Bash (10 + 12 + 8 + 20 + 6 + 17); `73` under `AGENTSYNC_NATIVE=1`; ShellCheck exits 0. `check leaves no temp artifacts behind` passes natively because nothing is written.
 
-- [ ] **Step 8: Lint and commit**
+- [x] **Step 8: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings

@@ -1,3 +1,4 @@
+pub mod check;
 pub mod list;
 
 use clap::{Parser, Subcommand};
@@ -26,4 +27,7 @@ pub enum Command {
     /// Show available tools and their status.
     #[command(visible_alias = "ls", disable_help_flag = true)]
     List,
+    /// Verify generated outputs match what sync would write.
+    #[command(disable_help_flag = true)]
+    Check,
 }

@@ -26,6 +26,11 @@ impl Tool {
         ))
     }
 
+    /// A tool whose override text was read by the caller, with its shipped base.
+    pub fn new(slug: &str, user_yaml: Option<String>) -> Self {
+        Self::from_parts(slug, user_yaml, catalog::base_tool_yaml(slug))
+    }
+
     fn from_parts(slug: &str, user_yaml: Option<String>, base_yaml: Option<&'static str>) -> Self {
         Self {
             slug: slug.to_string(),
@@ -64,6 +69,42 @@ impl Tool {
         String::new()
     }
 
+    /// A scalar from `.ai/src/tools/<slug>.yaml` alone, as the legacy
+    /// `enabled: true` lookup reads it.
+    pub fn user_value(&self, key_path: &str) -> String {
+        self.user_yaml
+            .as_deref()
+            .map(|text| yaml_subset::value(text, key_path))
+            .unwrap_or_default()
+    }
+
+    /// `get_tool_bool`:`Some` for the true and false spellings, `None` otherwise.
+    pub fn flag(&self, key_path: &str) -> Option<bool> {
+        match self.value(key_path).to_ascii_lowercase().as_str() {
+            "true" | "yes" | "1" | "on" => Some(true),
+            "false" | "no" | "0" | "off" => Some(false),
+            _ => None,
+        }
+    }
+
+    /// `get_tool_filter`: an include/exclude list as one space-joined string,
+    /// layered like `value` but per file, from a scalar, `[a, b]`, or a block list.
+    pub fn filter(&self, key_path: &str) -> String {
+        if let Some(user) = &self.user_yaml {
+            let found = read_filter(user, key_path);
+            if !found.is_empty() {
+                return found;
+            }
+        }
+        if let Some(base) = self.base_yaml {
+            return read_filter(base, key_path);
+        }
+        match catalog::base_tool_yaml(&self.base_name()) {
+            Some(text) => read_filter(text, key_path),
+            None => String::new(),
+        }
+    }
+
     pub fn display_name(&self) -> String {
         let name = self.value("name");
         if name.is_empty() {
@@ -84,6 +125,15 @@ impl Tool {
             }
         })
     }
+}
+
+/// `_read_filter_file`.
+fn read_filter(text: &str, key_path: &str) -> String {
+    let scalar = yaml_subset::value(text, key_path);
+    if !scalar.is_empty() && !(scalar.starts_with('[') && scalar.ends_with(']')) {
+        return scalar;
+    }
+    yaml_subset::list(text, key_path).join(" ")
 }
 
 #[cfg(test)]
@@ -129,6 +179,25 @@ mod tests {
             .base_payload("settings")
             .expect("inherits claude's settings");
         assert!(payload.path().ends_with("claude.json"));
+    }
+
+    #[test]
+    fn flags_accept_the_bash_spellings_case_insensitively() {
+        let tool =
+            claude_with("targets:\n  rules:\n    enabled: OFF\n  skills:\n    enabled: maybe\n");
+        assert_eq!(tool.flag("targets.rules.enabled"), Some(false));
+        assert_eq!(tool.flag("targets.skills.enabled"), None);
+    }
+
+    #[test]
+    fn filters_join_scalar_inline_and_block_forms() {
+        let block = claude_with("targets:\n  skills:\n    exclude:\n      - a\n      - \"b*\"\n");
+        assert_eq!(block.filter("targets.skills.exclude"), "a b*");
+        let inline = claude_with("targets:\n  skills:\n    exclude: [a, b]\n");
+        assert_eq!(inline.filter("targets.skills.exclude"), "a b");
+        let scalar = claude_with("targets:\n  skills:\n    exclude: \"a b\"\n");
+        assert_eq!(scalar.filter("targets.skills.exclude"), "a b");
+        assert_eq!(claude_with("").filter("targets.rules.include"), "");
     }
 
     #[test]

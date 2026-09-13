@@ -4272,7 +4272,7 @@ git commit -m "feat(native): port file operations and rule directory sync"
   - `profiles::names(config) -> Vec<String>`, `overlay_dir(config, name) -> String`, `tools(config, name) -> Vec<String>`, `is_active(config, name) -> bool`, `all_tools(config) -> Vec<String>`.
   - `overlay::Sources { agents, rules, skills, commands, subagents }` (`Clone`, `Default`, `PartialEq`); `build_tree(&mut Workspace, name, child_src, parent_src, &[&str]) -> Result<String, Error>`; `rewrite_sources(&Workspace, dir, &mut Sources)`; `setup_base_src(&mut Session, config: Option<&str>, &mut Sources) -> Result<(), Error>`; `setup_profile(&mut Session, config, name, base_src, &mut Sources) -> Result<bool, Error>`; `cleanup_profile(&mut Workspace)`; `shared_parent_src(config, root) -> Option<String>`; `inherit_categories(raw) -> Vec<&'static str>`; `merge_shared_parent(&mut Workspace, parent_src, &[&str])`.
 
-- [ ] **Step 1: Replace `src/tool.rs`**
+- [x] **Step 1: Replace `src/tool.rs`**
 
 ```rust
 //! Layered tool config: user override → shipped base → `base:` variant,
@@ -4487,7 +4487,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Replace `src/payload.rs`**
+- [x] **Step 2: Replace `src/payload.rs`**
 
 ```rust
 //! Where a tool's settings, mcp, or hooks override lives, mirroring the lookups
@@ -4726,7 +4726,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 3: Write `src/profiles.rs`**
+- [x] **Step 3: Write `src/profiles.rs`**
 
 ```rust
 //! `profiles:` in `agent_sync.yaml`, read as `lib/helpers/profiles.sh` reads it.
@@ -4836,7 +4836,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 4: Write `src/overlay.rs`**
+- [x] **Step 4: Write `src/overlay.rs`**
 
 ```rust
 //! Source overlays of `lib/helpers/shared.sh`: the engine-owned skill layer,
@@ -5158,7 +5158,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 5: Register the modules in `src/lib.rs`**
+- [x] **Step 5: Register the modules in `src/lib.rs`**
 
 ```rust
 //! AgentSync native engine. `main.rs` is the only place that talks to the
@@ -5193,12 +5193,12 @@ pub fn engine_version() -> &'static str {
 }
 ```
 
-- [ ] **Step 6: Run the tests, confirm green**
+- [x] **Step 6: Run the tests, confirm green**
 
 Run: `cargo test --lib`
 Expected: `99 passed` (89 + 2 `tool` + 1 `payload` + 2 `profiles` + 5 `overlay`).
 
-- [ ] **Step 7: Lint and commit**
+- [x] **Step 7: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings

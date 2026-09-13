@@ -49,7 +49,7 @@ tool_resolver_configured_tools_dir() {
 
 # Select the project configuration for every read-only consumer. An explicit
 # AGENTSYNC_CONFIG_PATH wins, including when the file lives outside the project;
-# a missing explicit file is reported and then the normal fallback is used.
+# a missing explicit file is an error and never falls back to another config.
 tool_resolver_select_project_config() {
     PROJECT_CONFIG_PATH=""
     local configured="${AGENTSYNC_CONFIG_PATH:-}"
@@ -60,7 +60,8 @@ tool_resolver_select_project_config() {
             export PROJECT_CONFIG_PATH
             return 0
         fi
-        echo "⚠  AGENTSYNC_CONFIG_PATH is set but file not found: $configured" >&2
+        echo "❌ AGENTSYNC_CONFIG_PATH is set but file not found: $configured" >&2
+        return 1
     fi
 
     if [[ -f "$REPO_ROOT/.ai/agent_sync.yaml" ]]; then

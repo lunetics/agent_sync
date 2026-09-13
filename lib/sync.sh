@@ -732,7 +732,13 @@ _load_run_config() {
     fi
 
     resolve_project_config_path
-    [[ -n "$PROJECT_CONFIG_PATH" ]] || return 0
+    if [[ -z "$PROJECT_CONFIG_PATH" ]]; then
+        if [[ "$DRY_RUN" == "true" ]]; then
+            return 0
+        fi
+        log_error "No project configuration found; refusing write sync with cleanup defaults. Create .ai/agent_sync.yaml or set AGENTSYNC_CONFIG_PATH."
+        return 1
+    fi
 
     local cfg_default_enabled cfg_default_cleanup cfg_skip_post_sync
     cfg_default_enabled=$(parse_yaml_value "$PROJECT_CONFIG_PATH" "defaults.enabled")

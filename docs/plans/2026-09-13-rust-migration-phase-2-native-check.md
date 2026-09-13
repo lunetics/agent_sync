@@ -750,7 +750,7 @@ git commit -m "feat(native): port filters, the log voice, and Bash text primitiv
 - Consumes: `log::Log` (Task 1).
 - Produces: `paths::ENGINE_ROOT` (`"/<agentsync>"`), `paths::OVERLAY_ROOT` (`"/<agentsync-overlay>"`), `is_virtual(&str)`, `is_within(path, root)`, `parent(&str) -> String`, `leaf(&str) -> String`, `normalize(&str) -> String`, `logical_root(env_root: Option<&str>, cwd: &Path, pwd: Option<&str>) -> String`; `paths::Paths { pub root, pub root_canonical }` with `new(root, root_canonical, home: Option<&str>)`, `for_disk_root(root)`, `absolute(&str)`, `canonicalize_with_existing_ancestor(&str) -> Option<String>`, `resolve_dest(raw, label, &mut Log) -> Option<String>`, `is_safe_source(&str)`, `resolve_source(raw, label, &mut Log) -> Option<String>`, `to_repo_relative(&str) -> Option<String>`, `display(&str) -> String`. `resolve_source` has no engine fallback, matching Task 0b.
 
-- [ ] **Step 1: Write `src/paths.rs`**
+- [x] **Step 1: Write `src/paths.rs`**
 
 ```rust
 //! Path rules of `lib/helpers/paths.sh` and `display_path` from
@@ -1112,7 +1112,7 @@ mod tests {
 
 Below the root, canonicalisation is lexical on purpose: `lib/check.sh` rendered into a `tar` copy, which had no symlinks under its root, so the Bash reference itself never resolved one there. Phase 3's `sync` renders into the real project and extends this for symlinked subdirectories.
 
-- [ ] **Step 2: Register the module in `src/lib.rs`**
+- [x] **Step 2: Register the module in `src/lib.rs`**
 
 ```rust
 //! AgentSync native engine. `main.rs` is the only place that talks to the
@@ -1139,12 +1139,12 @@ pub fn engine_version() -> &'static str {
 }
 ```
 
-- [ ] **Step 3: Run the tests, confirm green**
+- [x] **Step 3: Run the tests, confirm green**
 
 Run: `cargo test --lib`
 Expected: `54 passed` (46 + 8 `paths`; two of them are `#[cfg(unix)]` and do not run on Windows).
 
-- [ ] **Step 4: Lint and commit**
+- [x] **Step 4: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings

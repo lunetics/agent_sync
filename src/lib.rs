@@ -6,6 +6,7 @@ pub mod cli;
 pub mod error;
 pub mod filters;
 pub mod log;
+pub mod paths;
 pub mod payload;
 pub mod project;
 pub mod style;

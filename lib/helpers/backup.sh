@@ -7,6 +7,9 @@
 #
 # Depends on: paths.sh (_path_parent_r, _canon_dir_r).
 
+# shellcheck source=yaml.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/yaml.sh"
+
 BACKUP_PREPARED_TARGETS=()
 BACKUP_LOADED_STATES=()
 BACKUP_LOADED_RELS=()
@@ -14,9 +17,61 @@ BACKUP_LOADED_PATHS=()
 ROLLBACK_ROOT=""
 ROLLBACK_SAFETY_PATH=""
 ROLLBACK_TRANSACTION_ACTIVE="false"
+# Internal transaction policy, not an environment override. Each command loads
+# it before writing and keeps it even if rollback restores an older config.
+BACKUP_RETENTION_MODE="bounded"
 
 _backup_error() {
     echo "Error: $1" >&2
+}
+
+# Load the project policy before any target or backup-store mutation. An
+# explicit config is authoritative, as in sync; otherwise prefer .ai/ to root.
+backup_configure() {
+    local root="$1"
+    local config="${AGENTSYNC_CONFIG_PATH:-}"
+    BACKUP_RETENTION_MODE="bounded"
+    if [[ -n "$config" ]]; then
+        [[ "$config" == /* ]] || config="$root/$config"
+        if [[ ! -f "$config" ]]; then
+            _backup_error "AGENTSYNC_CONFIG_PATH is set but file not found: $config"
+            return 1
+        fi
+    elif [[ -f "$root/.ai/agent_sync.yaml" ]]; then
+        config="$root/.ai/agent_sync.yaml"
+    elif [[ -f "$root/agent_sync.yaml" ]]; then
+        config="$root/agent_sync.yaml"
+    fi
+
+    if [[ -n "$config" ]]; then
+        parse_yaml_value_r "$config" "backup"
+        if [[ -n "$REPLY" ]]; then
+            _backup_error "backup must be a mapping with backup.retention: bounded or preserve in $config"
+            return 1
+        fi
+        parse_yaml_value_r "$config" "backup.retention"
+        if [[ "$YAML_VALUE_FOUND" == true ]]; then
+            case "$REPLY" in
+                bounded|preserve) BACKUP_RETENTION_MODE="$REPLY" ;;
+                *)
+                    _backup_error "Invalid backup.retention '${REPLY:-<empty>}' in $config; expected bounded or preserve"
+                    return 1
+                    ;;
+            esac
+        fi
+    fi
+    _backup_validate_limits "${AGENTSYNC_BACKUP_LIMIT:-10}" "${AGENTSYNC_BACKUP_MAX_AGE_DAYS:-30}"
+}
+
+_backup_validate_limits() {
+    if [[ ! "$1" =~ ^[0-9]+$ ]]; then
+        _backup_error "Backup limit must be a non-negative integer: $1"
+        return 1
+    fi
+    if [[ ! "$2" =~ ^[0-9]+$ ]]; then
+        _backup_error "Backup max age must be a non-negative integer: $2"
+        return 1
+    fi
 }
 
 _backup_canonical_root() {
@@ -293,6 +348,7 @@ _backup_snapshot_age_days() {
 # staging directory safe: a backup takes seconds, and the shell-init hook can
 # run sync alongside a manual one in the same project.
 _backup_sweep_stale_staging() {
+    [[ "$BACKUP_RETENTION_MODE" != "preserve" ]] || return 0
     local store="$1"
     local leftover
     while IFS= read -r leftover; do
@@ -639,14 +695,8 @@ backup_prune() {
     local supplied_root="$1"
     local limit="${2:-${AGENTSYNC_BACKUP_LIMIT:-10}}"
     local max_age="${3:-${AGENTSYNC_BACKUP_MAX_AGE_DAYS:-30}}"
-    if [[ ! "$limit" =~ ^[0-9]+$ ]]; then
-        _backup_error "Backup limit must be a non-negative integer: $limit"
-        return 1
-    fi
-    if [[ ! "$max_age" =~ ^[0-9]+$ ]]; then
-        _backup_error "Backup max age must be a non-negative integer: $max_age"
-        return 1
-    fi
+    _backup_validate_limits "$limit" "$max_age" || return 1
+    [[ "$BACKUP_RETENTION_MODE" != "preserve" ]] || return 0
 
     local canonical_root store
     canonical_root=$(_backup_canonical_root "$supplied_root") || return 1
@@ -771,6 +821,8 @@ cmd_rollback() {
     local supplied_root="${AGENTSYNC_REPO_ROOT:-$(pwd)}"
     local root
     root=$(_backup_canonical_root "$supplied_root") || return 1
+
+    backup_configure "$root" || return 1
 
     if [[ "$list_only" == "true" ]]; then
         if [[ -n "$backup_id" ]]; then

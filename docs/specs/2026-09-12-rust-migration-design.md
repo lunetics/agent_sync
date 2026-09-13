@@ -348,6 +348,8 @@ cleanup has a list:
    order (accepted deviation, see below).
 9. `read_frontmatter_field` returns the last occurrence of a key, although its
    comment promises the first.
+10. `_rule_paths_csv` collects every list item in a rule's frontmatter once it
+    has a bare `paths:` key, not only the items under `paths:`.
 
 ## Accepted deviations
 

@@ -3199,7 +3199,7 @@ git commit -m "feat(native): compose opencode.json from settings and canonical M
   - `rules::add_header`, `merge_or_prepend_header`, `rule_paths_csv`, `strip_frontmatter`, `apply_rule_header` (pure, bytes); `append_imports(s, agents_file, rules_dir)`, `merge_rules_to_file(s, src_dir, dest_file, include, exclude, agents_file: Option<&str>)`, `sync_rules(s, src_dir, dest_dir, &RuleOptions)`, `inline_commands_to_file(s, src_dir, target_file, include, exclude)`, `sync_commands_as_skills(s, src_dir, dest_dir, include, exclude)`, `sync_converted(s, src_dir, dest_dir, Conversion)` — each `-> Result<(), Error>`; `RuleOptions<'a> { extension, header, scoped_header, include, exclude }`; `Conversion { CommandToml, AgentToml, AgentAmazonqJson, AgentOpencodeMd }`.
   - All sweeps prune as a forced run does: `sync_may_prune` is always true under `check`'s `--force`, so the preserve branch waits for Phase 3.
 
-- [ ] **Step 1: Write `src/session.rs`**
+- [x] **Step 1: Write `src/session.rs`**
 
 ```rust
 //! State one render shares across its steps: the workspace, path rules, the
@@ -3308,7 +3308,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Write `src/file_ops.rs`**
+- [x] **Step 2: Write `src/file_ops.rs`**
 
 ```rust
 //! `lib/helpers/file_ops.sh` for a forced render: every extraneous entry a
@@ -3479,7 +3479,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 3: Write `src/rules.rs`**
+- [x] **Step 3: Write `src/rules.rs`**
 
 ```rust
 //! Rule, command, and subagent directory operations of
@@ -4179,7 +4179,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 4: Register the modules in `src/lib.rs`**
+- [x] **Step 4: Register the modules in `src/lib.rs`**
 
 ```rust
 //! AgentSync native engine. `main.rs` is the only place that talks to the
@@ -4212,7 +4212,7 @@ pub fn engine_version() -> &'static str {
 }
 ```
 
-- [ ] **Step 5: Record the quirk in the design spec**
+- [x] **Step 5: Record the quirk in the design spec**
 
 After item 9 under "Known quirks", add:
 
@@ -4221,12 +4221,12 @@ After item 9 under "Known quirks", add:
     has a bare `paths:` key, not only the items under `paths:`.
 ```
 
-- [ ] **Step 6: Run the tests, confirm green**
+- [x] **Step 6: Run the tests, confirm green**
 
 Run: `cargo test --lib`
 Expected: `89 passed` (73 + 2 `session` + 4 `file_ops` + 10 `rules`).
 
-- [ ] **Step 7: Cross-check a merged header and a scoped rule against Bash**
+- [x] **Step 7: Cross-check a merged header and a scoped rule against Bash**
 
 ```bash
 dir=$(mktemp -d "${TMPDIR:-/tmp}/rules.XXXXXX")
@@ -4245,7 +4245,7 @@ $'---\nglobs: src/**\nalwaysApply: true\n---\n# R\nx'
 $'---\nglobs: \'a/*,b,c\'\nalwaysApply: false\n---\n\n# T\nbodyx'
 ```
 
-- [ ] **Step 8: Lint and commit**
+- [x] **Step 8: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings

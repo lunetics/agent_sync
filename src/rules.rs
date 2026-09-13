@@ -1,0 +1,695 @@
+//! Rule, command, and subagent directory operations of
+//! `lib/helpers/rule_operations.sh` and the directory loops of
+//! `lib/helpers/format_conversion.sh`, for a forced render.
+
+use crate::session::Session;
+use crate::{Error, convert, filters, paths, text};
+
+/// `add_header`: `printf '%b\n'` of the header, a blank line, the file.
+pub fn add_header(file: &[u8], header: &str) -> Vec<u8> {
+    let (mut out, stopped) = text::printf_b(header.as_bytes());
+    if !stopped {
+        out.push(b'\n');
+    }
+    out.push(b'\n');
+    out.extend_from_slice(file);
+    out
+}
+
+fn frontmatter_key(line: &[u8]) -> Option<&[u8]> {
+    let first = *line.first()?;
+    if !(first.is_ascii_alphabetic() || first == b'_') {
+        return None;
+    }
+    let end = line
+        .iter()
+        .position(|b| !(b.is_ascii_alphanumeric() || *b == b'_' || *b == b'-'))?;
+    (line[end] == b':').then_some(&line[..end])
+}
+
+/// `merge_or_prepend_header`: a file without frontmatter gets the header; a
+/// file with frontmatter gains only the header keys it lacks.
+pub fn merge_or_prepend_header(file: &[u8], header: &str) -> Vec<u8> {
+    let lines = text::lines(file);
+    if lines.first().copied().unwrap_or(b"") != b"---" {
+        return add_header(file, header);
+    }
+    let mut existing: Vec<&[u8]> = Vec::new();
+    let mut in_fm = false;
+    for line in &lines {
+        if *line == b"---" {
+            if in_fm {
+                break;
+            }
+            in_fm = true;
+            continue;
+        }
+        if in_fm && let Some(key) = frontmatter_key(line) {
+            existing.push(key);
+        }
+    }
+    let (expanded, _) = text::printf_b(header.as_bytes());
+    let mut additions = Vec::new();
+    for hline in text::lines(&expanded) {
+        if hline == b"---" || hline.is_empty() {
+            continue;
+        }
+        if let Some(key) = frontmatter_key(hline)
+            && !existing.contains(&key)
+        {
+            additions.extend_from_slice(hline);
+            additions.push(b'\n');
+        }
+    }
+    if additions.is_empty() {
+        return file.to_vec();
+    }
+    let mut out = Vec::with_capacity(file.len() + additions.len());
+    let mut fences = 0;
+    for line in lines {
+        if line == b"---" {
+            fences += 1;
+            if fences == 2 {
+                out.extend_from_slice(&additions);
+            }
+        }
+        out.extend_from_slice(line);
+        out.push(b'\n');
+    }
+    out
+}
+
+/// `_rule_paths_csv`: every list item in the leading frontmatter, joined with
+/// commas, when that frontmatter has a bare `paths:` key.
+pub fn rule_paths_csv(file: &[u8]) -> Vec<u8> {
+    let lines = text::lines(file);
+    if lines.first().copied() != Some(b"---".as_slice()) {
+        return Vec::new();
+    }
+    let mut block: Vec<&[u8]> = Vec::new();
+    for (index, line) in lines.iter().enumerate().skip(1) {
+        block.push(line);
+        if index > 1 && *line == b"---" {
+            break;
+        }
+    }
+    let has_paths = block
+        .iter()
+        .any(|line| text::after_key(line, "paths").is_some_and(<[u8]>::is_empty));
+    if !has_paths {
+        return Vec::new();
+    }
+    let mut items: Vec<Vec<u8>> = Vec::new();
+    for line in block {
+        let rest = text::trim_start_space(line);
+        let Some(after_dash) = rest.strip_prefix(b"-") else {
+            continue;
+        };
+        if !after_dash.first().is_some_and(|b| text::is_space(*b)) {
+            continue;
+        }
+        let mut item = text::trim_start_space(after_dash);
+        if let Some(first) = item.first()
+            && (*first == b'"' || *first == b'\'')
+        {
+            item = &item[1..];
+        }
+        if let Some(last) = item.last()
+            && (*last == b'"' || *last == b'\'')
+        {
+            item = &item[..item.len() - 1];
+        }
+        items.push(item.to_vec());
+    }
+    items.join(&b","[..])
+}
+
+/// `_strip_frontmatter`: the leading `---` block and the blank lines after it.
+pub fn strip_frontmatter(file: &[u8]) -> Vec<u8> {
+    let lines = text::lines(file);
+    if lines.first().copied() != Some(b"---".as_slice()) {
+        return file.to_vec();
+    }
+    let close = lines.iter().skip(1).position(|l| *l == b"---");
+    let Some(close) = close.map(|i| i + 1) else {
+        return Vec::new();
+    };
+    let rest = &lines[close + 1..];
+    let first_content = rest
+        .iter()
+        .position(|l| !l.is_empty())
+        .unwrap_or(rest.len());
+    let kept = &rest[first_content..];
+    let mut out = Vec::new();
+    for (i, line) in kept.iter().enumerate() {
+        out.extend_from_slice(line);
+        if i + 1 < kept.len() || file.ends_with(b"\n") {
+            out.push(b'\n');
+        }
+    }
+    out
+}
+
+/// `apply_rule_header`: a `paths:`-scoped rule takes the scoped header with
+/// `{globs}` filled; otherwise the always-on header is merged in.
+pub fn apply_rule_header(file: &[u8], header: &str, scoped_header: &str) -> Vec<u8> {
+    let globs = rule_paths_csv(file);
+    if !globs.is_empty() && !scoped_header.is_empty() {
+        let globs = String::from_utf8_lossy(&globs);
+        return add_header(
+            &strip_frontmatter(file),
+            &scoped_header.replace("{globs}", &globs),
+        );
+    }
+    if !header.is_empty() {
+        return merge_or_prepend_header(file, header);
+    }
+    file.to_vec()
+}
+
+fn md_files(s: &Session, dir: &str) -> Vec<String> {
+    s.ws.glob(dir)
+        .into_iter()
+        .filter(|name| name.ends_with(".md") && s.ws.is_file(&format!("{dir}/{name}")))
+        .collect()
+}
+
+fn read(s: &Session, path: &str) -> Result<Vec<u8>, Error> {
+    s.ws.read(path)
+}
+
+/// `append_imports`.
+pub fn append_imports(s: &mut Session, agents_file: &str, rules_dir: &str) -> Result<(), Error> {
+    if !s.ws.is_file(agents_file) {
+        s.log
+            .warning(&format!("Agents file not found: {agents_file}"));
+        return Ok(());
+    }
+    if !s.ws.is_dir(rules_dir) {
+        s.log.warning(&format!(
+            "Rules directory not found for imports: {rules_dir}"
+        ));
+        return Ok(());
+    }
+    let mut block = b"\n<!-- Auto-generated imports -->\n".to_vec();
+    for name in md_files(s, rules_dir) {
+        block.extend_from_slice(format!("@rules/{name}\n").as_bytes());
+    }
+    s.ws.append(agents_file, &block)?;
+    s.record_write(agents_file);
+    Ok(())
+}
+
+/// `merge_rules_to_file`.
+pub fn merge_rules_to_file(
+    s: &mut Session,
+    src_dir: &str,
+    dest_file: &str,
+    include: &str,
+    exclude: &str,
+    agents_file: Option<&str>,
+) -> Result<(), Error> {
+    if !s.ws.is_dir(src_dir) {
+        s.log.warning(&format!("Rules source not found: {src_dir}"));
+        return Ok(());
+    }
+    let src_disp = s.display(src_dir);
+    let dest_disp = s.display(dest_file);
+    let files: Vec<String> = md_files(s, src_dir)
+        .into_iter()
+        .filter(|name| filters::matches(name, include, exclude))
+        .collect();
+
+    s.ws.create_dir_all(&paths::parent(dest_file));
+    s.ws.remove(dest_file);
+    if let Some(agents) = agents_file.filter(|a| s.ws.is_file(a)) {
+        let mut preamble = read(s, agents)?;
+        preamble.extend_from_slice(b"\n---\n\n");
+        s.ws.append(dest_file, &preamble)?;
+    }
+    for (i, name) in files.iter().enumerate() {
+        let mut chunk = if i == 0 {
+            Vec::new()
+        } else {
+            b"\n---\n\n".to_vec()
+        };
+        chunk.extend(read(s, &format!("{src_dir}/{name}"))?);
+        s.ws.append(dest_file, &chunk)?;
+    }
+    s.record_write(dest_file);
+    s.log.step(&format!(
+        "{src_disp}/ → {dest_disp} ({} files merged)",
+        files.len()
+    ));
+    Ok(())
+}
+
+pub struct RuleOptions<'a> {
+    pub extension: &'a str,
+    pub header: &'a str,
+    pub scoped_header: &'a str,
+    pub include: &'a str,
+    pub exclude: &'a str,
+}
+
+/// `sync_rules`: copy with the extension and header applied, then prune
+/// managed files the source no longer has.
+pub fn sync_rules(
+    s: &mut Session,
+    src_dir: &str,
+    dest_dir: &str,
+    opts: &RuleOptions<'_>,
+) -> Result<(), Error> {
+    if !s.ws.is_dir(src_dir) {
+        s.log.warning(&format!("Rules source not found: {src_dir}"));
+        return Ok(());
+    }
+    let src_disp = s.display(src_dir);
+    let dest_disp = s.display(dest_dir);
+    s.ws.create_dir_all(dest_dir);
+
+    let mut valid: Vec<String> = Vec::new();
+    for name in md_files(s, src_dir) {
+        if !filters::matches(&name, opts.include, opts.exclude) {
+            continue;
+        }
+        let dest_name = if opts.extension.is_empty() {
+            name.clone()
+        } else {
+            format!(
+                "{}{}",
+                name.strip_suffix(".md").unwrap_or(&name),
+                opts.extension
+            )
+        };
+        let dest_path = format!("{dest_dir}/{dest_name}");
+        let bytes = read(s, &format!("{src_dir}/{name}"))?;
+        let rendered = apply_rule_header(&bytes, opts.header, opts.scoped_header);
+        s.ws.write(&dest_path, rendered)?;
+        s.record_write(&dest_path);
+        valid.push(dest_name);
+    }
+
+    let managed_suffix = if opts.extension.is_empty() {
+        ".md"
+    } else {
+        opts.extension
+    };
+    let mut cleaned = 0usize;
+    for name in s.ws.glob(dest_dir) {
+        let path = format!("{dest_dir}/{name}");
+        if !s.ws.is_file(&path) || !name.ends_with(managed_suffix) || valid.contains(&name) {
+            continue;
+        }
+        if s.was_touched(&path) {
+            continue;
+        }
+        s.ws.remove(&path);
+        s.log.step(&format!("Removed: {dest_disp}/{name}"));
+        cleaned += 1;
+    }
+
+    let extra = if opts.include.is_empty() {
+        String::new()
+    } else {
+        format!(", include='{}'", opts.include)
+    };
+    s.log.step(&format!(
+        "{src_disp}/ → {dest_disp}/ ({} updates, {cleaned} cleanups){extra}",
+        valid.len()
+    ));
+    Ok(())
+}
+
+/// `inline_commands_to_file`.
+pub fn inline_commands_to_file(
+    s: &mut Session,
+    src_dir: &str,
+    target_file: &str,
+    include: &str,
+    exclude: &str,
+) -> Result<(), Error> {
+    if !s.ws.is_dir(src_dir) || target_file.is_empty() {
+        return Ok(());
+    }
+    let mut entries = Vec::new();
+    for name in md_files(s, src_dir) {
+        if !filters::matches(&name, include, exclude) {
+            continue;
+        }
+        let stem = name.strip_suffix(".md").unwrap_or(&name);
+        let desc = convert::read_field(&read(s, &format!("{src_dir}/{name}"))?, "description");
+        entries.extend_from_slice(format!("- `/{stem}`").as_bytes());
+        if !desc.is_empty() {
+            entries.extend_from_slice(" — ".as_bytes());
+            entries.extend(desc);
+        }
+        entries.push(b'\n');
+    }
+    if entries.is_empty() {
+        return Ok(());
+    }
+    let mut block = "\n## Commands\n\nThe following commands provide quick workflows. Find them in `.ai/src/commands/`:\n\n"
+        .as_bytes()
+        .to_vec();
+    block.extend(entries);
+    s.ws.append(target_file, &block)?;
+    s.record_write(target_file);
+    s.log.step(&format!(
+        "Appended command index to {}",
+        paths::leaf(target_file)
+    ));
+    Ok(())
+}
+
+/// `sync_commands_as_skills`.
+pub fn sync_commands_as_skills(
+    s: &mut Session,
+    src_dir: &str,
+    dest_dir: &str,
+    include: &str,
+    exclude: &str,
+) -> Result<(), Error> {
+    if !s.ws.is_dir(src_dir) {
+        return Ok(());
+    }
+    let src_disp = s.display(src_dir);
+    let dest_disp = s.display(dest_dir);
+    s.ws.create_dir_all(dest_dir);
+
+    let mut valid: Vec<String> = Vec::new();
+    for name in md_files(s, src_dir) {
+        if !filters::matches(&name, include, exclude) {
+            continue;
+        }
+        let stem = name.strip_suffix(".md").unwrap_or(&name).to_string();
+        let skill_dir = format!("{dest_dir}/command-{stem}");
+        valid.push(format!("command-{stem}"));
+        let source = read(s, &format!("{src_dir}/{name}"))?;
+
+        s.ws.create_dir_all(&skill_dir);
+        let skill_file = format!("{skill_dir}/SKILL.md");
+        s.ws.write(&skill_file, convert::command_to_skill(&stem, &source))?;
+        s.record_write(&skill_file);
+
+        let policy = format!("{skill_dir}/agents/openai.yaml");
+        if convert::read_field(&source, "disable-model-invocation") == b"true" {
+            s.ws.create_dir_all(&format!("{skill_dir}/agents"));
+            s.ws.write(
+                &policy,
+                b"policy:\n  allow_implicit_invocation: false\n".to_vec(),
+            )?;
+            s.record_write(&policy);
+        } else if s.ws.is_file(&policy) {
+            s.ws.remove(&policy);
+            let agents_dir = format!("{skill_dir}/agents");
+            if s.ws.list(&agents_dir).is_empty() {
+                s.ws.remove(&agents_dir);
+            }
+        }
+    }
+
+    for name in s.ws.glob(dest_dir) {
+        if !name.starts_with("command-") || !s.ws.is_dir(&format!("{dest_dir}/{name}")) {
+            continue;
+        }
+        if !valid.contains(&name) {
+            s.ws.remove(&format!("{dest_dir}/{name}"));
+            s.log
+                .step(&format!("Removed obsolete generated skill: {name}"));
+        }
+    }
+    s.log.step(&format!(
+        "{src_disp}/*.md → {dest_disp}/command-*/SKILL.md ({} generated)",
+        valid.len()
+    ));
+    Ok(())
+}
+
+#[derive(Clone, Copy)]
+pub enum Conversion {
+    CommandToml,
+    AgentToml,
+    AgentAmazonqJson,
+    AgentOpencodeMd,
+}
+
+impl Conversion {
+    fn extension(self) -> &'static str {
+        match self {
+            Self::CommandToml | Self::AgentToml => ".toml",
+            Self::AgentAmazonqJson => ".json",
+            Self::AgentOpencodeMd => ".md",
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::CommandToml => "commands, md→toml",
+            Self::AgentToml => "agents, md→toml",
+            Self::AgentAmazonqJson => "agents, md→amazonq json",
+            Self::AgentOpencodeMd => "agents, md→opencode md",
+        }
+    }
+
+    fn render(self, stem: &str, source: &[u8]) -> Vec<u8> {
+        match self {
+            Self::CommandToml => convert::command_to_toml(source),
+            Self::AgentToml => convert::agent_to_toml(stem, source),
+            Self::AgentAmazonqJson => convert::agent_to_amazonq_json(stem, source),
+            Self::AgentOpencodeMd => convert::agent_to_opencode_md(stem, source),
+        }
+    }
+}
+
+/// `sync_commands_as_toml`, `sync_agents_as_toml`, `sync_agents_as_amazonq_json`,
+/// and `sync_agents_as_opencode_md`, with `_sweep_generated` after them.
+pub fn sync_converted(
+    s: &mut Session,
+    src_dir: &str,
+    dest_dir: &str,
+    conversion: Conversion,
+) -> Result<(), Error> {
+    if !s.ws.is_dir(src_dir) {
+        return Ok(());
+    }
+    let ext = conversion.extension();
+    let mut valid: Vec<String> = Vec::new();
+    for name in md_files(s, src_dir) {
+        let stem = name.strip_suffix(".md").unwrap_or(&name).to_string();
+        let dest_name = format!("{stem}{ext}");
+        let dest_file = format!("{dest_dir}/{dest_name}");
+        let source = read(s, &format!("{src_dir}/{name}"))?;
+        s.ws.create_dir_all(dest_dir);
+        s.ws.write(&dest_file, conversion.render(&stem, &source))?;
+        s.record_write(&dest_file);
+        valid.push(dest_name);
+    }
+
+    if s.ws.is_dir(dest_dir) {
+        let dest_disp = s.display(dest_dir);
+        for name in s.ws.glob(dest_dir) {
+            let path = format!("{dest_dir}/{name}");
+            if !name.ends_with(ext) || !s.ws.is_file(&path) || valid.contains(&name) {
+                continue;
+            }
+            if s.was_touched(&path) {
+                continue;
+            }
+            s.ws.remove(&path);
+            s.log.step(&format!("Removed: {dest_disp}/{name}"));
+        }
+    }
+
+    if !valid.is_empty() {
+        let src_disp = s.display(src_dir);
+        let dest_disp = s.display(dest_dir);
+        s.log.step(&format!(
+            "{src_disp}/ → {dest_disp}/ ({} {})",
+            valid.len(),
+            conversion.label()
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::session::test_session;
+    use crate::workspace::Content;
+
+    fn file(s: &mut Session, path: &str, text: &str) {
+        s.ws.insert_file(path, Content::Bytes(text.as_bytes().to_vec()));
+    }
+
+    fn text_of(s: &Session, path: &str) -> String {
+        String::from_utf8(s.ws.read(path).unwrap()).unwrap()
+    }
+
+    const CURSOR_HEADER: &str = "---\\nglobs: '**/*'\\nalwaysApply: true\\n---";
+    const CURSOR_SCOPED: &str = "---\\nglobs: '{globs}'\\nalwaysApply: false\\n---";
+
+    #[test]
+    fn a_plain_rule_gets_the_expanded_header_and_a_blank_line() {
+        assert_eq!(
+            String::from_utf8(apply_rule_header(b"# Core\n", CURSOR_HEADER, CURSOR_SCOPED))
+                .unwrap(),
+            "---\nglobs: '**/*'\nalwaysApply: true\n---\n\n# Core\n"
+        );
+    }
+
+    #[test]
+    fn a_rule_with_frontmatter_keeps_its_keys_and_gains_missing_ones() {
+        let merged = merge_or_prepend_header(b"---\nglobs: src/**\n---\n# R", CURSOR_HEADER);
+        assert_eq!(
+            String::from_utf8(merged).unwrap(),
+            "---\nglobs: src/**\nalwaysApply: true\n---\n# R\n"
+        );
+    }
+
+    // Design spec, "Known quirks", item 10: reproduced on purpose until cutover.
+    #[test]
+    fn a_paths_scoped_rule_takes_every_list_item_like_bash_does() {
+        let rule = b"---\npaths:\n  - \"a/*\"\n  - b\ntags:\n  - 'c\n---\n\n\n# T\nbody";
+        assert_eq!(rule_paths_csv(rule), b"a/*,b,c");
+        assert_eq!(
+            String::from_utf8(apply_rule_header(rule, CURSOR_HEADER, CURSOR_SCOPED)).unwrap(),
+            "---\nglobs: 'a/*,b,c'\nalwaysApply: false\n---\n\n# T\nbody"
+        );
+        assert_eq!(rule_paths_csv(b"---\ntags:\n  - x\n---\n"), b"");
+    }
+
+    #[test]
+    fn claude_rules_without_headers_are_copied_verbatim() {
+        let rule = b"---\npaths:\n  - x\n---\nbody\n";
+        assert_eq!(apply_rule_header(rule, "", ""), rule);
+    }
+
+    #[test]
+    fn sync_rules_renames_and_prunes_obsolete_managed_files() {
+        let mut s = test_session();
+        file(&mut s, "/proj/.ai/src/rules/core.md", "# Core\n");
+        file(&mut s, "/proj/.cursor/rules/old.mdc", "x");
+        file(&mut s, "/proj/.cursor/rules/notes.txt", "keep");
+        let opts = RuleOptions {
+            extension: ".mdc",
+            header: CURSOR_HEADER,
+            scoped_header: CURSOR_SCOPED,
+            include: "",
+            exclude: "",
+        };
+        sync_rules(&mut s, "/proj/.ai/src/rules", "/proj/.cursor/rules", &opts).unwrap();
+        assert!(text_of(&s, "/proj/.cursor/rules/core.mdc").starts_with("---\nglobs: '**/*'"));
+        assert!(!s.ws.exists("/proj/.cursor/rules/old.mdc"));
+        assert!(s.ws.exists("/proj/.cursor/rules/notes.txt"));
+        assert_eq!(
+            s.log.tail(1),
+            ["   📁 .ai/src/rules/ → .cursor/rules/ (1 updates, 1 cleanups)"]
+        );
+    }
+
+    #[test]
+    fn merged_rules_are_separated_and_prefixed_by_agents() {
+        let mut s = test_session();
+        file(&mut s, "/proj/.ai/src/AGENTS.md", "# Agents\n");
+        file(&mut s, "/proj/.ai/src/rules/a.md", "A\n");
+        file(&mut s, "/proj/.ai/src/rules/b.md", "B\n");
+        merge_rules_to_file(
+            &mut s,
+            "/proj/.ai/src/rules",
+            "/proj/.rules",
+            "",
+            "",
+            Some("/proj/.ai/src/AGENTS.md"),
+        )
+        .unwrap();
+        assert_eq!(
+            text_of(&s, "/proj/.rules"),
+            "# Agents\n\n---\n\nA\n\n---\n\nB\n"
+        );
+    }
+
+    #[test]
+    fn imports_list_every_markdown_rule_in_the_dest() {
+        let mut s = test_session();
+        file(&mut s, "/proj/CLAUDE.md", "# A\n");
+        file(&mut s, "/proj/.claude/rules/core.md", "");
+        file(&mut s, "/proj/.claude/rules/git.md", "");
+        append_imports(&mut s, "/proj/CLAUDE.md", "/proj/.claude/rules").unwrap();
+        assert_eq!(
+            text_of(&s, "/proj/CLAUDE.md"),
+            "# A\n\n<!-- Auto-generated imports -->\n@rules/core.md\n@rules/git.md\n"
+        );
+    }
+
+    #[test]
+    fn the_command_index_uses_descriptions_when_present() {
+        let mut s = test_session();
+        file(
+            &mut s,
+            "/proj/.ai/src/commands/review.md",
+            "---\ndescription: Review\n---\n",
+        );
+        file(&mut s, "/proj/.ai/src/commands/ship.md", "Ship\n");
+        file(&mut s, "/proj/AGENTS.md", "# A\n");
+        inline_commands_to_file(&mut s, "/proj/.ai/src/commands", "/proj/AGENTS.md", "", "")
+            .unwrap();
+        assert_eq!(
+            text_of(&s, "/proj/AGENTS.md"),
+            "# A\n\n## Commands\n\nThe following commands provide quick workflows. Find them in `.ai/src/commands/`:\n\n- `/review` — Review\n- `/ship`\n"
+        );
+    }
+
+    #[test]
+    fn command_skills_carry_the_codex_opt_out_and_drop_stale_dirs() {
+        let mut s = test_session();
+        file(
+            &mut s,
+            "/proj/.ai/src/commands/only.md",
+            "---\ndescription: D\ndisable-model-invocation: true\n---\nBody\n",
+        );
+        file(&mut s, "/proj/.agents/skills/command-gone/SKILL.md", "x");
+        file(&mut s, "/proj/.agents/skills/mine/SKILL.md", "x");
+        sync_commands_as_skills(
+            &mut s,
+            "/proj/.ai/src/commands",
+            "/proj/.agents/skills",
+            "",
+            "",
+        )
+        .unwrap();
+        assert_eq!(
+            text_of(&s, "/proj/.agents/skills/command-only/agents/openai.yaml"),
+            "policy:\n  allow_implicit_invocation: false\n"
+        );
+        assert!(!s.ws.exists("/proj/.agents/skills/command-gone"));
+        assert!(s.ws.exists("/proj/.agents/skills/mine"));
+    }
+
+    #[test]
+    fn converted_directories_sweep_their_own_extension_only() {
+        let mut s = test_session();
+        file(
+            &mut s,
+            "/proj/.ai/src/agents/rev.md",
+            "---\nname: rev\n---\nBody\n",
+        );
+        file(&mut s, "/proj/.codex/agents/old.toml", "x");
+        file(&mut s, "/proj/.codex/agents/keep.json", "x");
+        sync_converted(
+            &mut s,
+            "/proj/.ai/src/agents",
+            "/proj/.codex/agents",
+            Conversion::AgentToml,
+        )
+        .unwrap();
+        assert!(s.ws.is_file("/proj/.codex/agents/rev.toml"));
+        assert!(!s.ws.exists("/proj/.codex/agents/old.toml"));
+        assert!(s.ws.exists("/proj/.codex/agents/keep.json"));
+        assert_eq!(
+            s.log.tail(1),
+            ["   📁 .ai/src/agents/ → .codex/agents/ (1 agents, md→toml)"]
+        );
+    }
+}

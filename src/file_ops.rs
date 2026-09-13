@@ -1,0 +1,166 @@
+//! `lib/helpers/file_ops.sh` for a forced render: every extraneous entry a
+//! sweep owns is pruned, as `sync_may_prune` allows under `--force`.
+
+use crate::session::Session;
+use crate::{Error, filters, paths};
+
+/// `cleanup_path`: removes `target` when it exists; true when something went.
+pub fn cleanup_path(s: &mut Session, target: &str) -> bool {
+    if !s.ws.exists(target) {
+        return false;
+    }
+    s.ws.remove(target);
+    let shown = s.display(target);
+    s.log.step(&format!("Removed: {shown}"));
+    true
+}
+
+/// `copy_file`: a missing source is a warning, not a failure.
+pub fn copy_file(s: &mut Session, src: &str, dest: &str) -> Result<(), Error> {
+    if !s.ws.is_file(src) {
+        s.log.warning(&format!("Source file not found: {src}"));
+        return Ok(());
+    }
+    let src_disp = s.display(src);
+    let dest_disp = s.display(dest);
+    s.ws.create_dir_all(&paths::parent(dest));
+    if s.ws.is_dir(dest) {
+        s.ws.copy(src, &format!("{dest}/{}", paths::leaf(src)))?;
+    } else {
+        s.ws.remove(dest);
+        s.ws.copy(src, dest)?;
+    }
+    s.record_write(dest);
+    s.log.step(&format!("{src_disp} → {dest_disp}"));
+    Ok(())
+}
+
+/// `sync_dir`: copy every filtered top-level entry, then prune entries the
+/// filter owns that the source no longer has and this run did not write.
+pub fn sync_dir(
+    s: &mut Session,
+    src: &str,
+    dest: &str,
+    include: &str,
+    exclude: &str,
+) -> Result<(), Error> {
+    if !s.ws.is_dir(src) {
+        s.log.warning(&format!("Source directory not found: {src}"));
+        return Ok(());
+    }
+    let src_disp = s.display(src);
+    let dest_disp = s.display(dest);
+    s.ws.create_dir_all(dest);
+
+    let mut source_items: Vec<String> = Vec::new();
+    for name in s.ws.glob(src) {
+        if !filters::matches(&name, include, exclude) {
+            continue;
+        }
+        let target = format!("{dest}/{name}");
+        s.ws.remove(&target);
+        s.ws.copy(&format!("{src}/{name}"), &target)?;
+        if s.ws.is_dir(&target) {
+            s.record_tree(&target);
+        } else {
+            s.record_write(&target);
+        }
+        source_items.push(name);
+    }
+
+    let mut cleaned = 0usize;
+    for name in s.ws.glob(dest) {
+        if source_items.contains(&name) || !filters::matches(&name, include, exclude) {
+            continue;
+        }
+        let item = format!("{dest}/{name}");
+        if s.was_touched(&item) {
+            continue;
+        }
+        s.ws.remove(&item);
+        s.log.step(&format!("Removed: {dest_disp}/{name}"));
+        cleaned += 1;
+    }
+
+    let extra = if include.is_empty() {
+        String::new()
+    } else {
+        format!(", include='{include}'")
+    };
+    s.log.step(&format!(
+        "{src_disp}/ → {dest_disp}/ ({} updates, {cleaned} cleanups){extra}",
+        source_items.len()
+    ));
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::session::test_session;
+    use crate::workspace::Content;
+
+    fn file(s: &mut Session, path: &str, text: &str) {
+        s.ws.insert_file(path, Content::Bytes(text.as_bytes().to_vec()));
+    }
+
+    #[test]
+    fn copy_file_replaces_the_dest_and_records_it() {
+        let mut s = test_session();
+        file(&mut s, "/proj/.ai/src/AGENTS.md", "new");
+        file(&mut s, "/proj/CLAUDE.md", "old");
+        copy_file(&mut s, "/proj/.ai/src/AGENTS.md", "/proj/CLAUDE.md").unwrap();
+        assert_eq!(s.ws.read("/proj/CLAUDE.md").unwrap(), b"new");
+        assert!(s.was_touched("/proj/CLAUDE.md"));
+        assert_eq!(s.log.tail(1), ["   📁 .ai/src/AGENTS.md → CLAUDE.md"]);
+    }
+
+    #[test]
+    fn copy_file_warns_on_a_missing_source() {
+        let mut s = test_session();
+        copy_file(&mut s, "/proj/nope.json", "/proj/.mcp.json").unwrap();
+        assert_eq!(
+            s.log.tail(1),
+            ["[WARNING] Source file not found: /proj/nope.json"]
+        );
+        assert!(!s.ws.exists("/proj/.mcp.json"));
+    }
+
+    #[test]
+    fn sync_dir_copies_trees_and_prunes_only_what_the_filter_owns() {
+        let mut s = test_session();
+        file(&mut s, "/proj/.ai/src/skills/a/SKILL.md", "a");
+        file(&mut s, "/proj/.ai/src/skills/a/references/r.md", "r");
+        file(&mut s, "/proj/.ai/src/skills/.hidden/SKILL.md", "h");
+        file(&mut s, "/proj/.claude/skills/stale/SKILL.md", "s");
+        file(&mut s, "/proj/.claude/skills/command-review/SKILL.md", "c");
+        sync_dir(
+            &mut s,
+            "/proj/.ai/src/skills",
+            "/proj/.claude/skills",
+            "",
+            "command-*",
+        )
+        .unwrap();
+        assert!(s.ws.is_file("/proj/.claude/skills/a/references/r.md"));
+        assert!(!s.ws.exists("/proj/.claude/skills/.hidden"));
+        assert!(!s.ws.exists("/proj/.claude/skills/stale"));
+        assert!(s.ws.exists("/proj/.claude/skills/command-review"));
+        assert!(s.was_touched("/proj/.claude/skills/a/references/r.md"));
+        assert_eq!(
+            s.log.tail(2),
+            [
+                "   📁 Removed: .claude/skills/stale",
+                "   📁 .ai/src/skills/ → .claude/skills/ (1 updates, 1 cleanups)"
+            ]
+        );
+    }
+
+    #[test]
+    fn cleanup_path_reports_whether_anything_was_removed() {
+        let mut s = test_session();
+        file(&mut s, "/proj/.cursor/rules/core.mdc", "x");
+        assert!(cleanup_path(&mut s, "/proj/.cursor/rules"));
+        assert!(!cleanup_path(&mut s, "/proj/.cursor/rules"));
+    }
+}

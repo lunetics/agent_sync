@@ -193,6 +193,8 @@ assert_recovery_preserved() {
     sed -i 's/retention: bounded/retention: preserve/' .ai/agent_sync.yaml
     printf 'current-output\n' > CLAUDE.md
     seed_recovery
+    # Finish the synthetic operation before asking the guarded CLI to undo it.
+    backup_seal "$TEST_PROJECT" "$snapshot"
     save_and_verify_project before
     AGENTSYNC_BACKUP_LIMIT=1 AGENTSYNC_BACKUP_MAX_AGE_DAYS=1 run run_agentsync rollback "$(basename "$snapshot")" --yes
     [ "$status" -eq 0 ]

@@ -25,8 +25,11 @@ The result must preserve AgentSync's existing properties:
 
 ## Why
 
-Measured on this repository's own `.ai/src/` (392 source files, 98 skills),
-engine at 0.35.2, macOS:
+Measured on a 392-file, 98-skill source, engine at 0.35.2, macOS. These numbers
+motivated the migration; they are not the baseline its result is judged against,
+because the fixture was not pinned and no method was recorded.
+`docs/perf/2026-09-13-bash-baseline.md` holds that baseline, on a generated
+fixture, with the discrepancies between the two written down:
 
 | Command | Wall time | user / sys |
 | --- | --- | --- |

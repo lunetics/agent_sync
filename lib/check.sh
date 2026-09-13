@@ -47,7 +47,7 @@ _check_version_pin() {
     engine=$(engine_version "$SCRIPT_DIR")
     [[ "$pinned" != "$engine" ]] || return 0
 
-    echo "❌ This project pins agentsync $pinned but you are running $engine — committed outputs must come from one version everywhere." >&2
+    echo "❌ $(version_pin_mismatch_error "$pinned" "$engine" "$outputs")" >&2
     version_pin_mismatch_hint "$pinned" "$engine" >&2
     exit 1
 }

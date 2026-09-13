@@ -807,7 +807,7 @@ _check_version_pin_or_exit() {
     [[ "$pinned" != "$engine" ]] || return 0
 
     if [[ "$OUTPUTS_MODE" == "committed" || "$VERSION_PIN_MODE" == "strict" ]]; then
-        log_error "This project pins agentsync $pinned but you are running $engine — committed outputs must come from one version everywhere."
+        log_error "$(version_pin_mismatch_error "$pinned" "$engine" "$OUTPUTS_MODE")"
         version_pin_mismatch_hint "$pinned" "$engine" >&2
         exit 1
     fi

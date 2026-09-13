@@ -45,6 +45,16 @@ version_pin_mode() {
     esac
 }
 
+# Print the actionable reason for a version-pin mismatch.
+version_pin_mismatch_error() {
+    local pinned="$1" engine="$2" outputs="$3"
+    if [[ "$outputs" == "committed" ]]; then
+        echo "This project pins agentsync $pinned but you are running $engine — committed outputs must come from one version everywhere."
+    else
+        echo "This project pins agentsync $pinned but you are running $engine — version_pin.mode 'strict' requires local outputs to use the pinned version."
+    fi
+}
+
 # Print the two ways out of a pin/engine mismatch.
 version_pin_mismatch_hint() {
     local pinned="$1" engine="$2"

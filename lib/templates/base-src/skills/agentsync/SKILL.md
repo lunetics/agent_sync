@@ -279,6 +279,7 @@ Pass `--adopt` to pull the existing contents of `~/.<tool>-<name>/` into the ove
 - `agentsync export` bundles `.ai/src/` into an archive; `agentsync import <src>` pulls a config from a repo, archive, or directory.
 - `agentsync migrate` prints and copies a grounded prompt for safely upgrading an existing project to the latest documented AgentSync format. Use `agentsync migrate --legacy` to preview legacy flat-layout moves and `agentsync migrate --apply` to perform them.
 - `agentsync upgrade-config` re-pins the engine version in `agent_sync.yaml`.
+- `version_pin.mode` controls pin mismatches in `agent_sync.yaml`: `committed` outputs remain strict, while `local` outputs warn by default. Set `version_pin.mode: strict` to make local mismatches fatal; `warn` preserves the default. Unknown modes are rejected before writing.
 - `outputs:` in `agent_sync.yaml` picks where generated files live: `committed` (the `init` default) keeps outputs and `.ai/.sync-manifest` in git so teammates need only `git pull` and CI runs `agentsync check`; `local` gitignores both and every clone runs `agentsync sync`. The manifest always shares the outputs' git status. In `committed` mode `sync` and `check` refuse to run when `agentsync_version` differs from the engine — match it with `agentsync update <version>` or move it with `agentsync upgrade-config`.
 
 ## Who owns which file

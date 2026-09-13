@@ -99,6 +99,7 @@ SOURCE_SUBAGENTS=""
 # shellcheck disable=SC2034
 DEFAULT_ENABLED="false"
 DEFAULT_CLEANUP="true"
+VERSION_PIN_MODE="warn"
 UPDATE_GITIGNORE="true"
 # committed: outputs and the manifest stay visible to git; local: both ignored.
 OUTPUTS_MODE="local"
@@ -757,6 +758,8 @@ _load_run_config() {
     resolve_project_config_path
     [[ -n "$PROJECT_CONFIG_PATH" ]] || return 0
 
+    VERSION_PIN_MODE=$(version_pin_mode "$PROJECT_CONFIG_PATH") || exit 1
+
     local cfg_default_enabled cfg_default_cleanup cfg_skip_post_sync
     cfg_default_enabled=$(parse_yaml_value "$PROJECT_CONFIG_PATH" "defaults.enabled")
     cfg_default_cleanup=$(parse_yaml_value "$PROJECT_CONFIG_PATH" "defaults.cleanup")
@@ -803,7 +806,7 @@ _check_version_pin_or_exit() {
     engine=$(engine_version "$SCRIPT_DIR")
     [[ "$pinned" != "$engine" ]] || return 0
 
-    if [[ "$OUTPUTS_MODE" == "committed" ]]; then
+    if [[ "$OUTPUTS_MODE" == "committed" || "$VERSION_PIN_MODE" == "strict" ]]; then
         log_error "This project pins agentsync $pinned but you are running $engine — committed outputs must come from one version everywhere."
         version_pin_mismatch_hint "$pinned" "$engine" >&2
         exit 1

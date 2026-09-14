@@ -3,6 +3,7 @@ pub mod customize;
 pub mod enable;
 pub mod list;
 pub mod rollback;
+pub mod show;
 pub mod sync;
 pub mod workspace;
 

@@ -842,7 +842,7 @@ git commit -m "feat(native): port customize"
 - Consumes: Task 1, `customize::{VALID_RESOURCES, unknown_resource, put}`.
 - Produces: `pub fn show(args: &[String], discover: &dyn Fn() -> Result<Project, Error>, style: &Style, out: &mut dyn Write, err: &mut dyn Write) -> Result<u8, Error>`
 
-- [ ] **Step 1: Parity fixture, Bash side**
+- [x] **Step 1: Parity fixture, Bash side**
 
 ```bash
 @test "parity: show prints effective tools and payload sources like Bash" {
@@ -874,7 +874,7 @@ git commit -m "feat(native): port customize"
 Run: `bats --tap -f 'show prints' tests/native_parity.bats`
 Expected: `ok`.
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Create `src/cli/show.rs` with the tests module only; add `pub mod show;`:
 
@@ -949,7 +949,7 @@ mod tests {
 Run: `cargo test --lib cli::show 2>&1 | grep -E '^error' | sort | uniq -c`
 Expected: `cannot find function 'show'`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Above the tests module:
 
@@ -1215,7 +1215,7 @@ The legacy line condition is `_show_payload`'s `[[ -f legacy ]] && [[ legacy != 
 
 In `src/main.rs`, add `"show"` to the raw dispatch: `"show" => cli::show::show(&rest, &Project::discover, &style, &mut out, &mut err),`. In `bin/agentsync.sh:280` append `show`.
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -4
@@ -1226,7 +1226,7 @@ bats --tap -f 'show prints' tests/native_parity.bats
 
 Expected: `198 passed`, `0`, `11`, `1`; `0`; `ok`.
 
-- [ ] **Step 5: Prove the fixture bites, lint, commit**
+- [x] **Step 5: Prove the fixture bites, lint, commit**
 
 Change `"★ user override (legacy layout)"` to `"★ user override (legacy)"`, rebuild, rerun the fixture: `not ok` with that diff; revert and rebuild.
 
@@ -1744,4 +1744,11 @@ The plan is closed when every box is ticked, `customize.bats` is green under `AG
 - Verified: `cargo test` 196 lib; fmt and clippy exit 0; the fixture `ok` on the Bash side and again with `customize` native; `AGENTSYNC_NATIVE=1 bats tests/customize.bats` 13 `ok`, 0 `not ok`. Mutation: `Made {resource} override:` failed the fixture with that diff; reverted, rebuilt.
 - Plan amended: the unused `Source` import was dropped, as Step 3 anticipated.
 - Next: Task 3 Step 1.
+- Blocker: none.
+
+### 2026-09-14 — Task 3 done
+- Commits: "feat(native): port show".
+- Verified: `cargo test` 198 lib; fmt and clippy exit 0; the fixture `ok` on the Bash side and with `show` native; `AGENTSYNC_NATIVE=1` `customize.bats` 13 `ok`, `source_overrides.bats` 0 `not ok`. Mutation: `★ user override (legacy)` failed the fixture with that diff; reverted, rebuilt.
+- Plan amended: none.
+- Next: Task 4 Step 1.
 - Blocker: none.

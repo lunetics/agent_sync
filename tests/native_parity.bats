@@ -627,3 +627,28 @@ assert_tree_parity() {
     mkdir -p "$BATS_TEST_TMPDIR/outside"
     assert_tree_parity customize codex
 }
+
+@test "parity: show prints effective tools and payload sources like Bash" {
+    enable_tools cursor
+    assert_tree_parity show
+    assert_tree_parity show claude
+    assert_tree_parity show claude --base
+    assert_tree_parity show nope
+    assert_tree_parity show nope --base
+    assert_tree_parity show claude nope
+    assert_tree_parity show a b c
+    assert_tree_parity show claude --help
+    assert_tree_parity show cursor hooks
+    assert_tree_parity show cursor hooks --base
+    assert_tree_parity show claude settings
+    assert_tree_parity show zed hooks
+    _run_engine 0 customize cursor --full >/dev/null
+    printf 'targets:\n  rules:\n    dest: ".custom/rules"\n' > .ai/src/tools/claude.yaml
+    mkdir -p .ai/src/hooks
+    printf '{"legacy":true}\n' > .ai/src/hooks/cursor.json
+    assert_tree_parity show claude
+    assert_tree_parity show cursor
+    assert_tree_parity show cursor hooks
+    printf '{"mcpServers":{}}\n' > .ai/src/mcp.json
+    assert_tree_parity show claude mcp
+}

@@ -55,7 +55,7 @@ Already ported and reused: `project::Project` (config selection, `source.tools`,
 
 **Files:** none changed.
 
-- [ ] **Step 1: Record the baseline**
+- [x] **Step 1: Record the baseline**
 
 ```bash
 git log --oneline -1
@@ -76,7 +76,7 @@ Expected: the Phase 3b close commit; `185 passed` and `11 passed`; `0` for every
 - Modify: `lib/helpers/yaml_edit.sh:331-366`
 - Test: `tests/enable.bats`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `tests/enable.bats`:
 
@@ -99,12 +99,12 @@ Append to `tests/enable.bats`:
 }
 ```
 
-- [ ] **Step 2: Run them, confirm they fail**
+- [x] **Step 2: Run them, confirm they fail**
 
 Run: `AGENTSYNC_NATIVE=0 bats --tap tests/enable.bats | grep '^not ok'`
 Expected: `not ok 14 disable leaves other lists that name the tool alone` and `not ok 15 disable removes a tool from an inline tools.enabled list`.
 
-- [ ] **Step 3: Write the fix**
+- [x] **Step 3: Write the fix**
 
 Replace `yaml_list_remove` in `lib/helpers/yaml_edit.sh` with:
 
@@ -180,7 +180,7 @@ yaml_list_remove() {
 }
 ```
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 AGENTSYNC_NATIVE=0 bats --tap tests/enable.bats | grep -c '^not ok'
@@ -190,7 +190,7 @@ bash scratchpad/phase4/remove_reference.sh | grep -c '^=='
 
 Expected: `0`; `shellcheck 0`; `6` (the reference cases run against the committed function once the script sources `lib/helpers/yaml_edit.sh` alone: delete its `source "$S/yaml_list_remove_fixed.sh"` line first, and compare the six outputs with the values in Task 2's `list_remove` test).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/helpers/yaml_edit.sh tests/enable.bats docs/plans/2026-09-14-rust-migration-phase-4a-enable-disable.md
@@ -1443,4 +1443,11 @@ The plan is closed when every box is ticked, `enable.bats` is green under `AGENT
 - Verified: `scratchpad/phase4/yaml_edit_reference.sh` (the append and scalar cases) and `scratchpad/phase4/remove_reference.sh` (the six remove cases against the candidate fix) ran against Bash; `scratchpad/phase4/repro_disable_profile.sh` reproduced `disable claude` on `enabled: [claude, cursor]` printing "Disabled 1 tool(s)" and leaving the file unchanged.
 - Plan amended: none.
 - Next: Task 0 Step 1.
+- Blocker: none.
+
+### 2026-09-14 — Tasks 0 and 1 done
+- Commits: `de7137c` "test(native): raise the trap test's signal in its own process" (outside the plan, below), "fix(enable): keep disable inside tools.enabled and read [a, b]".
+- Verified: Task 0 at `64910f7`: `enable`, `customize`, `config_safety`, `list`, `shared`, `profiles`, `sync_options`, `native_parity` all `bash=0`. Task 1: the two new cases `not ok` before the fix, `enable.bats` 0 failures after; ShellCheck exit 0; `remove_reference.sh` against the committed function prints the same six outputs as against the candidate.
+- Plan amended: `cargo test --lib` died of `SIGHUP` in 4 of 15 runs: the trap test raised a real signal, which set the flag of a parallel `rollback` or `sync` test's `Interrupt`, and that test re-raised it. The test moved to `tests/interrupt.rs`, its own process; 15 of 15 runs passed after. Unit counts drop by one and integration counts rise to 12: Task 2 expects `190` and `12`, Task 3 `191` and `12`, Tasks 4 and 5 `193` and `12`. This is the unexplained failure recorded in the Phase 3b family 3 receipt.
+- Next: Task 2 Step 5 (Tasks 2–4 are written and pass `cargo test`; they commit one at a time).
 - Blocker: none.

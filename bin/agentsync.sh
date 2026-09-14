@@ -277,7 +277,7 @@ cmd_engine() {
 # Public env contract: AGENTSYNC_NATIVE is "0" to force Bash, "1" to require
 # the native binary and fail loudly without one, unset to use one when found;
 # AGENTSYNC_NATIVE_BIN names the binary explicitly.
-_NATIVE_COMMANDS=" version --version -v list ls check "
+_NATIVE_COMMANDS=" version --version -v list ls check sync "
 
 _native_bin() {
     if [[ -n "${AGENTSYNC_NATIVE_BIN:-}" ]]; then

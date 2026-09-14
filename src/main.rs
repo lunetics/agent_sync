@@ -52,6 +52,19 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
             let mut err = std::io::stderr().lock();
             cli::check::run(&root, &env, &mut out, &mut err)
         }
+        Command::Sync { args } if args.iter().any(|a| a == "--workspace") => {
+            let forwarded: Vec<String> = args.into_iter().filter(|a| a != "--workspace").collect();
+            let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
+            let cwd = paths::logical_root(None, &cwd, var("PWD").as_deref());
+            Ok(cli::workspace::run(
+                &cwd,
+                &forwarded,
+                &sync_env(),
+                &Style::for_stdout(),
+                log_colors(),
+                &streams,
+            ))
+        }
         Command::Sync { args } => {
             let root = project_root()?;
             Ok(cli::sync::run(

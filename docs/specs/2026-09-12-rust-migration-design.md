@@ -353,6 +353,8 @@ cleanup has a list:
     has a bare `paths:` key, not only the items under `paths:`.
 11. The inline skill index strips `>` from `description: >-` and indexes the
     skill with the description `-`.
+12. `sync --workspace` reports the status of the last project that failed as
+    "max exit code" and exits with it (`bin/agentsync.sh`, `cmd_workspace_fanout`).
 
 ## Accepted deviations
 
@@ -380,6 +382,28 @@ Appended one line at a time as they are found, with the phase:
   with replacement characters; Markdown transforms stay byte-exact.
 - Phase 2: `printf '%b'` escapes in rule headers expand as Bash 3.2 does,
   leaving `\u` literal where Bash 5 expanded it.
+- Phase 3: `sync`'s step lines name `/<agentsync>/lib/templates` and
+  `/<agentsync-overlay>/<layer>/src` where Bash printed the engine checkout and
+  its temporary overlay directories.
+- Phase 3: an edited install-directory `lib/config.yaml` does not enable
+  post-sync hooks; the binary reads the shipped `post_sync.allow: false`, and
+  `AGENTSYNC_ALLOW_POST_SYNC=true` enables them as before. Phase 5 settles the
+  user-level setting when the install directory goes away.
+- Phase 3: a failed write, copy, or removal reports the Rust I/O error where
+  Bash printed the `cp`, `mkdir`, or `rm` message; the status and the restore
+  are unchanged.
+- Phase 3: `sync` keeps running when nothing reads its stdout and finishes its
+  transaction; Bash died of `SIGPIPE` at its next log line and left the run
+  half written.
+- Phase 3: a trapped `INT`, `TERM`, or `HUP` takes effect at the next step of
+  `sync` or once `rollback`'s restore returns; Bash's trap fired after the
+  running command. A second signal does not interrupt the restore.
+- Phase 3: symlinks inside a synced skill, rule, or command tree are copied as
+  the files they point to; Bash's `cp -r` copied the links.
+- Phase 3: the guard hook's `chmod +x` adds execute permission for every class,
+  as the default umask does, whatever the process umask.
+- Phase 3: on a terminal a log message prints as written; Bash's `echo -e` also
+  expanded backslash escapes inside it.
 
 ## Risks
 

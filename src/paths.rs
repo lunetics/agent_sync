@@ -119,6 +119,49 @@ pub fn ai_dir_enclosing_root(dir: &str) -> Option<String> {
     shallowest.map(|ai| parent(&ai))
 }
 
+/// `find_workspace_ai_dirs`: every `.ai` directory below `root` holding `src/`
+/// or `agent_sync.yaml`, deepest first and then in byte order. `.git` and
+/// `node_modules` are not entered, nor is a `.ai` once found, nor a symlink.
+pub fn find_workspace_ai_dirs(root: &str) -> Vec<String> {
+    fn walk(dir: &str, found: &mut Vec<String>) {
+        let name = leaf(dir);
+        if name == ".git" || name == "node_modules" {
+            return;
+        }
+        let Ok(meta) = std::fs::symlink_metadata(dir) else {
+            return;
+        };
+        if !meta.is_dir() {
+            return;
+        }
+        if name == ".ai" {
+            found.push(dir.to_string());
+            return;
+        }
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.filter_map(|e| e.ok()) {
+            let child = entry.file_name().to_string_lossy().into_owned();
+            walk(&format!("{}/{child}", dir.trim_end_matches('/')), found);
+        }
+    }
+    if !Path::new(root).is_dir() {
+        return Vec::new();
+    }
+    let mut found = Vec::new();
+    walk(root, &mut found);
+    found.retain(|ai| {
+        Path::new(&format!("{ai}/src")).is_dir()
+            || Path::new(&format!("{ai}/agent_sync.yaml")).is_file()
+    });
+    found.sort_by(|a, b| {
+        let depth = |p: &str| p.split('/').count();
+        depth(b).cmp(&depth(a)).then_with(|| a.cmp(b))
+    });
+    found
+}
+
 #[derive(Clone, Debug)]
 pub struct Paths {
     pub root: String,
@@ -300,6 +343,36 @@ mod tests {
             assert_eq!(parent(input), dir, "dirname {input}");
             assert_eq!(leaf(input), base, "basename {input}");
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn workspace_projects_are_listed_deepest_first_and_skip_vendored_trees() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().to_string_lossy().into_owned();
+        for rel in [
+            ".ai/src",
+            "b/.ai/src",
+            "a/.ai",
+            "a/deep/.ai/src/.ai/src",
+            "node_modules/pkg/.ai/src",
+            ".git/odd/.ai/src",
+            ".ai/backups/x/files/.ai/src",
+            "bare/.ai",
+        ] {
+            std::fs::create_dir_all(dir.path().join(rel)).unwrap();
+        }
+        std::fs::write(dir.path().join("a/.ai/agent_sync.yaml"), "").unwrap();
+        std::os::unix::fs::symlink(dir.path().join("b"), dir.path().join("link")).unwrap();
+        assert_eq!(
+            find_workspace_ai_dirs(&root),
+            [
+                format!("{root}/a/deep/.ai"),
+                format!("{root}/a/.ai"),
+                format!("{root}/b/.ai"),
+                format!("{root}/.ai"),
+            ]
+        );
     }
 
     #[test]

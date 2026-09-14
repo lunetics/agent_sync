@@ -1,6 +1,7 @@
 pub mod check;
 pub mod list;
 pub mod sync;
+pub mod workspace;
 
 use clap::{Parser, Subcommand};
 

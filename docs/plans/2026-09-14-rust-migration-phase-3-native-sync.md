@@ -6552,7 +6552,7 @@ git commit -m "feat(native): run sync with its manifest, backup, and .gitignore 
 - Consumes: `cli::sync::{run, Env}` (Task 6), `style::Style`.
 - Produces: `paths::find_workspace_ai_dirs(root: &str) -> Vec<String>` (deepest first, then byte order; `.git`, `node_modules`, a found `.ai`, and symlinks are not entered); `cli::workspace::run(cwd: &str, args: &[String], env: &sync::Env, style: &Style, colors: bool, streams: &dyn Fn() -> Sink) -> u8` (`cmd_workspace_fanout`); `main` routes `sync` with `--workspace` anywhere in its arguments to the fan-out with the flag removed. From this task `agentsync sync` with a built binary is answered natively.
 
-- [ ] **Step 1: `find_workspace_ai_dirs` in `src/paths.rs`**
+- [x] **Step 1: `find_workspace_ai_dirs` in `src/paths.rs`**
 
 Add after `ai_dir_enclosing_root`:
 
@@ -6635,7 +6635,7 @@ Add this test in the `tests` module, before `fn a_directory_inside_an_ai_tree_na
     }
 ```
 
-- [ ] **Step 2: Create `src/cli/workspace.rs`**
+- [x] **Step 2: Create `src/cli/workspace.rs`**
 
 ```rust
 //! `agentsync sync --workspace`: `cmd_workspace_fanout` of `bin/agentsync.sh`,
@@ -6728,7 +6728,7 @@ pub fn run(
 }
 ```
 
-- [ ] **Step 3: Declare it in `src/cli/mod.rs`**
+- [x] **Step 3: Declare it in `src/cli/mod.rs`**
 
 ```rust
 pub mod check;
@@ -6775,7 +6775,7 @@ pub enum Command {
 }
 ```
 
-- [ ] **Step 4: Route the fan-out in `src/main.rs`**
+- [x] **Step 4: Route the fan-out in `src/main.rs`**
 
 ```rust
 use std::ffi::OsString;
@@ -6936,7 +6936,7 @@ fn guard_engine_version() -> Result<(), Error> {
 }
 ```
 
-- [ ] **Step 5: Delegate `sync` in `bin/agentsync.sh`**
+- [x] **Step 5: Delegate `sync` in `bin/agentsync.sh`**
 
 Replace:
 
@@ -6950,7 +6950,7 @@ with:
 _NATIVE_COMMANDS=" version --version -v list ls check sync "
 ```
 
-- [ ] **Step 6: Record the quirk and the deviations in the design spec**
+- [x] **Step 6: Record the quirk and the deviations in the design spec**
 
 Append to "Known quirks to reproduce now and fix after cutover", after item 11:
 
@@ -6986,7 +6986,7 @@ Append to "Accepted deviations", after the last Phase 2 line:
   expanded backslash escapes inside it.
 ```
 
-- [ ] **Step 7: Run the gates and the whole suite in both modes, confirm green**
+- [x] **Step 7: Run the gates and the whole suite in both modes, confirm green**
 
 ```bash
 cargo test 2>&1 | grep 'test result'
@@ -7002,7 +7002,7 @@ shellcheck -x -S warning -e SC1091 bin/agentsync.sh
 
 Expected: `143 passed` (unit) and `10 passed` (integration); fmt and clippy exit 0; `1..7`, 7 ok; `1..766` (762 + Tasks 0b, 0c, 0d); `0` in both modes — every `run_agentsync sync` in the suite, `drift`, `outputs_mode`, `team_workflow`, `workspace`, `version_pin`, `baseline`, `shared`, `profiles`, `opencode`, and the rest now reach the binary; ShellCheck exits 0.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/paths.rs src/cli/workspace.rs src/cli/mod.rs src/main.rs bin/agentsync.sh docs/specs/2026-09-12-rust-migration-design.md docs/plans/2026-09-14-rust-migration-phase-3-native-sync.md

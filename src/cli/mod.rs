@@ -1,5 +1,6 @@
 pub mod check;
 pub mod list;
+pub mod sync;
 
 use clap::{Parser, Subcommand};
 
@@ -30,4 +31,11 @@ pub enum Command {
     /// Verify generated outputs match what sync would write.
     #[command(disable_help_flag = true)]
     Check,
+    /// Distribute `.ai/src` to every enabled tool. `lib/sync.sh` parses its
+    /// own options, messages and usage included, so they pass through as text.
+    #[command(disable_help_flag = true)]
+    Sync {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
 }

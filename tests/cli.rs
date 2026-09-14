@@ -91,3 +91,110 @@ fn list_counts_configured_tools_and_honours_the_repo_root_variable() {
         .stdout(predicate::str::contains("Customize a tool:"))
         .stdout(predicate::str::contains("Enable a tool:").not());
 }
+
+#[cfg(unix)]
+fn sync_project(tool_yaml: Option<&str>) -> tempfile::TempDir {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join(".ai/src/rules")).unwrap();
+    std::fs::write(dir.path().join(".ai/src/AGENTS.md"), "# Agents\n").unwrap();
+    std::fs::write(dir.path().join(".ai/src/rules/core.md"), "# Core\n").unwrap();
+    std::fs::write(
+        dir.path().join(".ai/agent_sync.yaml"),
+        "outputs: committed\ntools:\n  enabled: [claude]\n",
+    )
+    .unwrap();
+    if let Some(yaml) = tool_yaml {
+        std::fs::create_dir_all(dir.path().join(".ai/src/tools")).unwrap();
+        std::fs::write(dir.path().join(".ai/src/tools/claude.yaml"), yaml).unwrap();
+    }
+    dir
+}
+
+#[cfg(unix)]
+fn sync_in(dir: &tempfile::TempDir) -> Command {
+    let mut command = agentsync();
+    command
+        .env("AGENTSYNC_REPO_ROOT", dir.path())
+        .env_remove("AGENTSYNC_ALLOW_POST_SYNC")
+        .env_remove("AGENTSYNC_SKIP_POST_SYNC")
+        .arg("sync");
+    command
+}
+
+#[cfg(unix)]
+#[test]
+fn sync_options_are_checked_before_anything_runs() {
+    let dir = sync_project(None);
+    sync_in(&dir)
+        .arg("--bogus")
+        .assert()
+        .code(1)
+        .stderr("[ERROR] Unknown option: --bogus\n")
+        .stdout(predicate::str::starts_with(
+            "AgentSync Config Sync Script\n\nUsage: sync.sh [OPTIONS]\n",
+        ));
+    sync_in(&dir)
+        .arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::ends_with(
+            "  --help            Show this help message\n",
+        ));
+    assert!(!dir.path().join("CLAUDE.md").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn sync_writes_outputs_then_refuses_to_overwrite_a_manual_edit_unless_forced() {
+    let dir = sync_project(None);
+    sync_in(&dir)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("[INFO] Syncing Claude Code...\n"))
+        .stdout(predicate::str::contains(
+            "[DONE] Synced 1/13 tools (12 skipped)\n",
+        ));
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("CLAUDE.md")).unwrap(),
+        "# Agents\n"
+    );
+    assert!(dir.path().join(".ai/.sync-manifest").is_file());
+    assert!(dir.path().join(".ai/backups/.latest").is_file());
+
+    std::fs::write(dir.path().join("CLAUDE.md"), "edited\n").unwrap();
+    sync_in(&dir).assert().code(1).stderr(predicate::str::starts_with(
+        "[ERROR] Manual edits detected in 1 destination file(s) since last sync:\n      CLAUDE.md\n",
+    ));
+    sync_in(&dir)
+        .arg("--force")
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("      CLAUDE.md\n"));
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("CLAUDE.md")).unwrap(),
+        "# Agents\n"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_failing_post_sync_hook_restores_the_pre_sync_state() {
+    let dir = sync_project(Some("post_sync: \"false\"\n"));
+    std::fs::write(dir.path().join("CLAUDE.md"), "before-sync\n").unwrap();
+    sync_in(&dir)
+        .env("AGENTSYNC_ALLOW_POST_SYNC", "true")
+        .assert()
+        .code(1)
+        .stdout(predicate::str::contains(
+            "[WARNING] Sync failed; restoring pre-sync state...\n[INFO] Restored pre-sync state from ",
+        ))
+        .stderr(predicate::str::contains(
+            "[ERROR] Sync failed because post-sync hook failed for Claude Code\n",
+        ));
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("CLAUDE.md")).unwrap(),
+        "before-sync\n"
+    );
+    assert!(!dir.path().join(".claude/rules").exists());
+    assert!(!dir.path().join(".ai/.sync-manifest").exists());
+}

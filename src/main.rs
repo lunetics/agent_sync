@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use agentsync::cli::{self, Cli, Command};
+use agentsync::log::{Sink, Stream};
 use agentsync::project::Project;
 use agentsync::render::Env;
 use agentsync::style::Style;
@@ -44,12 +45,58 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
             let root = project_root()?;
             let env = Env {
                 config_path: std::env::var("AGENTSYNC_CONFIG_PATH").ok(),
+                skip_post_sync: Some("true".to_string()),
+                allow_post_sync: None,
             };
             let mut out = std::io::stdout().lock();
             let mut err = std::io::stderr().lock();
             cli::check::run(&root, &env, &mut out, &mut err)
         }
+        Command::Sync { args } => {
+            let root = project_root()?;
+            Ok(cli::sync::run(
+                &root,
+                &args,
+                &sync_env(),
+                log_colors(),
+                streams(),
+            ))
+        }
     }
+}
+
+fn var(name: &str) -> Option<String> {
+    std::env::var(name).ok()
+}
+
+fn sync_env() -> cli::sync::Env {
+    cli::sync::Env {
+        render: Env {
+            config_path: var("AGENTSYNC_CONFIG_PATH"),
+            skip_post_sync: var("AGENTSYNC_SKIP_POST_SYNC"),
+            allow_post_sync: var("AGENTSYNC_ALLOW_POST_SYNC"),
+        },
+        skip_backup: var("AGENTSYNC_INTERNAL_SKIP_BACKUP").as_deref() == Some("true"),
+        backup_limit: var("AGENTSYNC_BACKUP_LIMIT"),
+        backup_max_age: var("AGENTSYNC_BACKUP_MAX_AGE_DAYS"),
+    }
+}
+
+/// `_use_colors` of `logging.sh`: stdout is a terminal and `NO_COLOR` is empty.
+fn log_colors() -> bool {
+    use std::io::IsTerminal;
+    std::io::stdout().is_terminal() && var("NO_COLOR").is_none_or(|v| v.is_empty())
+}
+
+/// Log lines to the process streams as `echo` writes them. A closed stdout does
+/// not stop the run: the transaction finishes, as it would with nobody reading.
+fn streams() -> Sink {
+    Box::new(|stream, line| {
+        let _ = match stream {
+            Stream::Out => writeln!(std::io::stdout(), "{line}"),
+            Stream::Err => writeln!(std::io::stderr(), "{line}"),
+        };
+    })
 }
 
 /// `REPO_ROOT` as `lib/check.sh` derives it: `AGENTSYNC_REPO_ROOT`, else the

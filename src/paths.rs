@@ -101,6 +101,24 @@ pub fn logical_root(env_root: Option<&str>, cwd: &Path, pwd: Option<&str>) -> St
     normalize(&base)
 }
 
+/// `ai_dir_enclosing_root`: the parent of the shallowest `.ai` segment of a
+/// logical directory path, when there is one.
+pub fn ai_dir_enclosing_root(dir: &str) -> Option<String> {
+    let mut shallowest = None;
+    let mut current = dir.to_string();
+    while current != "/" && !current.is_empty() {
+        if leaf(&current) == ".ai" {
+            shallowest = Some(current.clone());
+        }
+        let up = parent(&current);
+        if up == current {
+            break;
+        }
+        current = up;
+    }
+    shallowest.map(|ai| parent(&ai))
+}
+
 #[derive(Clone, Debug)]
 pub struct Paths {
     pub root: String,
@@ -282,6 +300,17 @@ mod tests {
             assert_eq!(parent(input), dir, "dirname {input}");
             assert_eq!(leaf(input), base, "basename {input}");
         }
+    }
+
+    #[test]
+    fn a_directory_inside_an_ai_tree_names_the_project_above_its_shallowest_ai() {
+        assert_eq!(
+            ai_dir_enclosing_root("/p/.ai/src/.ai/x").as_deref(),
+            Some("/p")
+        );
+        assert_eq!(ai_dir_enclosing_root("/p/.ai").as_deref(), Some("/p"));
+        assert_eq!(ai_dir_enclosing_root("/.ai").as_deref(), Some("/"));
+        assert_eq!(ai_dir_enclosing_root("/p/.aix"), None);
     }
 
     #[test]

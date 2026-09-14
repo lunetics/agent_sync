@@ -86,11 +86,82 @@ pub fn rewrite_sources(ws: &Workspace, dir: &str, sources: &mut Sources) {
     }
 }
 
-/// `base_src_setup_overlay`: engine-owned skills fill paths the project lacks,
-/// unless `base_skills: false`.
+/// `shared_setup_overlay`: the parent's files of the inherited categories fill
+/// what the project lacks. Returns the overlay directory when one was built.
+pub fn setup_shared(
+    s: &mut Session,
+    config: &str,
+    sources: &mut Sources,
+) -> Result<Option<String>, Error> {
+    let raw_path = yaml_subset::value(config, "shared.path");
+    let raw_inherit = yaml_subset::value(config, "shared.inherit");
+    if raw_path.is_empty() || raw_inherit.is_empty() {
+        return Ok(None);
+    }
+    let root = s.paths.root.clone();
+    let parent_root = if raw_path.starts_with('/') {
+        raw_path.clone()
+    } else {
+        format!("{root}/{raw_path}")
+    };
+    if !Path::new(&parent_root).is_dir() {
+        s.log.warning(&format!(
+            "shared.path does not exist: {raw_path} — overlay skipped"
+        ));
+        return Ok(None);
+    }
+    let parent_root = paths::normalize(&parent_root);
+    let nested = format!("{parent_root}/.ai/src");
+    let parent_src = if Path::new(&nested).is_dir() {
+        nested
+    } else if paths::leaf(&parent_root) == "src" {
+        parent_root
+    } else {
+        s.log.warning(&format!(
+            "shared.path has no .ai/src/: {raw_path} — overlay skipped"
+        ));
+        return Ok(None);
+    };
+    if parent_src == format!("{root}/.ai/src") {
+        s.log
+            .warning("shared.path resolves to this project — overlay skipped");
+        return Ok(None);
+    }
+
+    let mut categories: Vec<&str> = Vec::new();
+    for token in raw_inherit
+        .split([',', ' ', '\t', '\n'])
+        .filter(|t| !t.is_empty())
+    {
+        match token {
+            "subagents" | "agents" => categories.push("agents"),
+            "rules" => categories.push("rules"),
+            "skills" => categories.push("skills"),
+            "commands" => categories.push("commands"),
+            unknown => s.log.warning(&format!(
+                "shared.inherit: unknown category '{unknown}' — skipped"
+            )),
+        }
+    }
+    if categories.is_empty() {
+        return Ok(None);
+    }
+    let child_src = format!("{root}/.ai/src");
+    let dir = build_tree(&mut s.ws, "shared", &child_src, &parent_src, &categories)?;
+    rewrite_sources(&s.ws, &dir, sources);
+    s.log.info(&format!(
+        "Shared overlay active: {parent_src} ({})",
+        categories.join(",")
+    ));
+    Ok(Some(dir))
+}
+
+/// `base_src_setup_overlay`: engine-owned skills fill paths the project, and a
+/// `shared:` parent composed into `child_src`, lack, unless `base_skills: false`.
 pub fn setup_base_src(
     s: &mut Session,
     config: Option<&str>,
+    child_src: &str,
     sources: &mut Sources,
 ) -> Result<(), Error> {
     let base_src = format!("{ENGINE_ROOT}/lib/templates/base-src");
@@ -100,11 +171,10 @@ pub fn setup_base_src(
     if config.is_some_and(|text| yaml_subset::value(text, "base_skills") == "false") {
         return Ok(());
     }
-    let child_src = format!("{}/.ai/src", s.paths.root);
-    if !s.ws.is_dir(&child_src) {
+    if !s.ws.is_dir(child_src) {
         return Ok(());
     }
-    let dir = build_tree(&mut s.ws, "base-src", &child_src, &base_src, &["skills"])?;
+    let dir = build_tree(&mut s.ws, "base-src", child_src, &base_src, &["skills"])?;
     rewrite_sources(&s.ws, &dir, sources);
     Ok(())
 }
@@ -269,11 +339,66 @@ mod tests {
         let mut s = test_session();
         file(&mut s.ws, "/proj/.ai/src/AGENTS.md", "a");
         let mut sources = Sources::default();
-        setup_base_src(&mut s, Some("base_skills: false\n"), &mut sources).unwrap();
+        setup_base_src(
+            &mut s,
+            Some("base_skills: false\n"),
+            "/proj/.ai/src",
+            &mut sources,
+        )
+        .unwrap();
         assert_eq!(sources, Sources::default());
-        setup_base_src(&mut s, None, &mut sources).unwrap();
+        setup_base_src(&mut s, None, "/proj/.ai/src", &mut sources).unwrap();
         assert_eq!(sources.skills, "/<agentsync-overlay>/base-src/src/skills");
         assert!(s.ws.is_file("/<agentsync-overlay>/base-src/src/skills/agentsync/SKILL.md"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_shared_parent_fills_the_inherited_categories_and_explains_every_skip() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("child").to_string_lossy().into_owned();
+        std::fs::create_dir_all(dir.path().join("child/.ai/src/rules")).unwrap();
+        std::fs::write(dir.path().join("child/.ai/src/AGENTS.md"), "child").unwrap();
+        std::fs::create_dir_all(dir.path().join("parent/.ai/src/skills/p")).unwrap();
+        std::fs::write(dir.path().join("parent/.ai/src/skills/p/SKILL.md"), "p").unwrap();
+        let mut s = Session::new(
+            Workspace::on_disk(&root),
+            crate::paths::Paths::on_disk(&root),
+        );
+        let mut sources = Sources::default();
+
+        let config = "shared:\n  path: \"../parent\"\n  inherit: skills, tools\n";
+        let overlay = setup_shared(&mut s, config, &mut sources).unwrap();
+        assert_eq!(overlay.as_deref(), Some("/<agentsync-overlay>/shared"));
+        assert_eq!(sources.skills, "/<agentsync-overlay>/shared/src/skills");
+        assert_eq!(sources.agents, "/<agentsync-overlay>/shared/src/AGENTS.md");
+        assert!(s.ws.is_file("/<agentsync-overlay>/shared/src/skills/p/SKILL.md"));
+        let parent = format!("{}/parent/.ai/src", dir.path().to_string_lossy());
+        assert_eq!(
+            s.log.tail(2),
+            [
+                "[WARNING] shared.inherit: unknown category 'tools' — skipped".to_string(),
+                format!("[INFO] Shared overlay active: {parent} (skills)"),
+            ]
+        );
+
+        for (config, line) in [
+            (
+                "shared:\n  path: missing\n  inherit: rules\n",
+                "[WARNING] shared.path does not exist: missing — overlay skipped",
+            ),
+            (
+                "shared:\n  path: \"..\"\n  inherit: rules\n",
+                "[WARNING] shared.path has no .ai/src/: .. — overlay skipped",
+            ),
+            (
+                "shared:\n  path: \".\"\n  inherit: rules\n",
+                "[WARNING] shared.path resolves to this project — overlay skipped",
+            ),
+        ] {
+            assert_eq!(setup_shared(&mut s, config, &mut sources).unwrap(), None);
+            assert_eq!(s.log.tail(1), [line]);
+        }
     }
 
     #[test]

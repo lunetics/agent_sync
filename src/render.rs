@@ -1,7 +1,7 @@
-//! What `lib/sync.sh --force` computes, without the transaction: config and
-//! sources, the engine skill layer, every enabled tool and active profile
-//! rendered into the workspace, disabled tools cleaned. Phase 3 adds the
-//! manifest, backup, `.gitignore`, dry-run, and filter options around it.
+//! The run of `lib/sync.sh`: config and sources, the `shared:` and engine skill
+//! overlays, every enabled tool and selected profile rendered into the
+//! workspace, disabled tools cleaned. `check` renders forced and in memory;
+//! `cli::sync` runs the stages on disk with its transaction between them.
 
 use std::collections::BTreeSet;
 
@@ -13,7 +13,7 @@ use crate::{
     Error, catalog, engine_version, file_ops, opencode_json, paths, payload, profiles, yaml_subset,
 };
 
-const TARGET_KEYS: [&str; 9] = [
+pub const TARGET_KEYS: [&str; 9] = [
     "agents",
     "rules",
     "skills",
@@ -29,23 +29,60 @@ const TARGET_KEYS: [&str; 9] = [
 #[derive(Debug, PartialEq, Eq)]
 pub struct Stop(pub u8);
 
-type Step = Result<(), Stop>;
+pub type Step = Result<(), Stop>;
 
-/// Environment the render reads; `check` passes the process environment.
+/// Environment `sync.sh` reads. `check` sets `skip_post_sync`, as
+/// `lib/check.sh` exported `AGENTSYNC_SKIP_POST_SYNC=true`.
 #[derive(Default)]
 pub struct Env {
     pub config_path: Option<String>,
+    pub skip_post_sync: Option<String>,
+    pub allow_post_sync: Option<String>,
 }
 
-struct Run {
-    config: Option<String>,
+/// `--only`, `--skip`, and `--profile`.
+#[derive(Default)]
+pub struct Selection {
+    pub only: String,
+    pub skip: String,
+    pub profile: Option<String>,
+}
+
+impl Selection {
+    /// `should_sync_tool`.
+    pub fn includes(&self, slug: &str) -> bool {
+        let listed = |csv: &str| format!(",{csv},").contains(&format!(",{slug},"));
+        (self.only.is_empty() || listed(&self.only))
+            && (self.skip.is_empty() || !listed(&self.skip))
+    }
+}
+
+/// The globals `sync.sh` fills as it goes.
+pub struct Run {
+    pub config: Option<String>,
+    pub config_path: Option<String>,
     cleanup: String,
-    sources: Sources,
+    pub update_gitignore: bool,
+    pub outputs: &'static str,
+    skip_post_sync: bool,
+    allow_post_sync: bool,
+    pub sources: Sources,
+    base_sources: Sources,
+    profile_base_src: String,
+    selection: Selection,
+    profiles: Vec<String>,
     enabled: BTreeSet<String>,
     profile_tools: BTreeSet<String>,
     protected: Vec<String>,
+    pub backup_targets: Vec<String>,
+    pub gitignore_generated: Vec<String>,
+    pub gitignore_profile: Vec<String>,
     tools: Vec<String>,
     printed: bool,
+    pub synced: usize,
+    pub skipped: usize,
+    pub total: usize,
+    pub skipped_names: Vec<String>,
 }
 
 #[derive(Default)]
@@ -66,75 +103,26 @@ fn io(s: &mut Session, error: Error) -> Stop {
     Stop(1)
 }
 
+/// What `check` needs: `sync.sh --force` without its transaction and without
+/// `shared:`, which `lib/check.sh` merged into the workspace beforehand.
 pub fn render(s: &mut Session, env: &Env) -> Step {
-    let mut run = load_run_config(s, env)?;
-    resolve_sources(s, &mut run)?;
+    let mut run = prepare(s, env, Selection::default())?;
     check_version_pin(s, &run)?;
+    banner(s);
+    setup_overlays(s, &mut run, false)?;
+    build_catalog(s, &mut run);
+    run_passes(s, &mut run)
+}
 
-    s.log.separator();
-    s.log.info("Starting AgentSync Config Sync...");
-    s.log.separator();
-    s.log.out(String::new());
-
-    let config = run.config.clone();
-    overlay::setup_base_src(s, config.as_deref(), &mut run.sources).map_err(|e| io(s, e))?;
-    let base_sources = run.sources.clone();
-    let profile_base_src = format!("{}/.ai/src", s.paths.root);
-
-    let active_profiles: Vec<String> = config
-        .as_deref()
-        .map(|text| {
-            profiles::names(text)
-                .into_iter()
-                .filter(|name| profiles::is_active(text, name))
-                .collect()
-        })
-        .unwrap_or_default();
-    load_tools(s, &mut run);
-    collect_protected_dests(s, &mut run);
-
-    let slugs = run.tools.clone();
-    for slug in &slugs {
-        if run.profile_tools.contains(slug) {
-            continue;
-        }
-        if run.enabled.contains(slug) {
-            sync_tool(s, &mut run, slug)?;
-        } else {
-            cleanup_tool(s, &mut run, slug);
-        }
-        if run.printed {
-            s.log.out(String::new());
-        }
-    }
-
-    for profile in active_profiles {
-        let text = config.clone().unwrap_or_default();
-        let tools: Vec<String> = profiles::tools(&text, &profile)
-            .into_iter()
-            .filter(|t| !t.is_empty())
-            .collect();
-        if tools.is_empty() {
-            continue;
-        }
-        s.log.separator();
-        s.log.info(&format!("Profile: {profile}"));
-        run.sources = base_sources.clone();
-        overlay::setup_profile(s, &text, &profile, &profile_base_src, &mut run.sources)
-            .map_err(|e| io(s, e))?;
-        for slug in tools {
-            sync_tool(s, &mut run, &slug)?;
-            if run.printed {
-                s.log.out(String::new());
-            }
-        }
-        overlay::cleanup_profile(&mut s.ws).map_err(|e| io(s, e))?;
-    }
-    Ok(())
+/// `_load_run_config` and `_resolve_sources`.
+pub fn prepare(s: &mut Session, env: &Env, selection: Selection) -> Result<Run, Stop> {
+    let mut run = load_run_config(s, env, selection)?;
+    resolve_sources(s, &mut run)?;
+    Ok(run)
 }
 
 /// `resolve_project_config_path` and `_load_run_config`.
-fn load_run_config(s: &mut Session, env: &Env) -> Result<Run, Stop> {
+fn load_run_config(s: &mut Session, env: &Env, selection: Selection) -> Result<Run, Stop> {
     let root = s.paths.root.clone();
     let mut config_path = None;
     if let Some(raw) = env.config_path.as_deref().filter(|p| !p.is_empty()) {
@@ -167,47 +155,75 @@ fn load_run_config(s: &mut Session, env: &Env) -> Result<Run, Stop> {
         None => None,
     };
 
+    fn env_set(value: &Option<String>) -> Option<&str> {
+        value.as_deref().filter(|v| !v.is_empty())
+    }
+    let allow_post_sync = match env_set(&env.allow_post_sync) {
+        Some(value) => value == "true",
+        None => yaml_subset::value(catalog::GLOBAL_CONFIG, "post_sync.allow") == "true",
+    };
+    let mut skip_post_sync = env_set(&env.skip_post_sync) == Some("true");
     let mut cleanup = "true".to_string();
+    let mut update_gitignore = true;
+    let mut outputs = "local";
     if let (Some(text), Some(path)) = (&config, &config_path) {
         let configured = yaml_subset::value(text, "defaults.cleanup");
         if !configured.is_empty() {
             cleanup = configured;
         }
-        let outputs = yaml_subset::value(text, "outputs").replace('"', "");
-        if !matches!(outputs.as_str(), "" | "committed" | "local") {
-            let shown = path
-                .strip_prefix(&format!("{root}/"))
-                .unwrap_or(path)
-                .to_string();
-            s.log.error(&format!(
-                "Unknown outputs mode '{outputs}' in {shown} — expected 'committed' or 'local'"
-            ));
-            return Err(Stop(1));
+        if env_set(&env.skip_post_sync).is_none()
+            && yaml_subset::value(text, "post_sync.skip") == "true"
+        {
+            skip_post_sync = true;
         }
+        update_gitignore = yaml_subset::value(text, "gitignore.update") != "false";
+        outputs = match yaml_subset::value(text, "outputs")
+            .replace('"', "")
+            .as_str()
+        {
+            "committed" => "committed",
+            "local" => "local",
+            "" if !update_gitignore => "committed",
+            "" => "local",
+            other => {
+                let shown = path
+                    .strip_prefix(&format!("{root}/"))
+                    .unwrap_or(path)
+                    .to_string();
+                s.log.error(&format!(
+                    "Unknown outputs mode '{other}' in {shown} — expected 'committed' or 'local'"
+                ));
+                return Err(Stop(1));
+            }
+        };
     }
 
     Ok(Run {
         config,
+        config_path,
         cleanup,
+        update_gitignore,
+        outputs,
+        skip_post_sync,
+        allow_post_sync,
         sources: Sources::default(),
+        base_sources: Sources::default(),
+        profile_base_src: String::new(),
+        selection,
+        profiles: Vec::new(),
         enabled: BTreeSet::new(),
         profile_tools: BTreeSet::new(),
         protected: Vec::new(),
+        backup_targets: Vec::new(),
+        gitignore_generated: Vec::new(),
+        gitignore_profile: Vec::new(),
         tools: Vec::new(),
         printed: false,
+        synced: 0,
+        skipped: 0,
+        total: 0,
+        skipped_names: Vec::new(),
     })
-}
-
-fn outputs_mode(config: &str) -> &'static str {
-    match yaml_subset::value(config, "outputs")
-        .replace('"', "")
-        .as_str()
-    {
-        "committed" => "committed",
-        "local" => "local",
-        _ if yaml_subset::value(config, "gitignore.update") == "false" => "committed",
-        _ => "local",
-    }
 }
 
 /// `_resolve_sources`.
@@ -281,7 +297,7 @@ fn resolve_sources(s: &mut Session, run: &mut Run) -> Step {
 }
 
 /// `_check_version_pin_or_exit`.
-fn check_version_pin(s: &mut Session, run: &Run) -> Step {
+pub fn check_version_pin(s: &mut Session, run: &Run) -> Step {
     let Some(config) = &run.config else {
         return Ok(());
     };
@@ -296,7 +312,7 @@ fn check_version_pin(s: &mut Session, run: &Run) -> Step {
             "  • Or move it:     agentsync upgrade-config   (re-pins to {engine}; re-sync and commit the outputs)"
         ),
     ];
-    if outputs_mode(config) == "committed" {
+    if run.outputs == "committed" {
         s.log.error(&format!(
             "This project pins agentsync {pinned} but you are running {engine} — committed outputs must come from one version everywhere."
         ));
@@ -312,6 +328,50 @@ fn check_version_pin(s: &mut Session, run: &Run) -> Step {
         s.log.out(line);
     }
     Ok(())
+}
+
+/// `_print_banner`.
+pub fn banner(s: &mut Session) {
+    s.log.separator();
+    if s.dry_run {
+        s.log.info("Starting AgentSync Config Sync (DRY RUN)...");
+    } else {
+        s.log.info("Starting AgentSync Config Sync...");
+    }
+    s.log.separator();
+    s.log.out(String::new());
+}
+
+/// `shared_setup_overlay` when `shared` is set, `base_src_setup_overlay`, and
+/// `_snapshot_base_sources`.
+pub fn setup_overlays(s: &mut Session, run: &mut Run, shared: bool) -> Step {
+    let config = run.config.clone();
+    let mut child_src = format!("{}/.ai/src", s.paths.root);
+    if shared
+        && let Some(text) = config.as_deref()
+        && let Some(dir) = overlay::setup_shared(s, text, &mut run.sources).map_err(|e| io(s, e))?
+    {
+        child_src = format!("{dir}/src");
+    }
+    overlay::setup_base_src(s, config.as_deref(), &child_src, &mut run.sources)
+        .map_err(|e| io(s, e))?;
+    run.base_sources = run.sources.clone();
+    run.profile_base_src = child_src;
+    Ok(())
+}
+
+/// `_build_tool_catalog`, the `warm_*_cache` sets, and `_collect_protected_dests`.
+pub fn build_catalog(s: &mut Session, run: &mut Run) {
+    let text = run.config.clone().unwrap_or_default();
+    run.profiles = match &run.selection.profile {
+        Some(name) => vec![name.clone()],
+        None => profiles::names(&text)
+            .into_iter()
+            .filter(|name| profiles::is_active(&text, name))
+            .collect(),
+    };
+    load_tools(s, run);
+    collect_protected_dests(s, run);
 }
 
 /// `list_all_tools`, plus the enabled and profile-tool sets `warm_*_cache` build.
@@ -348,9 +408,16 @@ fn load_tool(s: &Session, slug: &str) -> Tool {
 }
 
 /// `_collect_protected_dests`: cleanup never removes what an enabled tool or
-/// any profile tool claims. Disabled tools' dests are resolved too, for the
-/// log lines `_collect_tool_backup_dests` prints.
+/// any profile tool claims; the transaction snapshots every dest the run may
+/// change; `.gitignore` gets the dests of enabled and profile tools.
 fn collect_protected_dests(s: &mut Session, run: &mut Run) {
+    let text = run.config.clone().unwrap_or_default();
+    let selected_profile_tools: BTreeSet<String> = run
+        .profiles
+        .iter()
+        .flat_map(|name| profiles::tools(&text, name))
+        .collect();
+
     let slugs = run.tools.clone();
     for slug in &slugs {
         if run.profile_tools.contains(slug) {
@@ -358,24 +425,36 @@ fn collect_protected_dests(s: &mut Session, run: &mut Run) {
         }
         let tool = load_tool(s, slug);
         if run.enabled.contains(slug) {
-            collect_tool_dests(s, run, &tool);
+            let dests = collect_tool_dests(s, run, &tool, false);
+            if run.selection.includes(slug) {
+                run.backup_targets.extend(dests);
+            }
         } else if run.cleanup == "true" {
             for key in TARGET_KEYS {
                 let raw = tool.value(&format!("targets.{key}.dest"));
-                if !raw.is_empty() {
-                    let label = format!("targets.{key}.dest for {slug}");
-                    s.paths.clone().resolve_dest(&raw, &label, &mut s.log);
+                if raw.is_empty() {
+                    continue;
+                }
+                let label = format!("targets.{key}.dest for {slug}");
+                if let Some(abs) = s.paths.clone().resolve_dest(&raw, &label, &mut s.log) {
+                    run.backup_targets.push(abs);
                 }
             }
         }
     }
     for slug in run.profile_tools.clone() {
         let tool = load_tool(s, &slug);
-        collect_tool_dests(s, run, &tool);
+        let dests = collect_tool_dests(s, run, &tool, true);
+        if selected_profile_tools.contains(&slug) && run.selection.includes(&slug) {
+            run.backup_targets.extend(dests);
+        }
     }
 }
 
-fn collect_tool_dests(s: &mut Session, run: &mut Run, tool: &Tool) {
+/// `_collect_tool_dests`: the tool's resolved dests, also recorded for cleanup
+/// protection and the `.gitignore` payload.
+fn collect_tool_dests(s: &mut Session, run: &mut Run, tool: &Tool, profile: bool) -> Vec<String> {
+    let mut collected = Vec::new();
     for key in TARGET_KEYS {
         let raw = tool.value(&format!("targets.{key}.dest"));
         if raw.is_empty() {
@@ -385,12 +464,68 @@ fn collect_tool_dests(s: &mut Session, run: &mut Run, tool: &Tool) {
         let Some(abs) = s.paths.clone().resolve_dest(&raw, &label, &mut s.log) else {
             continue;
         };
-        if s.paths.to_repo_relative(&abs).is_none() {
+        run.protected.push(abs.clone());
+        collected.push(abs.clone());
+        let Some(mut rel) = s.paths.to_repo_relative(&abs) else {
             s.log
                 .error(&format!("Path is outside repository root: {abs}"));
+            continue;
+        };
+        if matches!(key, "rules" | "skills" | "commands" | "subagents") {
+            rel.push('/');
         }
-        run.protected.push(abs);
+        if profile && tool.flag(&format!("targets.{key}.profile_scoped")) != Some(false) {
+            run.gitignore_profile.push(rel);
+        } else {
+            run.gitignore_generated.push(rel);
+        }
     }
+    collected
+}
+
+/// `_run_personal_pass` and `_run_profile_passes`.
+pub fn run_passes(s: &mut Session, run: &mut Run) -> Step {
+    let slugs = run.tools.clone();
+    for slug in &slugs {
+        if run.profile_tools.contains(slug) {
+            continue;
+        }
+        run.total += 1;
+        if run.enabled.contains(slug) {
+            sync_tool(s, run, slug)?;
+        } else {
+            cleanup_tool(s, run, slug);
+        }
+        if run.printed {
+            s.log.out(String::new());
+        }
+    }
+
+    let text = run.config.clone().unwrap_or_default();
+    for profile in run.profiles.clone() {
+        let tools: Vec<String> = profiles::tools(&text, &profile)
+            .into_iter()
+            .filter(|t| !t.is_empty())
+            .collect();
+        if tools.is_empty() {
+            continue;
+        }
+        s.log.separator();
+        s.log.info(&format!("Profile: {profile}"));
+        run.sources = run.base_sources.clone();
+        let base_src = run.profile_base_src.clone();
+        overlay::setup_profile(s, &text, &profile, &base_src, &mut run.sources)
+            .map_err(|e| io(s, e))?;
+        for slug in tools {
+            run.total += 1;
+            sync_tool(s, run, &slug)?;
+            if run.printed {
+                s.log.out(String::new());
+            }
+        }
+        overlay::cleanup_profile(&mut s.ws).map_err(|e| io(s, e))?;
+    }
+    Ok(())
 }
 
 /// `_resolve_one_dest`.
@@ -452,6 +587,12 @@ fn tool_source(
 fn sync_tool(s: &mut Session, run: &mut Run, slug: &str) -> Step {
     let tool = load_tool(s, slug);
     let display = tool.display_name();
+    if !run.selection.includes(slug) {
+        run.skipped_names.push(display);
+        run.skipped += 1;
+        run.printed = false;
+        return Ok(());
+    }
     run.printed = true;
     let dests = resolve_dests(s, &tool, &display);
     s.log.info(&format!("Syncing {display}..."));
@@ -466,13 +607,46 @@ fn sync_tool(s: &mut Session, run: &mut Run, slug: &str) -> Step {
     sync_subagents_step(s, run, &tool, &dests, &display)?;
     sync_payloads_step(s, &tool, &dests)?;
 
-    if !tool.value("post_sync").is_empty() {
+    let post_sync = tool.value("post_sync");
+    if !s.dry_run && !run_post_sync_hook(s, run, &display, &post_sync) {
+        s.log.error(&format!(
+            "Sync failed because post-sync hook failed for {display}"
+        ));
+        return Err(Stop(1));
+    }
+    s.log.success(&format!("{display} complete"));
+    run.synced += 1;
+    Ok(())
+}
+
+/// `run_post_sync_hook`: false when the hook ran and failed.
+fn run_post_sync_hook(s: &mut Session, run: &Run, display: &str, command: &str) -> bool {
+    if command.is_empty() {
+        return true;
+    }
+    if run.skip_post_sync {
         s.log.info(&format!(
             "Skipping post-sync hook for {display} (AGENTSYNC_SKIP_POST_SYNC=true)"
         ));
+        return true;
     }
-    s.log.success(&format!("{display} complete"));
-    Ok(())
+    if !run.allow_post_sync {
+        s.log.warning(&format!(
+            "Skipping post-sync hook for {display} (set AGENTSYNC_ALLOW_POST_SYNC=true to enable)"
+        ));
+        return true;
+    }
+    s.log.info(&format!("Running post-sync hook: {command}"));
+    let succeeded = std::process::Command::new("bash")
+        .arg("-lc")
+        .arg(command)
+        .current_dir(&s.paths.root)
+        .status()
+        .is_ok_and(|status| status.success());
+    if !succeeded {
+        s.log.warning("Post-sync hook failed");
+    }
+    succeeded
 }
 
 fn sync_rules_step(s: &mut Session, run: &Run, tool: &Tool, dests: &Dests, display: &str) -> Step {
@@ -907,12 +1081,14 @@ fn compose_opencode(s: &mut Session, settings: &str, mcp: &str, dest: &str) -> S
 
 /// `cleanup_tool`: remove a disabled tool's unprotected outputs.
 fn cleanup_tool(s: &mut Session, run: &mut Run, slug: &str) {
+    let tool = load_tool(s, slug);
+    let display = tool.display_name();
+    run.skipped_names.push(display.clone());
+    run.skipped += 1;
     run.printed = false;
     if run.cleanup != "true" {
         return;
     }
-    let tool = load_tool(s, slug);
-    let display = tool.display_name();
     let mut cleaned = false;
     for key in TARGET_KEYS {
         let raw = tool.value(&format!("targets.{key}.dest"));

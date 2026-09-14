@@ -4184,7 +4184,7 @@ git commit -m "feat(native): create, restore, and prune backups in the Bash layo
 - Consumes: everything from Tasks 1–5.
 - Produces: in `render` — `Env { config_path, skip_post_sync, allow_post_sync }` (raw environment values; `check` passes `skip_post_sync: Some("true")`); `Selection { only, skip, profile }` with `Selection::includes(&self, slug: &str) -> bool` (`should_sync_tool`); `Run`, whose public fields `config`, `config_path`, `update_gitignore`, `outputs`, `sources`, `backup_targets`, `gitignore_generated`, `gitignore_profile`, `synced`, `skipped`, `total`, `skipped_names` the transaction reads; the stages `prepare(s, &Env, Selection) -> Result<Run, Stop>`, `check_version_pin(s, &Run) -> Step`, `banner(s)`, `setup_overlays(s, &mut Run, shared: bool) -> Step`, `build_catalog(s, &mut Run)`, `run_passes(s, &mut Run) -> Step`; `render(s, &Env) -> Step` composes them for `check`; `pub const TARGET_KEYS` and `pub type Step`. `overlay::setup_shared(s, config: &str, sources: &mut Sources) -> Result<Option<String>, Error>` (`shared_setup_overlay` with its warnings) and `overlay::setup_base_src(s, config: Option<&str>, child_src: &str, sources: &mut Sources)`. `paths::ai_dir_enclosing_root(dir: &str) -> Option<String>`. In `cli::sync` — `USAGE`; `Args`; `Parsed { Run(Args), Help, Invalid(String) }`; `parse(args: &[String]) -> Parsed` (`parse_args`); `Env { render: render::Env, skip_backup: bool, backup_limit: Option<String>, backup_max_age: Option<String> }`; `run(root: &str, args: &[String], env: &Env, colors: bool, sink: Sink) -> u8`. `Command::Sync { args: Vec<String> }`. The binary answers `agentsync sync` when called directly; `bin/agentsync.sh` does not delegate to it until Task 7.
 
-- [ ] **Step 1: Replace `src/render.rs`**
+- [x] **Step 1: Replace `src/render.rs`**
 
 The personal and profile passes move out of `render` into stages, the dests collection also records backup targets and the `.gitignore` payload, `sync_tool` and `cleanup_tool` keep the run's counts and skipped names, and `run_post_sync_hook` runs a trusted hook with `bash -lc` in the project root. The step functions from `sync_rules_step` to `compose_opencode` are unchanged from Task 2.
 
@@ -5446,7 +5446,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: The `shared:` overlay for `sync` in `src/overlay.rs`**
+- [x] **Step 2: The `shared:` overlay for `sync` in `src/overlay.rs`**
 
 Replace `setup_base_src` and its doc comment with `setup_shared` followed by the new `setup_base_src`:
 
@@ -5622,7 +5622,7 @@ and add after it:
     }
 ```
 
-- [ ] **Step 3: `ai_dir_enclosing_root` in `src/paths.rs`**
+- [x] **Step 3: `ai_dir_enclosing_root` in `src/paths.rs`**
 
 Add before `#[derive(Clone, Debug)] pub struct Paths`:
 
@@ -5661,7 +5661,7 @@ Add this test in the `tests` module, before `fn normalisation_collapses_dot_segm
     }
 ```
 
-- [ ] **Step 4: Create `src/cli/sync.rs`**
+- [x] **Step 4: Create `src/cli/sync.rs`**
 
 ```rust
 //! `agentsync sync`: `lib/sync.sh` with its transaction. The render writes the
@@ -6186,7 +6186,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 5: Add the command to `src/cli/mod.rs`**
+- [x] **Step 5: Add the command to `src/cli/mod.rs`**
 
 ```rust
 pub mod check;
@@ -6232,7 +6232,7 @@ pub enum Command {
 }
 ```
 
-- [ ] **Step 6: Replace `src/main.rs`**
+- [x] **Step 6: Replace `src/main.rs`**
 
 ```rust
 use std::ffi::OsString;
@@ -6380,7 +6380,7 @@ fn guard_engine_version() -> Result<(), Error> {
 }
 ```
 
-- [ ] **Step 7: Append the integration tests to `tests/cli.rs`**
+- [x] **Step 7: Append the integration tests to `tests/cli.rs`**
 
 ```rust
 
@@ -6492,7 +6492,7 @@ fn a_failing_post_sync_hook_restores_the_pre_sync_state() {
 }
 ```
 
-- [ ] **Step 8: Run the gates, confirm green**
+- [x] **Step 8: Run the gates, confirm green**
 
 ```bash
 cargo test 2>&1 | grep 'test result'
@@ -6505,7 +6505,7 @@ AGENTSYNC_NATIVE=1 bats --jobs 4 tests/check.bats tests/native_parity.bats --tap
 
 Expected: `142 passed` (unit) and `10 passed` (integration); fmt and clippy exit 0; `0` and `0` — `check` still renders through the stages, forced and in memory, and its 24 parity fixtures agree.
 
-- [ ] **Step 9: Compare a direct native sync with `lib/sync.sh`**
+- [x] **Step 9: Compare a direct native sync with `lib/sync.sh`**
 
 ```bash
 bash -c '
@@ -6529,7 +6529,7 @@ rm -rf "$base"'
 
 Expected: `same output` and `same tree`. Task 10's fixtures make this comparison permanent.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add src/render.rs src/overlay.rs src/paths.rs src/cli/sync.rs src/cli/mod.rs src/main.rs tests/cli.rs docs/plans/2026-09-14-rust-migration-phase-3-native-sync.md

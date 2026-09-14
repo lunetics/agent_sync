@@ -103,6 +103,7 @@ USAGE
     _validate_resource "$resource"
 
     _customize_prepare_context
+    tool_resolver_require_project_user_dir
 
     case "$resource" in
         tool)     _customize_tool "$tool_name" "$full" ;;

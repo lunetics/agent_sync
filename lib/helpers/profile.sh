@@ -216,6 +216,7 @@ _profile_add() {
     fi
 
     _profile_prepare_context
+    tool_resolver_require_project_user_dir
 
     if [[ -z "$PROJECT_CONFIG_PATH" ]]; then
         echo "$(_red "Error"): no agent_sync.yaml — run 'agentsync init' first." >&2
@@ -314,6 +315,7 @@ _profile_remove() {
     [[ -z "$name" ]] && { echo "$(_red "Error"): agentsync profile remove <name>" >&2; return 2; }
 
     _profile_prepare_context
+    tool_resolver_require_project_user_dir
     if [[ -z "$(_yaml_find_key_line "$PROJECT_CONFIG_PATH" "profiles.$name")" ]]; then
         echo "$(_red "Error"): no profile '$name' in $PROJECT_CONFIG_PATH" >&2
         return 1
@@ -345,10 +347,7 @@ _profile_remove() {
         fi
         uf=$(tool_resolver_user_file "$t")
         [[ -f "$uf" ]] && rm -f "$uf"
-        local tools_dir
-        tools_dir=$(tool_resolver_user_dir)
-        [[ "$tools_dir" == /* ]] || return 1
-        rm -rf "${tools_dir:?}/$t"
+        rm -rf "$(_payload_override_dir "$t")"
     done
 
     yaml_remove_key "$PROJECT_CONFIG_PATH" "profiles.$name"

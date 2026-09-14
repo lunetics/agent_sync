@@ -607,6 +607,7 @@ EOF
     fi
 
     _adopt_prepare_context
+    tool_resolver_require_project_user_dir
     _adopt_discover_sources
 
     # Before the first sync there is no manifest, and that is exactly when a

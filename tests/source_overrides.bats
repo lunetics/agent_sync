@@ -339,3 +339,35 @@ run_external_sync() {
     [ "$status" -eq 0 ]
     [ -z "$(printf '%s' "$output" | grep -F -- "Flat Claude" || true)" ]
 }
+
+@test "customize refuses to write into an external source.tools directory" {
+    EXTERNAL_TOOLS_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_external_tools.XXXXXX")"
+    write_external_fixture "$EXTERNAL_TOOLS_ROOT"
+
+    run env AGENTSYNC_CONFIG_PATH="$EXTERNAL_CONFIG" AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" customize codex
+
+    [ "$status" -eq 1 ]
+    printf '%s' "$output" | grep -qF -- "source.tools resolves outside the project: $EXTERNAL_TOOLS_ROOT"
+    [ ! -e "$EXTERNAL_TOOLS_ROOT/codex.yaml" ]
+}
+
+@test "profile remove refuses to delete from an external source.tools directory" {
+    write_external_fixture "sources/tools"
+    run env AGENTSYNC_CONFIG_PATH="$EXTERNAL_CONFIG" AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" profile add hub --tools claude
+    [ "$status" -eq 0 ]
+    mkdir -p "$TEST_PROJECT/sources/tools/claude-hub"
+    printf '%s\n' '{}' > "$TEST_PROJECT/sources/tools/claude-hub/settings.json"
+    EXTERNAL_TOOLS_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_external_tools.XXXXXX")"
+    mv "$TEST_PROJECT/sources/tools" "$EXTERNAL_TOOLS_ROOT/tools"
+    local config_tmp="$EXTERNAL_CONFIG.tmp"
+    sed "s|^  tools: .*|  tools: \"$EXTERNAL_TOOLS_ROOT/tools\"|" "$EXTERNAL_CONFIG" > "$config_tmp"
+    mv "$config_tmp" "$EXTERNAL_CONFIG"
+
+    run env AGENTSYNC_CONFIG_PATH="$EXTERNAL_CONFIG" AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" profile remove hub --yes
+
+    [ "$status" -eq 1 ]
+    printf '%s' "$output" | grep -qF -- "source.tools resolves outside the project: $EXTERNAL_TOOLS_ROOT/tools"
+    [ -f "$EXTERNAL_TOOLS_ROOT/tools/claude-hub.yaml" ]
+    [ -f "$EXTERNAL_TOOLS_ROOT/tools/claude-hub/settings.json" ]
+    grep -q '^  hub:' "$EXTERNAL_CONFIG"
+}

@@ -55,6 +55,24 @@ tool_resolver_select_project_config() {
     PROJECT_CONFIG_PATH="$REPLY"
 }
 
+# True when the tool override directory resolves inside the project root.
+# Needs paths.sh.
+tool_resolver_user_dir_in_project() {
+    normalize_absolute_path_r "${TOOL_RESOLVER_USER_DIR:-$REPO_ROOT/.ai/src/tools}"
+    canonicalize_with_existing_ancestor_r "$REPLY" 2>/dev/null || return 1
+    [[ "$REPLY" == "$REPO_ROOT_CANONICAL" || "$REPLY" == "$REPO_ROOT_CANONICAL/"* ]]
+}
+
+# Exit <status> (default 1) before a command writes or deletes under the tool
+# override directory when it resolves outside the project root.
+tool_resolver_require_project_user_dir() {
+    local status="${1:-1}"
+    tool_resolver_user_dir_in_project && return 0
+    echo "$(_red "Error"): source.tools resolves outside the project: ${TOOL_RESOLVER_USER_DIR:-$REPO_ROOT/.ai/src/tools}" >&2
+    echo "AgentSync only reads that catalog; edit its tool overrides where they live." >&2
+    exit "$status"
+}
+
 # Path to base tool catalog (install-dir).
 tool_resolver_base_dir() {
     echo "$DEFAULT_REPO_ROOT/lib/templates/tools"

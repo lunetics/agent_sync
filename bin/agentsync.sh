@@ -325,11 +325,11 @@ main() {
         export)        _need yaml export;                              shift; cmd_export "$@" ;;
         import)        _need import;                                   shift; cmd_import "$@" ;;
         refresh)       _need yaml export prompts template_manifest refresh; shift; cmd_refresh "$@" ;;
-        enable)        _need prompts yaml yaml_edit tool_resolver project_config edit_paths enable; shift; cmd_enable "$@" ;;
-        disable)       _need yaml yaml_edit tool_resolver project_config enable;      shift; cmd_disable "$@" ;;
+        enable)        _need prompts yaml yaml_edit tool_resolver project_config paths edit_paths enable; shift; cmd_enable "$@" ;;
+        disable)       _need yaml yaml_edit tool_resolver project_config paths enable;      shift; cmd_disable "$@" ;;
         add)           _need add;                                      shift; cmd_add "$@" ;;
-        customize)     _need yaml yaml_edit tool_resolver project_config customize;   shift; cmd_customize "$@" ;;
-        simplify)      _need yaml yaml_edit tool_resolver project_config customize simplify;   shift; cmd_simplify "$@" ;;
+        customize)     _need yaml yaml_edit tool_resolver project_config paths customize;   shift; cmd_customize "$@" ;;
+        simplify)      _need yaml yaml_edit tool_resolver project_config paths customize simplify;   shift; cmd_simplify "$@" ;;
         migrate)       _need prompts yaml yaml_edit tool_resolver project_config template_manifest format migrate; shift; cmd_migrate "$@" ;;
         show)          _need yaml yaml_edit tool_resolver project_config snapshot customize;   shift; cmd_show "$@" ;;
         diff)          _need yaml yaml_edit tool_resolver project_config snapshot customize;   shift; cmd_diff "$@" ;;

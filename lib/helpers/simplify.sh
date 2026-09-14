@@ -129,6 +129,7 @@ cmd_simplify() {
     done
 
     _simplify_prepare_context
+    [[ "$apply" != "true" ]] || tool_resolver_require_project_user_dir
 
     local overrides
     overrides=$(list_user_override_tools)

@@ -85,6 +85,12 @@ if changed:
 PY
 }
 
+skip_on_windows() {
+    case "$(uname -s)" in
+        MINGW*|MSYS*) skip "$1" ;;
+    esac
+}
+
 checkpoint() {
     local label="$1"
     tar -cpf "$PROOF_DIR/$label.tar" .
@@ -159,6 +165,7 @@ assert_refused_unchanged() {
 }
 
 @test "rollback preflight blocks symlink replacement without touching either link target" {
+    skip_on_windows "the tar checkpoint cannot recreate Windows symlinks"
     mkdir -p private-knowledge other-knowledge .claude/skills/manual
     printf 'original\n' > private-knowledge/data
     printf 'other\n' > other-knowledge/data
@@ -172,6 +179,7 @@ assert_refused_unchanged() {
 }
 
 @test "rollback preflight blocks a dangling link added at an absent target" {
+    skip_on_windows "the tar checkpoint cannot recreate Windows symlinks"
     sync_once
     mkdir -p .codex
     create_test_symlink "$TEST_PROJECT/does-not-exist" .codex/config.toml
@@ -180,6 +188,7 @@ assert_refused_unchanged() {
 }
 
 @test "rollback preflight ignores mutable knowledge contents and normal undo is still safe" {
+    skip_on_windows "the tar checkpoint cannot recreate Windows symlinks"
     mkdir -p private-knowledge .claude/skills/manual
     printf 'before\n' > private-knowledge/data
     create_test_symlink "$TEST_PROJECT/private-knowledge" .claude/skills/manual/knowledge
@@ -296,7 +305,7 @@ assert_refused_unchanged() {
 }
 
 @test "rollback preflight detects mode changes on regular files" {
-    [[ "$OSTYPE" != msys* ]] || skip "Windows does not model POSIX chmod modes"
+    skip_on_windows "Windows does not model POSIX chmod modes"
     mkdir -p .codex
     printf 'before\n' > .codex/config.toml
     chmod 644 .codex/config.toml
@@ -306,6 +315,7 @@ assert_refused_unchanged() {
 }
 
 @test "rollback preflight refuses changed ancestor links even when contents match" {
+    skip_on_windows "the tar checkpoint cannot recreate Windows symlinks"
     sync_once
     mv .claude "$PROOF_DIR/claude-original"
     create_test_symlink "$PROOF_DIR/claude-original" .claude
@@ -395,6 +405,7 @@ assert_refused_unchanged() {
 }
 
 @test "snapshot post-state refuses trailing-slash targets before traversing a link" {
+    skip_on_windows "the tar checkpoint cannot recreate Windows symlinks"
     mkdir private-knowledge
     printf 'mutable\n' > private-knowledge/data
     checkpoint before-snapshot
@@ -432,7 +443,7 @@ missing${tab}-${tab}absent.md"
 }
 
 @test "snapshot post-state hashes names that hash tools escape" {
-    [[ "$OSTYPE" != msys* ]] || skip "Windows does not allow these characters in filenames"
+    skip_on_windows "Windows does not allow these characters in filenames"
     mkdir -p .codex
     printf 'slash\n' > '.codex/back\slash'
     printf 'newline\n' > $'.codex/new\nline'

@@ -10,7 +10,7 @@ use crate::paths::Paths;
 use crate::render::{self, Env};
 use crate::session::Session;
 use crate::workspace::Workspace;
-use crate::{Error, engine_version, overlay, yaml_subset};
+use crate::{Error, engine_version, overlay, project_config, version, yaml_subset};
 
 const MANIFEST_REL: &str = ".ai/.sync-manifest";
 
@@ -44,7 +44,18 @@ impl Report {
 
 pub fn check(root: &str, env: &Env) -> Result<Report, Error> {
     let mut report = Report::default();
-    if let Some(message) = version_pin_mismatch(root)? {
+    let is_file = |path: &str| Path::new(path).is_file();
+    let config_path = match project_config::select(root, env.config_path.as_deref(), &is_file) {
+        project_config::Selection::Found(path) => Some(path),
+        project_config::Selection::None => None,
+        project_config::Selection::Missing(path) => {
+            report.err(&format!("❌ {}", project_config::missing_message(&path)));
+            report.status = 1;
+            return Ok(report);
+        }
+    };
+    let config = config_path.as_deref().map(read_config).transpose()?;
+    if let Some(message) = version_pin_mismatch(root, config_path.as_deref(), config.as_deref()) {
         for line in message {
             report.err(&line);
         }
@@ -54,7 +65,7 @@ pub fn check(root: &str, env: &Env) -> Result<Report, Error> {
     report.out("Checking AgentSync configuration synchronization...");
 
     let manifest = manifest_paths(root)?;
-    let ws = match seed_workspace(root, &manifest) {
+    let ws = match seed_workspace(root, &manifest, config_path.as_deref()) {
         Ok(ws) => ws,
         Err(detail) => {
             report.out("❌ Failed to prepare temporary workspace for check");
@@ -65,7 +76,7 @@ pub fn check(root: &str, env: &Env) -> Result<Report, Error> {
     };
 
     let mut session = Session::new(ws, Paths::for_disk_root(root));
-    merge_shared_parent(&mut session.ws, root)?;
+    merge_shared_parent(&mut session.ws, root, config.as_deref())?;
     if render::render(&mut session, env).is_err() {
         report.out("❌ Sync script failed during check");
         report.out("Sync output (last 40 lines):");
@@ -117,40 +128,49 @@ pub fn check(root: &str, env: &Env) -> Result<Report, Error> {
     Ok(report)
 }
 
-/// The config `lib/check.sh` reads: `.ai/agent_sync.yaml`, else a root-level one.
-fn project_config(root: &str) -> Result<Option<String>, Error> {
-    for rel in [".ai/agent_sync.yaml", "agent_sync.yaml"] {
-        let path = Path::new(root).join(rel);
-        if path.is_file() {
-            let bytes = std::fs::read(&path).map_err(|e| Error::io(&path, e))?;
-            return Ok(Some(String::from_utf8_lossy(&bytes).into_owned()));
-        }
-    }
-    Ok(None)
+fn read_config(path: &str) -> Result<String, Error> {
+    let bytes = std::fs::read(path).map_err(|e| Error::io(path, e))?;
+    Ok(String::from_utf8_lossy(&bytes).into_owned())
 }
 
-/// `_check_version_pin`: fatal only for committed outputs.
-fn version_pin_mismatch(root: &str) -> Result<Option<Vec<String>>, Error> {
-    let Some(config) = project_config(root)? else {
-        return Ok(None);
+/// `_check_version_pin`: an unknown mode, or a mismatch with committed outputs
+/// or `version_pin.mode: strict`, fails before the banner.
+fn version_pin_mismatch(
+    root: &str,
+    path: Option<&str>,
+    config: Option<&str>,
+) -> Option<Vec<String>> {
+    let (Some(path), Some(config)) = (path, config) else {
+        return None;
     };
-    if yaml_subset::value(&config, "outputs").replace('"', "") != "committed" {
-        return Ok(None);
+    let mode = match version::mode(config) {
+        Ok(mode) => mode,
+        Err(value) => {
+            let shown = path.strip_prefix(&format!("{root}/")).unwrap_or(path);
+            return Some(vec![format!(
+                "❌ Unknown version_pin.mode '{value}' in {shown} — expected 'warn' or 'strict'"
+            )]);
+        }
+    };
+    let mut outputs = yaml_subset::value(config, "outputs").replace('"', "");
+    if outputs.is_empty() && yaml_subset::value(config, "gitignore.update") == "false" {
+        outputs = "committed".to_string();
     }
-    let pinned = yaml_subset::value(&config, "agentsync_version").replace('"', "");
+    let committed = outputs == "committed";
+    if !committed && mode != version::Mode::Strict {
+        return None;
+    }
+    let pinned = yaml_subset::value(config, "agentsync_version").replace('"', "");
     let engine = engine_version();
     if pinned.is_empty() || pinned == engine {
-        return Ok(None);
+        return None;
     }
-    Ok(Some(vec![
-        format!(
-            "❌ This project pins agentsync {pinned} but you are running {engine} — committed outputs must come from one version everywhere."
-        ),
-        format!("  • Match the pin:  agentsync update {pinned}"),
-        format!(
-            "  • Or move it:     agentsync upgrade-config   (re-pins to {engine}; re-sync and commit the outputs)"
-        ),
-    ]))
+    let [first, second] = version::hint(&pinned, engine);
+    Some(vec![
+        format!("❌ {}", version::mismatch_error(&pinned, engine, committed)),
+        first,
+        second,
+    ])
 }
 
 /// `manifest_paths`: the text before the first tab of every complete line.
@@ -174,7 +194,11 @@ fn manifest_paths(root: &str) -> Result<Vec<String>, Error> {
 
 /// What `lib/check.sh` copied with `tar`: `.ai/` without backups, a root
 /// `agent_sync.yaml`, and every manifest output that exists.
-fn seed_workspace(root: &str, manifest: &[String]) -> Result<Workspace, String> {
+fn seed_workspace(
+    root: &str,
+    manifest: &[String],
+    selected: Option<&str>,
+) -> Result<Workspace, String> {
     let mut ws = Workspace::new(root);
     let ai = Path::new(root).join(".ai");
     if !ai.exists() {
@@ -198,6 +222,13 @@ fn seed_workspace(root: &str, manifest: &[String]) -> Result<Workspace, String> 
                 .map_err(|e| e.to_string())?;
         }
     }
+    if let Some(path) = selected
+        && !path.starts_with(&format!("{root}/.ai/"))
+        && path != format!("{root}/agent_sync.yaml")
+    {
+        ws.seed_from_disk(path, Path::new(path), &is_git)
+            .map_err(|e| e.to_string())?;
+    }
     Ok(ws)
 }
 
@@ -205,13 +236,14 @@ fn is_git(rel: &str) -> bool {
     rel.split('/').any(|segment| segment == ".git")
 }
 
-/// The `shared:` block of `lib/check.sh`, before the render.
-fn merge_shared_parent(ws: &mut Workspace, root: &str) -> Result<(), Error> {
-    let Some(config) = project_config(root)? else {
+/// Merge the `shared:` parent into the workspace, as the isolated sync of
+/// `lib/check.sh` inherits it.
+fn merge_shared_parent(ws: &mut Workspace, root: &str, config: Option<&str>) -> Result<(), Error> {
+    let Some(config) = config else {
         return Ok(());
     };
-    if let Some(parent) = overlay::shared_parent_src(&config, root) {
-        let inherit = yaml_subset::value(&config, "shared.inherit");
+    if let Some(parent) = overlay::shared_parent_src(config, root) {
+        let inherit = yaml_subset::value(config, "shared.inherit");
         overlay::merge_shared_parent(ws, &parent, &overlay::inherit_categories(&inherit))?;
     }
     Ok(())
@@ -254,7 +286,7 @@ mod tests {
     fn manifest_outputs_that_match_the_render_are_in_sync() {
         let (_dir, root) = project();
         let mut session = Session::new(
-            seed_workspace(&root, &[]).unwrap(),
+            seed_workspace(&root, &[], Some(&format!("{root}/.ai/agent_sync.yaml"))).unwrap(),
             Paths::for_disk_root(&root),
         );
         render::render(&mut session, &Env::default()).unwrap();
@@ -336,5 +368,95 @@ mod tests {
             "a.md\th\n\tb.md\th\nc.md\nlast\th",
         );
         assert_eq!(manifest_paths(&root).unwrap(), ["a.md", "b.md", "c.md"]);
+    }
+
+    fn with_config(path: &str) -> Env {
+        Env {
+            config_path: Some(path.to_string()),
+            ..Env::default()
+        }
+    }
+
+    #[test]
+    fn a_missing_explicit_config_fails_before_the_banner() {
+        let (_dir, root) = project();
+        let report = check(&root, &with_config("missing.yaml")).unwrap();
+        assert_eq!(
+            report,
+            Report {
+                stdout: String::new(),
+                stderr: format!(
+                    "❌ AGENTSYNC_CONFIG_PATH is set but file not found: {root}/missing.yaml\n"
+                ),
+                status: 1,
+            }
+        );
+    }
+
+    #[test]
+    fn a_relative_explicit_config_outside_dot_ai_drives_the_render() {
+        let (_dir, root) = project();
+        std::fs::remove_file(Path::new(&root).join(".ai/agent_sync.yaml")).unwrap();
+        write(
+            Path::new(&root),
+            "config/agentsync.yaml",
+            "tools:\n  enabled: [claude]\n",
+        );
+        let report = check(&root, &with_config("config/agentsync.yaml")).unwrap();
+        assert_eq!(report.status, 1);
+        assert!(report.stdout.contains("Missing: CLAUDE.md\n"));
+    }
+
+    #[test]
+    fn a_strict_pin_and_an_unknown_mode_fail_local_outputs_before_the_banner() {
+        let (_dir, root) = project();
+        let engine = engine_version();
+        write(
+            Path::new(&root),
+            ".ai/agent_sync.yaml",
+            "outputs: local\nagentsync_version: \"0.0.1\"\nversion_pin:\n  mode: strict\n",
+        );
+        let report = check(&root, &Env::default()).unwrap();
+        assert_eq!((report.status, report.stdout.as_str()), (1, ""));
+        assert_eq!(
+            report.stderr,
+            format!(
+                "❌ This project pins agentsync 0.0.1 but you are running {engine} — version_pin.mode 'strict' requires local outputs to use the pinned version.\n  • Match the pin:  agentsync update 0.0.1\n  • Or move it:     agentsync upgrade-config   (re-pins to {engine}; re-sync and commit the outputs)\n"
+            )
+        );
+
+        write(
+            Path::new(&root),
+            ".ai/agent_sync.yaml",
+            "version_pin:\n  mode: refuse\n",
+        );
+        let report = check(&root, &Env::default()).unwrap();
+        assert_eq!(
+            report.stderr,
+            "❌ Unknown version_pin.mode 'refuse' in .ai/agent_sync.yaml — expected 'warn' or 'strict'\n"
+        );
+        assert_eq!(report.status, 1);
+    }
+
+    #[test]
+    fn gitignore_update_false_without_outputs_counts_as_committed() {
+        let (_dir, root) = project();
+        write(
+            Path::new(&root),
+            ".ai/agent_sync.yaml",
+            "gitignore:\n  update: false\nagentsync_version: \"0.0.1\"\n",
+        );
+        let report = check(&root, &Env::default()).unwrap();
+        assert_eq!(report.status, 1);
+        assert!(
+            report
+                .stderr
+                .starts_with("❌ This project pins agentsync 0.0.1 but you are running ")
+        );
+        assert!(
+            report
+                .stderr
+                .contains("— committed outputs must come from one version everywhere.\n")
+        );
     }
 }

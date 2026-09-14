@@ -684,7 +684,7 @@ not ok 7 read-only commands reject an invalid explicit config path instead of us
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings
 git add src/render.rs src/cli/sync.rs docs/plans/2026-09-14-rust-migration-phase-3b-config-and-pin.md
-git commit -m "feat(native): fail closed on config selection and enforce version_pin.mode in sync"
+git commit -m "feat(native): fail closed on config selection and enforce version_pin.mode"
 ```
 
 ---
@@ -699,10 +699,10 @@ git commit -m "feat(native): fail closed on config selection and enforce version
 - Produces:
   - `fn read_config(path: &str) -> Result<String, Error>`
   - `fn version_pin_mismatch(root: &str, path: Option<&str>, config: Option<&str>) -> Option<Vec<String>>`
-  - `fn seed_workspace(root: &str, manifest: &[String], config: Option<&str>) -> Result<Workspace, String>`
+  - `fn seed_workspace(root: &str, manifest: &[String], selected: Option<&str>) -> Result<Workspace, String>` (a local `config` already names the root `agent_sync.yaml` there)
   - `fn merge_shared_parent(ws: &mut Workspace, root: &str, config: Option<&str>) -> Result<(), Error>`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append inside `mod tests` in `src/cli/check.rs`:
 
@@ -794,12 +794,12 @@ Append inside `mod tests` in `src/cli/check.rs`:
 
 In the existing test `manifest_outputs_that_match_the_render_are_in_sync`, change `seed_workspace(&root, &[]).unwrap()` to `seed_workspace(&root, &[], Some(&format!("{root}/.ai/agent_sync.yaml"))).unwrap()`.
 
-- [ ] **Step 2: Run the tests, confirm they fail**
+- [x] **Step 2: Run the tests, confirm they fail**
 
 Run: `cargo test cli::check 2>&1 | grep -E '^test |test result'`
-Expected: a compile error on the three-argument `seed_workspace` call. After temporarily reverting that one edit, the four new tests fail: the missing config renders on, the relative config is not read, and the strict and `gitignore.update` cases pass the pin.
+Expected: the four new tests fail — the missing config renders on, the relative config is not read, and the strict and `gitignore.update` cases pass the pin — while the other six pass. Make the three-argument `seed_workspace` edit in the existing test together with Step 3, since it does not compile before.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 In `src/cli/check.rs`, change the `use crate::{…}` line to:
 
@@ -891,11 +891,11 @@ fn version_pin_mismatch(root: &str, path: Option<&str>, config: Option<&str>) ->
 Change `seed_workspace`'s signature and add the seeding of a config outside `.ai/` before `Ok(ws)`:
 
 ```rust
-fn seed_workspace(root: &str, manifest: &[String], config: Option<&str>) -> Result<Workspace, String> {
+fn seed_workspace(root: &str, manifest: &[String], selected: Option<&str>) -> Result<Workspace, String> {
 ```
 
 ```rust
-    if let Some(path) = config
+    if let Some(path) = selected
         && !path.starts_with(&format!("{root}/.ai/"))
         && path != format!("{root}/agent_sync.yaml")
     {
@@ -922,7 +922,7 @@ fn merge_shared_parent(ws: &mut Workspace, root: &str, config: Option<&str>) -> 
 }
 ```
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo test 2>&1 | grep 'test result'
@@ -934,7 +934,7 @@ AGENTSYNC_NATIVE=1 bats --tap tests/check.bats | grep -c '^not ok'
 
 Expected: `165 passed` (unit) and `11 passed` (integration); only `not ok 7 read-only commands reject an invalid explicit config path instead of using the local config` in `config_safety.bats`; `0` in `version_pin.bats`; `0` in `check.bats`.
 
-- [ ] **Step 5: Lint and commit**
+- [x] **Step 5: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings

@@ -213,7 +213,7 @@ agentsync <command> [options]
 | ------------------------ | ----- | ---------------------------------------------------------------------------------------------- |
 | `init [dir]`             |       | Create `.ai/` structure with starter templates                                                 |
 | `sync`                   |       | Sync to all enabled tools (`--only`, `--skip`, `--profile`, `--dry-run`, `--force`, `--if-stale`, `--workspace`) |
-| `rollback [backup-id]`   |       | Restore managed targets from the latest or selected backup (`--list`, `--dry-run`, `--yes`)     |
+| `rollback [backup-id]`   |       | Restore managed targets from the latest or selected backup (`--list`, `--dry-run`, `--force`, `--yes`) |
 | `check`                  |       | Verify outputs match source (CI-friendly, exit code 0/1)                                       |
 | `enable <tools…>`        |       | Opt in to one or more tools (scaffolds editable settings/hooks payloads)                        |
 | `disable <tools…>`       |       | Opt out of one or more tools                                                                    |
@@ -498,7 +498,15 @@ Projects scaffolded before this carry their own copy, which shadows the engine's
 
 Generated files are output, so an agent that edits them loses the change on the next sync. Three layers prevent that: the shipped `AGENTS.md` and `rules/core.md` state where instructions live, Claude Code receives a generated `PreToolUse` hook (`.claude/hooks/agentsync-guard.sh`) that blocks a write to any path in `.ai/.sync-manifest` and names the source instead, and `sync` refuses to overwrite a generated file edited since the last run. Replace the hook per project at `.ai/src/tools/claude/guard.sh`, or remove the `hooks` block from your settings override to drop it.
 
-`agentsync_version` in `agent_sync.yaml` pins the engine. With committed outputs every machine and CI must generate byte-identical files, so `sync` and `check` stop when the running version differs from the pin: match it with `agentsync update <version>` (or `AGENTSYNC_VERSION=<version>` on the installer), or move the pin with `agentsync upgrade-config` and commit the re-synced outputs. In `local` mode the mismatch is a warning.
+`agentsync_version` in `agent_sync.yaml` pins the engine. With committed outputs every machine and CI must generate byte-identical files, so `sync` and `check` stop when the running version differs from the pin: match it with `agentsync update <version>` (or `AGENTSYNC_VERSION=<version>` on the installer), or move the pin with `agentsync upgrade-config` and commit the re-synced outputs. In `local` mode the mismatch is a warning by default. Set `version_pin.mode: strict` to make a local mismatch fatal as well; `warn` preserves the default. Unknown modes are rejected before a sync can write outputs.
+
+```yaml
+version_pin:
+  mode: strict # or warn (default)
+
+# Scalar shorthand:
+version_pin: strict # or warn
+```
 
 ## How Sync Works
 
@@ -609,7 +617,11 @@ available, the prompt is still printed to stdout.
 
 ## Path Overrides
 
-Create `agent_sync.yaml` in the project root to override source paths:
+Create `agent_sync.yaml` in the project root to override source paths. Relative
+values are resolved from the project root; absolute values may point at a
+separately maintained source tree. `source.tools` controls both the per-tool
+YAML files and their payload directories (`<source.tools>/<tool>/settings.json`,
+`hooks.json`, or `mcp.json`), so those files stay on the same source side:
 
 ```yaml
 outputs: committed # or local — see "Where generated files live"
@@ -620,6 +632,65 @@ source:
   skills: ".ai/src/skills"
   tools: ".ai/src/tools"
 ```
+
+For a user-wide source tree, keep outputs in the project (or use the tool
+configuration's supported project-relative destinations) and point only the
+sources outward:
+
+```yaml
+source:
+  agents: "/home/me/agentic/.ai/AGENTS.md"
+  rules: "/home/me/agentic/.ai/rules"
+  skills: "/home/me/agentic/.ai/skills"
+  tools: "/home/me/agentic/.ai/tools"
+```
+
+Then trust that tree from outside the repository, in your shell profile or CI
+environment:
+
+```bash
+export AGENTSYNC_EXTERNAL_SOURCE_ROOTS="/home/me/agentic"   # colon-separated
+```
+
+Sources outside the project follow these rules:
+
+- **Trusted roots only.** A value outside the project must resolve under an
+  absolute directory listed in `AGENTSYNC_EXTERNAL_SOURCE_ROOTS`; otherwise
+  `sync` and `check` stop before writing, and `doctor` reports it. Only the
+  environment grants that trust, never `agent_sync.yaml`, so syncing a cloned
+  repository — including the `shell-init` hook on `cd` — cannot read your
+  files from wherever its config points.
+- **Explicit values only.** A `source.agents`, `source.rules`, `source.skills`,
+  `source.commands`, `source.subagents`, or `source.tools` value written in the
+  selected project config may point outside the project, as an absolute path
+  or a `../` path. Nothing else widens where sources are read from: the
+  install-dir defaults, the auto-detected `.ai/src/` and `.ai/` layouts, and any
+  value written under the project keep the project boundary.
+- **Symlinks follow the same rule.** Before reading anything, `sync` and
+  `check` resolve every symlink under `.ai/` and the configured sources,
+  following chains and links to directories. One whose target is outside the
+  project and not under `AGENTSYNC_EXTERNAL_SOURCE_ROOTS` — a committed
+  `.ai/src/rules/notes.md -> ~/secrets.md`, say — stops the run before
+  writing, naming the link. A link to a shared tree you maintain works once
+  that tree is listed in the variable.
+- **Refused roots.** A value that resolves to `/`, your home directory, the
+  project root, or a directory containing the project root is rejected before
+  anything is written; `doctor` reports it for every key except `tools`.
+- **Relative to the project root.** Relative values resolve from the project
+  root, including when `AGENTSYNC_CONFIG_PATH` selects a config file stored
+  elsewhere and inside `check`'s temporary workspace.
+- **Read-only.** Outside sources are only read. Destinations stay confined to
+  the project root, and `check` reads the sources in place while generating
+  only in its temporary workspace.
+- **No writes into an outside tool catalog.** When `source.tools` resolves
+  outside the project, `customize`, `profile add`/`remove`, `adopt`,
+  `simplify --apply`, `enable --scaffold`, and a `disable` that would flip a
+  legacy `enabled: true` exit with an error before writing; plain `enable`
+  skips payload scaffolding. Edit that catalog where it lives.
+
+`AGENTSYNC_CONFIG_PATH` selects an alternate configuration file. Every command
+that reads the project config fails when it names a missing file instead of
+falling back to `.ai/agent_sync.yaml`.
 
 ## Migrating Existing Configurations
 
@@ -698,7 +769,73 @@ agentsync rollback <backup-id> --yes       # restore a selected snapshot
 
 Rollback creates its own safety snapshot first, so its output prints an ID that can undo the rollback. After each operation — successful, or failed once its restore completes — AgentSync prunes the history: a snapshot is kept only if it is among the latest 10 **and** younger than 30 days. Set `AGENTSYNC_BACKUP_LIMIT` or `AGENTSYNC_BACKUP_MAX_AGE_DAYS` to another non-negative integer to change either bound, or to `0` to disable that bound alone. The newest snapshot is always retained, so rollback stays available however long a project sits idle. Staging directories left behind by an interrupted or killed run are reclaimed on the next backup, once they are over 24 hours old.
 
+To retain all existing recovery data automatically, set this in the project's
+`.ai/agent_sync.yaml` (or root `agent_sync.yaml`, or the file selected by
+`AGENTSYNC_CONFIG_PATH`):
+
+```yaml
+backup:
+  retention: preserve
+```
+
+`backup.retention` accepts `bounded` (the default behavior above) or `preserve`.
+Preserve disables both snapshot pruning and the cleanup of existing
+`.tmp.*`, `.latest.tmp.*`, and `.gitignore.tmp.*` staging entries, regardless
+of the count and age bounds. Setting both environment bounds to `0` alone
+does **not** disable staging cleanup. With preserve, disk usage can grow
+without a bound; review and remove recovery data manually when appropriate.
+
+Init, sync, and rollback validate the policy and numeric bounds before changing
+targets or the backup store; `rollback --list` and `check`, which change
+neither, skip that validation. An explicitly empty or unknown retention value is
+an error. The selected policy stays fixed for the operation, including automatic
+recovery after a failed sync and a rollback that restores a different config.
+New snapshots are still created and the current `.latest` pointer and
+`.gitignore` metadata are still updated. Temporary files created by the current
+operation can still be cleaned up on failure; preserve protects recovery that
+already existed when the operation began.
+
 The transaction covers declared tool destinations plus `.ai/.sync-manifest` and the managed `.gitignore` state. A trusted `post_sync` hook can execute arbitrary commands; side effects it makes outside those paths are outside AgentSync's rollback boundary.
+
+Rollback first compares every target with the state recorded **after** the
+selected operation. Later additions, edits, deletions, type or executable-bit
+changes, and foreign children inside a directory — even a `.DS_Store` — cause
+the entire rollback to abort before any target is restored, naming the first
+differing path. This also applies to declared native or disabled destinations:
+a file recorded as absent is not permission to delete a file someone created
+later. `--yes` skips confirmation only; it does not bypass conflict checks.
+`--dry-run` shows the plan together with the conflict and exits 1.
+`rollback --force` skips the check and restores anyway, still creating the
+safety snapshot that can undo it.
+
+Rolling back an older snapshot after newer init, sync, or rollback runs is a
+conflict whenever those runs changed its targets. Roll back the newer snapshots
+first, newest to oldest, or use `--force` to jump straight to the older state.
+
+New snapshots receive an `after.tsv` record once init, sync, or rollback has
+finished: one line per file, directory, symlink, or missing target, with
+content hashes and the executable bit, bound to the snapshot's target list.
+Undo uses the result of the preceding rollback as its expected state. If the
+record cannot be written — no `sha256sum` or `shasum`, an unreadable file — the
+operation still succeeds with a warning. Snapshots without a usable record
+(taken before this check existed, left unsealed by such a warning, or with an
+empty or damaged `after.tsv`) are restored as before, with a warning that
+changes made after their operation cannot be detected.
+
+Symlinks are compared by their link text, without inspecting or restoring their
+destination contents. Changes to mutable knowledge behind an unchanged link
+therefore neither block rollback nor get reverted. Replacing a link itself is
+a conflict. A target reached through a symlinked parent directory is compared
+through it while the link resolves inside the project; one resolving outside
+is refused.
+
+The preflight runs once before the plan and again after creating the safety
+snapshot, right before enabling restore/recovery. These checks are not an atomic
+filesystem transaction or a lock: concurrent writers can still change files or
+links during a scan or between the final check and a write (TOCTOU). Stop other
+writers while syncing or rolling back. Internal recovery of a failing operation
+remains separate from the guarded user-requested rollback; the snapshot witness
+does not authenticate data against an actor who can rewrite the backup store.
 
 ### Drift detection
 

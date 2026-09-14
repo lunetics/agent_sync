@@ -24,19 +24,35 @@ source "$SCRIPT_DIR/helpers/tmp.sh"
 source "$SCRIPT_DIR/helpers/yaml.sh"
 # shellcheck source=helpers/version.sh
 source "$SCRIPT_DIR/helpers/version.sh"
+# shellcheck source=helpers/project_config.sh
+source "$SCRIPT_DIR/helpers/project_config.sh"
+
+if ! project_config_path_r "$REPO_ROOT"; then
+    echo "❌ AGENTSYNC_CONFIG_PATH is set but file not found: $REPLY" >&2
+    exit 1
+fi
+CHECK_CONFIG_PATH="$REPLY"
 
 # Same gate as sync, checked up front so CI reports the pin rather than a
 # "sync failed inside check" wrapper. Only committed outputs make it fatal:
 # there, every machine must generate byte-identical files.
 _check_version_pin() {
-    local config="$REPO_ROOT/.ai/agent_sync.yaml"
-    [[ -f "$config" ]] || config="$REPO_ROOT/agent_sync.yaml"
-    [[ -f "$config" ]] || return 0
+    local config="$CHECK_CONFIG_PATH"
+    [[ -n "$config" ]] || return 0
+
+    local version_mode
+    if ! version_mode=$(version_pin_mode "$config"); then
+        echo "❌ Unknown version_pin.mode '$version_mode' in ${config#"$REPO_ROOT/"} — expected 'warn' or 'strict'" >&2
+        exit 1
+    fi
 
     local outputs
     outputs=$(parse_yaml_value "$config" "outputs")
     outputs="${outputs//\"/}"
-    [[ "$outputs" == "committed" ]] || return 0
+    if [[ -z "$outputs" && "$(parse_yaml_value "$config" "gitignore.update")" == "false" ]]; then
+        outputs="committed"
+    fi
+    [[ "$outputs" == "committed" || "$version_mode" == "strict" ]] || return 0
 
     local pinned engine
     pinned=$(pinned_version "$config")
@@ -44,7 +60,7 @@ _check_version_pin() {
     engine=$(engine_version "$SCRIPT_DIR")
     [[ "$pinned" != "$engine" ]] || return 0
 
-    echo "❌ This project pins agentsync $pinned but you are running $engine — committed outputs must come from one version everywhere." >&2
+    echo "❌ $(version_pin_mismatch_error "$pinned" "$engine" "$outputs")" >&2
     version_pin_mismatch_hint "$pinned" "$engine" >&2
     exit 1
 }
@@ -132,9 +148,13 @@ done < "$COPY_LIST"
 # --force bypasses the manifest drift check inside the temp copy: any divergence
 # between source and dest is caught by the comparison below, which gives the
 # user a richer "out of sync" report than the abort message would.
+# Sources resolve from the project itself: source.* values relative to it, or
+# outside it, have no copy in the workspace.
 if ! AGENTSYNC_REPO_ROOT="$TEMP_ROOT" \
      AGENTSYNC_SKIP_POST_SYNC=true \
      AGENTSYNC_INTERNAL_SKIP_BACKUP=true \
+     AGENTSYNC_CONFIG_PATH="$CHECK_CONFIG_PATH" \
+     AGENTSYNC_INTERNAL_SOURCE_BASE_ROOT="$REPO_ROOT" \
      "$SCRIPT_DIR/sync.sh" --force >"$SYNC_LOG" 2>&1; then
     echo "❌ Sync script failed during check"
     echo "Sync output (last 40 lines):"

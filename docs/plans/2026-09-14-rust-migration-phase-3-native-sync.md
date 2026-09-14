@@ -286,7 +286,7 @@ git commit -m "fix(sync): prune a generated directory the manifest records files
 - Consumes: nothing new.
 - Produces: the managed block is sorted with `LC_ALL=C sort -u`. Found while porting it: `sort | uniq` follows the locale, so the committed `.gitignore` block orders `B/`, `_x/`, `b/` differently on macOS, glibc `en_US.UTF-8`, and `C` — the platform-dependent ordering the architecture rules forbid, and the parity reference must not depend on it (skill `native-port`, triage rule 1). The test skips where `en_US.UTF-8` is not installed, because only a collating locale can show the difference.
 
-- [ ] **Step 1: Write the failing test in `tests/gitignore.bats`, before `@test "update_gitignore handles empty paths"`**
+- [x] **Step 1: Write the failing test in `tests/gitignore.bats`, before `@test "update_gitignore handles empty paths"`**
 
 ```bash
 @test "update_gitignore orders paths by bytes whatever the locale" {
@@ -300,12 +300,12 @@ git commit -m "fix(sync): prune a generated directory the manifest records files
 
 ```
 
-- [ ] **Step 2: Run it, confirm it fails**
+- [x] **Step 2: Run it, confirm it fails**
 
 Run: `bats tests/gitignore.bats -f 'by bytes'`
 Expected on macOS or a glibc host with `en_US.UTF-8`: `not ok 1 update_gitignore orders paths by bytes whatever the locale`. Where the locale is missing the test reports `skip`; run this step on a host that has it.
 
-- [ ] **Step 3: Sort bytewise in `lib/helpers/gitignore.sh`**
+- [x] **Step 3: Sort bytewise in `lib/helpers/gitignore.sh`**
 
 Replace:
 
@@ -319,7 +319,7 @@ with:
         sorted_paths=$(printf '%s\n' "$paths_string" | sed '/^$/d' | LC_ALL=C sort -u)
 ```
 
-- [ ] **Step 4: Run the file and ShellCheck, confirm green**
+- [x] **Step 4: Run the file and ShellCheck, confirm green**
 
 ```bash
 bats tests/gitignore.bats
@@ -328,7 +328,7 @@ shellcheck -x -S warning -e SC1091 lib/helpers/gitignore.sh
 
 Expected: `1..7`, 7 ok; ShellCheck exits 0.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/helpers/gitignore.sh tests/gitignore.bats docs/plans/2026-09-14-rust-migration-phase-3-native-sync.md

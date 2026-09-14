@@ -5,6 +5,7 @@ pub mod enable;
 pub mod list;
 pub mod rollback;
 pub mod show;
+pub mod simplify;
 pub mod sync;
 pub mod workspace;
 

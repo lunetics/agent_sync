@@ -33,8 +33,8 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
     ) {
         return print_version();
     }
-    // `cmd_enable` reads a leading `--` as the start of tool slugs; clap would consume it.
-    if let Some(command @ ("enable" | "disable" | "customize" | "show" | "diff")) =
+    // These parse their arguments as their Bash `cmd_*` do; clap would consume a leading `--`.
+    if let Some(command @ ("enable" | "disable" | "customize" | "show" | "diff" | "simplify")) =
         args.first().and_then(|a| a.to_str())
     {
         let rest: Vec<String> = args[1..]
@@ -58,6 +58,19 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
             }
             "show" => cli::show::show(&rest, &Project::discover, &style, &mut out, &mut err),
             "diff" => cli::diff::diff(&rest, &Project::discover, &style, &mut out, &mut err),
+            "simplify" => cli::simplify::simplify(
+                &rest,
+                &Project::discover,
+                &style,
+                prompts::is_tty(),
+                &mut |prompt: &str, out: &mut dyn Write| {
+                    let _ = write!(out, "  {prompt} ");
+                    let _ = out.flush();
+                    prompts::read_terminal()
+                },
+                &mut out,
+                &mut err,
+            ),
             _ => cli::customize::customize(
                 &rest,
                 &Project::discover,

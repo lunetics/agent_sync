@@ -679,3 +679,30 @@ assert_tree_parity() {
     printf '{"legacy":true}\n' > .ai/src/mcp/claude.json
     assert_tree_parity diff claude mcp
 }
+
+# ── simplify / resolve ───────────────────────────────────────────────────────
+
+@test "parity: simplify previews and applies like Bash" {
+    enable_tools cursor
+    assert_tree_parity simplify
+    assert_tree_parity simplify --whatever
+    assert_tree_parity simplify a b
+    assert_tree_parity simplify --help
+    _run_engine 0 customize cursor --full >/dev/null
+    _run_engine 0 customize claude --full >/dev/null
+    printf 'name: "Cursor"\nenabled: true\n\ntargets:\n  rules:\n    dest: ".cursor/rules"\n    extension: ".mdcustom"\n  custom:\n    x: 1\n' > .ai/src/tools/cursor.yaml
+    printf 'name: "Mine"\ntargets:\n  rules:\n    dest: ".mine"\n' > .ai/src/tools/mytool.yaml
+    assert_tree_parity simplify nope
+    assert_tree_parity simplify
+    assert_tree_parity simplify --apply
+    assert_tree_parity simplify claude --apply -y
+    mkdir -p .ai/src/tools/cursor .ai/src/hooks
+    cp "$REPO_ROOT/lib/templates/hooks/cursor.json" .ai/src/tools/cursor/hooks.json
+    printf '{"edited":true}\n' > .ai/src/tools/cursor/mcp.json
+    cp "$REPO_ROOT/lib/templates/hooks/cursor.json" .ai/src/hooks/cursor.json
+    assert_tree_parity simplify cursor
+    assert_tree_parity simplify cursor --apply -y
+    assert_tree_parity simplify --apply
+    rm .ai/src/tools/cursor/mcp.json
+    assert_tree_parity simplify --apply
+}

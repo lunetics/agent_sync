@@ -288,7 +288,7 @@ git commit -m "feat(native): port yaml_remove_key and the pending-resolution rea
 - Consumes: Task 1, `cli::customize::{put, relative}`, `cli::refuse_outside_tools_dir`.
 - Produces: `pub fn simplify(args: &[String], discover: &dyn Fn() -> Result<Project, Error>, style: &Style, interactive: bool, ask: &mut dyn FnMut(&str, &mut dyn Write) -> String, out: &mut dyn Write, err: &mut dyn Write) -> Result<u8, Error>` — `ask` prints the prompt to the writer it is handed and returns the answer
 
-- [ ] **Step 1: Parity fixture, Bash side**
+- [x] **Step 1: Parity fixture, Bash side**
 
 Append to `tests/native_parity.bats`:
 
@@ -324,7 +324,7 @@ Append to `tests/native_parity.bats`:
 Run: `bats --tap -f 'simplify previews' tests/native_parity.bats`
 Expected: `ok`.
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Create `src/cli/simplify.rs` with the tests module only; add `pub mod simplify;`:
 
@@ -428,7 +428,7 @@ mod tests {
 Run: `cargo test --lib cli::simplify 2>&1 | grep -E '^error' | sort | uniq -c`
 Expected: `cannot find function 'simplify'` and unresolved `Project`, `Style`, `Write`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Above the tests module:
 
@@ -848,7 +848,7 @@ In `src/main.rs`: add `"simplify"` to the raw dispatch and the branch
 
 In `bin/agentsync.sh:280` append `simplify`.
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -4
@@ -859,7 +859,7 @@ bats --tap -f 'simplify previews' tests/native_parity.bats
 
 Expected: `203 passed`, `0`, `11`, `1`; `0`; `ok`.
 
-- [ ] **Step 5: Prove the fixture bites, lint, commit**
+- [x] **Step 5: Prove the fixture bites, lint, commit**
 
 Change `"  → would remove {} field(s)."` to `"  → would drop {} field(s)."`, rebuild, rerun the fixture: `not ok` with that diff; revert and rebuild.
 
@@ -1257,4 +1257,11 @@ The plan is closed when every box is ticked, `simplify.bats` is green under `AGE
 - Verified: Task 0 at `9074ff3`: `simplify`, `update_snapshot`, `customize`, `native_parity` all `bash=0`. Task 1: `cargo test` 201 lib, 11 cli, 1 interrupt; fmt and clippy exit 0.
 - Plan amended: none.
 - Next: Task 2 Step 1 (Tasks 2 and 3 are written and pass `cargo test` at 205).
+- Blocker: none.
+
+### 2026-09-15 — Task 2 done
+- Commits: "feat(native): port simplify".
+- Verified: with `resolve` parked outside the tree so the commit builds alone: `cargo test` 203 lib; fmt and clippy exit 0; the fixture `ok` on the Bash side and with `simplify` native; `AGENTSYNC_NATIVE=1 bats tests/simplify.bats` 16 `ok`. Mutation: `would drop` failed the fixture with that diff; reverted, rebuilt.
+- Plan amended: the raw-dispatch comment in `src/main.rs` now names every command it covers.
+- Next: Task 3 Step 1 (the parked module goes back first).
 - Blocker: none.

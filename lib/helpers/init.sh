@@ -930,6 +930,8 @@ HELP
 
     local ai_dir="$target_dir/.ai"
 
+    backup_configure "$target_dir" || return 1
+
     if [[ -d "$ai_dir/src" ]]; then
         echo "$(_yellow "Warning"): .ai/src/ already exists in $target_dir"
         echo "Skipping init to avoid overwriting your content."

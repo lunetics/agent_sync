@@ -757,6 +757,7 @@ _load_run_config() {
     fi
 
     resolve_project_config_path
+    backup_configure "$REPO_ROOT" || return 1
     if [[ -z "$PROJECT_CONFIG_PATH" ]]; then
         if [[ "$DRY_RUN" == "true" ]]; then
             return 0

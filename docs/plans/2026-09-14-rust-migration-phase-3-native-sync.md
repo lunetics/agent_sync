@@ -8312,7 +8312,7 @@ git commit -m "feat(native): port rollback"
 - Consumes: the binary, `_run_engine`, `_bash_sync`, `enable_tools`, `create_test_symlink`, `ALL_TOOLS`.
 - Produces: `_mask_run_paths <dir>` (stdin → stdout), `_assert_same_trees <left> <right>`, and `[PARITY_CWD=<subdir>] assert_tree_parity <args…>` for later phases; ten fixtures covering the spec's Phase 3 list — a fresh project's manifest, `.gitignore`, and backup; every tool on this repository's own `.ai/src`; `--dry-run`, `--only`, `--skip`, option errors, and `--help`; the drift refusal and `--force`; kept untracked outputs and pruned generated ones (Task 0c); disabled-tool cleanup and the three outputs modes; profiles with `--profile`, `shared:` with an unknown category, and a local version pin; `--if-stale` fresh and stale, hooks skipped, run, and failing; a malformed OpenCode MCP source that restores; the refusal inside `.ai`, a symlinked destination escaping the project, and `--workspace`; `rollback` plans, restores, cancels, and refuses; and a Bash `rollback` of a backup the native `sync` wrote.
 
-- [ ] **Step 1: Append to `tests/native_parity.bats`**
+- [x] **Step 1: Append to `tests/native_parity.bats`**
 
 ```bash
 
@@ -8515,7 +8515,7 @@ assert_tree_parity() {
 }
 ```
 
-- [ ] **Step 2: Run the parity suite, confirm green**
+- [x] **Step 2: Run the parity suite, confirm green**
 
 ```bash
 cargo build --release
@@ -8525,7 +8525,7 @@ AGENTSYNC_NATIVE_BIN=/nonexistent bats tests/native_parity.bats --tap | grep -c 
 
 Expected: `34` (24 before + 10); `34` skipped without a binary. A failure prints the diff between the masked outputs or the trees; fix the native side, never the fixture. The fixture on this repository's own `.ai/src` is the slowest.
 
-- [ ] **Step 3: Confirm a fixture sees a difference**
+- [x] **Step 3: Confirm a fixture sees a difference**
 
 In `src/session.rs`, change `"Kept {shown} (not from .ai/src/;` to `"Kept! {shown} (not from .ai/src/;`, then:
 
@@ -8538,7 +8538,7 @@ cargo build --release
 
 Expected: `not ok 1 parity: sync refuses a manual edit, keeps untracked outputs, and prunes what it generated`, with a diff whose `>` lines read `[WARNING] Kept! .claude/rules/mine.md …` and `[WARNING] Kept! .claude/skills/mine …`; after the checkout `git diff --stat src/` is empty.
 
-- [ ] **Step 4: Run the whole suite natively in CI**
+- [x] **Step 4: Run the whole suite natively in CI**
 
 In `.github/workflows/ci.yaml`, `native` job, replace the `Ported commands through the Bash suite` step with:
 
@@ -8554,7 +8554,7 @@ In `.github/workflows/ci.yaml`, `native` job, replace the `Ported commands throu
         run: bats --jobs 4 --tap tests/
 ```
 
-- [ ] **Step 5: Run the whole suite in both modes**
+- [x] **Step 5: Run the whole suite in both modes**
 
 ```bash
 bats --jobs 4 tests/ --tap | head -1
@@ -8564,7 +8564,7 @@ AGENTSYNC_NATIVE=1 bats --jobs 4 tests/ --tap | grep -c '^not ok'
 
 Expected: `1..776` (766 + 10 parity) and `0` failures in both modes.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add tests/native_parity.bats .github/workflows/ci.yaml docs/plans/2026-09-14-rust-migration-phase-3-native-sync.md

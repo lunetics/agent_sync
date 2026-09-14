@@ -150,14 +150,12 @@ jobs:
       # Windows joins in Phase 5, when the binary is the entry point: under
       # Git Bash the POSIX paths in AGENTSYNC_REPO_ROOT and TMPDIR do not reach
       # a native executable.
-      - name: Ported commands through the Bash suite
+      # Every command that writes outputs goes through the native sync from
+      # Phase 3 on, so the whole suite is the native contract.
+      - name: The Bash suite against the native engine
         if: runner.os != 'Windows'
         shell: bash
         env:
           TERM: xterm
           AGENTSYNC_NATIVE: "1"
-        run: >-
-          bats --jobs 4 --tap
-          tests/cli.bats tests/list.bats tests/native_dispatch.bats tests/native_parity.bats
-          tests/check.bats tests/base_skills.bats tests/team_workflow.bats tests/profiles.bats
-          tests/version_pin.bats tests/sync_options.bats
+        run: bats --jobs 4 --tap tests/

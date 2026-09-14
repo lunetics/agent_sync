@@ -272,3 +272,201 @@ YAML
     _bash_sync
     assert_parity check
 }
+
+# ── sync and rollback ────────────────────────────────────────────────────────
+# Both commands change the project, so each engine runs in its own copy and
+# the copies must end identical. Output differs only where the run names its
+# own machinery: the project copy, backup ids, the engine checkout Bash read
+# templates from, and the temporary overlay directories.
+
+# Usage: _mask_run_paths <dir> < output
+_mask_run_paths() {
+    local dir="$1" text from
+    local root_mask="<root>" engine_mask="<engine>/lib/templates"
+    text=$(cat)
+    # Bash 3.2 splits a literal pattern at its first slash, so patterns go
+    # through variables.
+    from=$(cd -P "$dir" && pwd)
+    text=${text//"$from"/$root_mask}
+    text=${text//"$dir"/$root_mask}
+    for from in "$REPO_ROOT/lib/templates" "~/${REPO_ROOT#"$HOME"/}/lib/templates" "/<agentsync>/lib/templates"; do
+        text=${text//"$from"/$engine_mask}
+    done
+    printf '%s\n' "$text" | sed -E \
+        -e 's#[^ ]*/agentsync_shared\.[A-Za-z0-9]+/src#<overlay>/src#g' \
+        -e 's#/<agentsync-overlay>/[a-z-]+/src#<overlay>/src#g' \
+        -e 's#[0-9]{8}T[0-9]{6}Z-(sync|rollback|init)-[0-9]+(-[0-9]+)?#<backup-id>#g'
+}
+
+# Usage: _assert_same_trees <left> <right>
+# Every path outside .git and the backup store, and every file's bytes.
+_assert_same_trees() {
+    local left="$1" right="$2" rel
+    (cd "$left" && find . \( -path '*/.git' -o -path '*/.ai/backups' \) -prune -o -print | LC_ALL=C sort) > "$left.tree"
+    (cd "$right" && find . \( -path '*/.git' -o -path '*/.ai/backups' \) -prune -o -print | LC_ALL=C sort) > "$right.tree"
+    if ! diff "$left.tree" "$right.tree" >&2; then
+        return 1
+    fi
+    while IFS= read -r rel; do
+        [[ -f "$left/$rel" ]] || continue
+        if ! cmp -s "$left/$rel" "$right/$rel"; then
+            echo "content differs: $rel" >&2
+            diff "$left/$rel" "$right/$rel" >&2 || true
+            return 1
+        fi
+    done < "$left.tree"
+}
+
+# Usage: [PARITY_CWD=<subdir>] assert_tree_parity <agentsync args...>
+# Runs the command in a copy of the project per engine, from PARITY_CWD
+# inside it, and compares status, masked output, and the resulting trees.
+assert_tree_parity() {
+    local left="$BATS_TEST_TMPDIR/bash" right="$BATS_TEST_TMPDIR/native"
+    rm -rf "$left" "$right"
+    cp -pR "$TEST_PROJECT" "$left"
+    cp -pR "$TEST_PROJECT" "$right"
+    local bash_out native_out bash_rc=0 native_rc=0
+    bash_out=$(cd "$left/${PARITY_CWD:-.}" && _run_engine 0 "$@" 2>&1) || bash_rc=$?
+    native_out=$(cd "$right/${PARITY_CWD:-.}" && _run_engine 1 "$@" 2>&1) || native_rc=$?
+    if [[ "$bash_rc" -ne "$native_rc" ]]; then
+        echo "exit status differs: bash=$bash_rc native=$native_rc" >&2
+        printf '%s\n' "$native_out" >&2
+        return 1
+    fi
+    printf '%s\n' "$bash_out" | _mask_run_paths "$left" > "$left.out"
+    printf '%s\n' "$native_out" | _mask_run_paths "$right" > "$right.out"
+    if ! diff "$left.out" "$right.out" >&2; then
+        return 1
+    fi
+    _assert_same_trees "$left" "$right"
+}
+
+@test "parity: sync writes a fresh project and its manifest, .gitignore, and backup" {
+    enable_tools claude codex cursor
+    printf '# Hand-written\n' > AGENTS.md
+    printf '\noutputs: local\n' >> .ai/agent_sync.yaml
+    assert_tree_parity sync
+}
+
+@test "parity: sync of every tool and this repository's own .ai/src" {
+    rm -rf .ai/src
+    cp -R "$REPO_ROOT/.ai/src" .ai/src
+    enable_tools "${ALL_TOOLS[@]}"
+    assert_tree_parity sync
+}
+
+@test "parity: sync dry-run, --only, --skip, and option errors" {
+    enable_tools claude codex gemini
+    assert_tree_parity sync --dry-run
+    assert_tree_parity sync --only codex,gemini --skip gemini
+    assert_tree_parity sync --only
+    assert_tree_parity sync --bogus
+    assert_tree_parity sync --help
+}
+
+@test "parity: sync refuses a manual edit, keeps untracked outputs, and prunes what it generated" {
+    enable_tools claude cursor
+    mkdir -p .ai/src/skills/temp-skill
+    printf -- '---\nname: temp-skill\n---\n' > .ai/src/skills/temp-skill/SKILL.md
+    printf '# Temp\n' > .ai/src/rules/temp.md
+    _bash_sync
+    rm -rf .ai/src/skills/temp-skill .ai/src/rules/temp.md
+    printf 'mine\n' > .claude/rules/mine.md
+    mkdir -p .claude/skills/mine
+    printf 'mine\n' > .claude/skills/mine/SKILL.md
+    assert_tree_parity sync --dry-run
+    assert_tree_parity sync
+    printf 'edited\n' >> CLAUDE.md
+    assert_tree_parity sync
+    assert_tree_parity sync --force
+}
+
+@test "parity: sync cleans a disabled tool and follows the outputs mode" {
+    enable_tools claude cursor codex
+    _bash_sync
+    _run_engine 0 disable cursor >/dev/null
+    printf '\noutputs: committed\n' >> .ai/agent_sync.yaml
+    assert_tree_parity sync
+    printf '\ngitignore:\n  update: false\n' >> .ai/agent_sync.yaml
+    sed 's/^outputs: committed$//' .ai/agent_sync.yaml > .ai/agent_sync.yaml.tmp
+    mv .ai/agent_sync.yaml.tmp .ai/agent_sync.yaml
+    assert_tree_parity sync
+    printf '\noutputs: shared\n' >> .ai/agent_sync.yaml
+    assert_tree_parity sync
+}
+
+@test "parity: sync with profiles, shared inheritance, and a version pin" {
+    enable_tools claude
+    _run_engine 0 profile add hub --tools claude,codex >/dev/null
+    mkdir -p .ai/profiles/hub/src/rules parent/.ai/src/rules parent/.ai/src/skills/parent-skill
+    printf '# Hub only\n' > .ai/profiles/hub/src/rules/hub.md
+    printf '# Parent\n' > parent/.ai/src/rules/parent.md
+    printf 'p\n' > parent/.ai/src/skills/parent-skill/SKILL.md
+    printf '\nshared:\n  path: parent\n  inherit: rules, skills, tools\n' >> .ai/agent_sync.yaml
+    assert_tree_parity sync
+    assert_tree_parity sync --profile hub --only claude-hub
+    printf '\nagentsync_version: "0.0.1"\n' >> .ai/agent_sync.yaml
+    assert_tree_parity sync
+}
+
+@test "parity: sync --if-stale, post-sync hooks, and a failed run's restore" {
+    enable_tools claude opencode
+    _bash_sync
+    touch -t 203001010000 .ai/.sync-manifest
+    assert_tree_parity sync --if-stale
+    touch -t 200001010000 .ai/.sync-manifest
+    assert_tree_parity sync --if-stale
+    mkdir -p .ai/src/tools
+    printf 'post_sync: "printf hooked > hooked.txt"\n' > .ai/src/tools/claude.yaml
+    assert_tree_parity sync
+    AGENTSYNC_ALLOW_POST_SYNC=true assert_tree_parity sync
+    printf 'post_sync: "false"\n' > .ai/src/tools/claude.yaml
+    AGENTSYNC_ALLOW_POST_SYNC=true assert_tree_parity sync
+    printf '%s\n' '{"mcpServers":[]}' > .ai/src/mcp.json
+    rm -f .ai/src/tools/claude.yaml
+    assert_tree_parity sync
+}
+
+@test "parity: sync from inside .ai, into a symlinked dest, and across a workspace" {
+    enable_tools claude
+    PARITY_CWD=.ai/src assert_tree_parity sync
+    mkdir -p "$BATS_TEST_TMPDIR/outside"
+    create_test_symlink "$BATS_TEST_TMPDIR/outside" .claude
+    assert_tree_parity sync
+    rm -f .claude
+    mkdir -p leaf
+    (cd leaf && git init --quiet && _run_engine 0 init --no-detect --no-sync >/dev/null 2>&1)
+    (cd leaf && _run_engine 0 enable cursor --no-scaffold >/dev/null)
+    assert_tree_parity sync --workspace --dry-run
+    assert_tree_parity sync --workspace --only cursor
+}
+
+@test "parity: rollback plans, restores, and refuses like Bash" {
+    enable_tools claude
+    printf 'before-sync\n' > CLAUDE.md
+    _bash_sync
+    assert_tree_parity rollback --dry-run
+    assert_tree_parity rollback --list
+    assert_tree_parity rollback
+    assert_tree_parity rollback --yes
+    assert_tree_parity rollback "../$(cat .ai/backups/.latest)" --yes
+    assert_tree_parity rollback nope
+    assert_tree_parity rollback --bogus
+    assert_tree_parity rollback --help
+}
+
+@test "parity: a backup the native sync writes is restored by the Bash rollback" {
+    enable_tools claude cursor
+    printf 'before-sync\n' > CLAUDE.md
+    local left="$BATS_TEST_TMPDIR/bash-made" right="$BATS_TEST_TMPDIR/native-made"
+    cp -pR "$TEST_PROJECT" "$left"
+    cp -pR "$TEST_PROJECT" "$right"
+    (cd "$left" && _run_engine 0 sync >/dev/null 2>&1)
+    (cd "$right" && _run_engine 1 sync >/dev/null 2>&1)
+    [ "$(cat "$right/.ai/backups/$(cat "$right/.ai/backups/.latest")/targets.tsv")" = \
+      "$(cat "$left/.ai/backups/$(cat "$left/.ai/backups/.latest")/targets.tsv")" ]
+    (cd "$left" && _run_engine 0 rollback --yes >/dev/null 2>&1)
+    (cd "$right" && _run_engine 0 rollback --yes >/dev/null 2>&1)
+    _assert_same_trees "$left" "$right"
+    [ "$(cat "$right/CLAUDE.md")" = "before-sync" ]
+}

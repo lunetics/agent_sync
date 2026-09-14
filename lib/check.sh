@@ -24,10 +24,6 @@ source "$SCRIPT_DIR/helpers/tmp.sh"
 source "$SCRIPT_DIR/helpers/yaml.sh"
 # shellcheck source=helpers/version.sh
 source "$SCRIPT_DIR/helpers/version.sh"
-# shellcheck source=helpers/shared.sh
-source "$SCRIPT_DIR/helpers/shared.sh"
-# shellcheck source=helpers/yaml_edit.sh
-source "$SCRIPT_DIR/helpers/yaml_edit.sh"
 # shellcheck source=helpers/project_config.sh
 source "$SCRIPT_DIR/helpers/project_config.sh"
 
@@ -148,18 +144,6 @@ while IFS= read -r rel; do
         exit 1
     fi
 done < "$COPY_LIST"
-
-config_rel=".ai/agent_sync.yaml"
-[[ -f "$REPO_ROOT/$config_rel" ]] || config_rel="agent_sync.yaml"
-if [[ -f "$REPO_ROOT/$config_rel" ]]; then
-    if parent_src=$(shared_parent_src "$REPO_ROOT/$config_rel" "$REPO_ROOT"); then
-        inherit=$(shared_inherit_categories "$(parse_yaml_value "$REPO_ROOT/$config_rel" "shared.inherit")")
-        overlay=$(build_overlay_tree "$TEMP_ROOT/.ai/src" "$parent_src" "$inherit")
-        mkdir -p "$TEMP_ROOT/.ai/src"
-        cp -R "$overlay/src/." "$TEMP_ROOT/.ai/src/"
-    fi
-    yaml_remove_key "$TEMP_ROOT/$config_rel" "shared"
-fi
 
 # Run sync in temporary workspace. This keeps the caller repository read-only.
 # --force bypasses the manifest drift check inside the temp copy: any divergence

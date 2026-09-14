@@ -1201,3 +1201,48 @@ The family is closed when every box above is ticked, `config_safety.bats` and `v
 - Plan amended: Task 3 Step 2 expects three failing tests, not four (the legacy-enabled test guards the refusal's exception and passes throughout); Task 3 Step 3's local `selection` renamed `chosen`, since `load_run_config` already takes a `selection` parameter; Task 3 Step 4 expects only tests 4 and 7 in `config_safety.bats` and none in `version_pin.bats`, whose `check` cases pass loosely once the shared render fails closed; Task 3's commit subject shortened to 72 characters; Task 4's `seed_workspace` parameter renamed `selected`, since the function already binds a local `config`, and Step 2's expectation reworded to four failing tests without the compile error.
 - Next: close family 1 with its completion receipt, then plan family 2 (backup retention).
 - Blocker: none.
+
+### 2026-09-14 — family 1 closed
+- Commits: `693b0b4` test(native): diff Bash against native config selection and version_pin.mode; this receipt.
+- Verified: the receipt's fresh verification below, run after `693b0b4` with no code change since.
+- Plan amended: none.
+- Next: plan Phase 3b family 2, backup retention, with `.ai/src/commands/native-phase-plan.md`.
+- Blocker: none.
+
+## Completion receipt
+
+### Decisions the review took
+
+All four as recommended, on 2026-09-14: four plans for Phase 3b; `src/version.rs` for the pin policy; quirk 13 reproduced; `Error::ConfigPathNotFound` for `list`.
+
+### Global Constraints
+
+| Constraint | Satisfied by |
+|---|---|
+| Native `sync` writes only what `lib/sync.sh` writes; `check` and `list` write nothing | `src/cli/check.rs` seeds the selected config into the in-memory workspace only; `src/project.rs` reads; `tests/native_parity.bats` `parity: sync fails closed …` compares both trees |
+| No binary ships; without one every command runs in Bash | `bin/agentsync.sh` unchanged in this family |
+| Bash stays 3.2-compatible and ShellCheck-clean; no Bash change | no file under `lib/` or `bin/` changed after `8677ed9`; ShellCheck exit 0 |
+| Byte-for-byte parity on stdout, stderr, status, and files | `tests/native_parity.bats`: `parity: config selection and version_pin.mode in check and list`, `parity: sync fails closed on config selection and enforces version_pin.mode` |
+| `unsafe_code = "forbid"`, fmt and clippy clean, no new dependency | `Cargo.toml` and `Cargo.lock` unchanged; fmt and clippy exit 0 |
+| Disk-touching unit tests are `#[cfg(unix)]` | `src/cli/check.rs` tests (module is `#[cfg(all(test, unix))]`); `src/project_config.rs`, `src/version.rs`, `src/render.rs` tests use probes and the in-memory workspace |
+| `VERSION` is the only version source | `src/version.rs` takes the engine version as an argument; `engine_version` stays in `src/lib.rs` |
+| Phase 2 `shared:` deviation retired | `docs/specs/2026-09-12-rust-migration-design.md`, Accepted deviations |
+| Quirk 13 recorded and reproduced | spec "Known quirks" 13; `src/version.rs` `a_scalar_before_the_mapping_answers_first_like_bash_does` |
+| Expected messages captured from Bash | `scratchpad/phase3b/bash_reference.sh` output, asserted verbatim in `src/version.rs`, `src/project_config.rs`, `src/render.rs`, `src/cli/check.rs` tests |
+| Conventional Commits, no attribution trailers | `f664ea1` … `693b0b4` |
+
+### Fresh verification, 2026-09-14, macOS arm64, rustc 1.98.1
+
+- `cargo test`: 166 passed (unit), 11 passed (integration).
+- `cargo clippy --all-targets -- -D warnings`: exit 0. `cargo fmt --all --check`: exit 0.
+- `shellcheck -x -S warning -e SC1091 bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh`: exit 0.
+- bats, one file at a time, `AGENTSYNC_NATIVE=0` / `=1` failures: `config_safety` 0/0, `version_pin` 0/0, `check` 0/0, `sync` 0/0, `list` 0/0, `outputs_mode` 0/0, `team_workflow` 0/0, `workspace` 0/0, `native_parity` 1/1 (`parity: rollback plans, restores, and refuses like Bash`, owned by family 4).
+- Mutation: `expected 'warn' or 'strict'!` in `src/render.rs` failed `parity: sync fails closed …` with that diff; reverted, rebuilt.
+
+### Skipped, deferred, open
+
+- **Full-suite runs.** `bats --jobs 6 tests/` and `--jobs 3` were killed by the system for low memory on 2026-09-14; the files this family touches ran one at a time instead. The native counts of `backup_retention`, `source_overrides`, and `rollback_preflight` are families 2 to 4's baselines.
+- **Timings.** Not measured: the family adds one `is_file` probe and one config read on paths that already read the config, and the machine was under memory pressure.
+- **Red `native_parity` fixture** until family 4 ports `rollback`'s usage and `--force`.
+- **Commit subject.** `693b0b4` is 76 characters, over the 72 limit; left as is on a local branch.
+- **Not pushed.** `feat/native-engine-phase-1` is ahead of `origin` by the Phase 3 and Phase 3b commits.

@@ -40,15 +40,18 @@ _doctor_prepare_context() {
 DOCTOR_SOURCE_RAW=""
 DOCTOR_SOURCE_ABS=""
 DOCTOR_SOURCE_REFUSED=false
+DOCTOR_SOURCE_UNTRUSTED=false
 
 # Returns 0 when the project config points source.<key> outside the project,
 # with the value in DOCTOR_SOURCE_RAW, its absolute path in DOCTOR_SOURCE_ABS,
-# and DOCTOR_SOURCE_REFUSED=true when sync would refuse that root.
+# DOCTOR_SOURCE_REFUSED=true when sync would refuse that root, and
+# DOCTOR_SOURCE_UNTRUSTED=true when AGENTSYNC_EXTERNAL_SOURCE_ROOTS does not list it.
 _doctor_external_source() {
     local key="$1"
     DOCTOR_SOURCE_RAW=""
     DOCTOR_SOURCE_ABS=""
     DOCTOR_SOURCE_REFUSED=false
+    DOCTOR_SOURCE_UNTRUSTED=false
     [[ -n "$PROJECT_CONFIG_PATH" ]] || return 1
     parse_yaml_value_r "$PROJECT_CONFIG_PATH" "source.$key"
     [[ -n "$REPLY" ]] || return 1
@@ -56,6 +59,7 @@ _doctor_external_source() {
     explicit_source_root_r "$raw_path" || root_status=$?
     [[ "$root_status" -ne 0 ]] || return 1
     [[ "$root_status" -eq 2 ]] && DOCTOR_SOURCE_REFUSED=true
+    [[ "$root_status" -eq 3 ]] && DOCTOR_SOURCE_UNTRUSTED=true
     DOCTOR_SOURCE_RAW="$raw_path"
     source_abs_path_r "$raw_path"
     DOCTOR_SOURCE_ABS="$REPLY"
@@ -752,6 +756,10 @@ cmd_doctor() {
             source_abs="$DOCTOR_SOURCE_ABS"
             if [[ "$DOCTOR_SOURCE_REFUSED" == "true" ]]; then
                 _doctor_fail "source.$source_key must not be the filesystem root, the home directory, or the project root or its ancestor: $display"
+                continue
+            fi
+            if [[ "$DOCTOR_SOURCE_UNTRUSTED" == "true" ]]; then
+                _doctor_fail "source.$source_key points outside the project and AGENTSYNC_EXTERNAL_SOURCE_ROOTS does not list it: $display"
                 continue
             fi
         else

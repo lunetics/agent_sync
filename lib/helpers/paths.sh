@@ -20,10 +20,33 @@ source_abs_path_r() {
     normalize_absolute_path_r "$raw_path"
 }
 
+# Return 0 when canonical <path> is, or is below, a directory listed in the
+# colon-separated AGENTSYNC_EXTERNAL_SOURCE_ROOTS. Only the environment can
+# trust an outside root, so a cloned project cannot grant itself read access.
+_external_source_trusted() {
+    local path="$1"
+    local remaining="${AGENTSYNC_EXTERNAL_SOURCE_ROOTS:-}" entry
+    while [[ -n "$remaining" ]]; do
+        entry="${remaining%%:*}"
+        if [[ "$remaining" == *:* ]]; then
+            remaining="${remaining#*:}"
+        else
+            remaining=""
+        fi
+        [[ "$entry" == /* ]] || continue
+        _canon_dir_r "$entry" || continue
+        if [[ "$path" == "$REPLY" || "$path" == "$REPLY/"* ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 # Classify an explicit source.* value. Returns 0 when it is written under the
 # project, where a symlink resolving outside stays refused; 1 for an acceptable
 # outside root; 2 when that root is /, $HOME, or the project root or one of its
-# ancestors. REPLY is the canonical path for 1 and 2.
+# ancestors; 3 when it is outside the project but not in
+# AGENTSYNC_EXTERNAL_SOURCE_ROOTS. REPLY is the canonical path for 1, 2, and 3.
 explicit_source_root_r() {
     local raw_path="$1"
     local project_root="${SOURCE_BASE_ROOT_CANONICAL:-$REPO_ROOT_CANONICAL}"
@@ -45,12 +68,14 @@ explicit_source_root_r() {
           "$canonical_path" == "$project_root" || "$project_root" == "$canonical_path/"* ]]; then
         return 2
     fi
+    _external_source_trusted "$canonical_path" || { REPLY="$canonical_path"; return 3; }
+    REPLY="$canonical_path"
     return 1
 }
 
-# Allowlist every source.* value <config> sets explicitly outside the project.
-# Defaults and auto-detected layouts are never registered. Returns 1 after
-# log_error when a value names a refused root.
+# Allowlist every source.* value <config> sets explicitly outside the project
+# under a trusted root. Defaults and auto-detected layouts are never registered.
+# Returns 1 after log_error when a value names a refused or untrusted root.
 register_explicit_source_roots() {
     local config="$1"
     EXPLICIT_SOURCE_ROOTS=()
@@ -75,6 +100,10 @@ register_explicit_source_roots() {
             1) EXPLICIT_SOURCE_ROOTS+=("$REPLY") ;;
             2)
                 log_error "source.$key must not be the filesystem root, the home directory, or the project root or its ancestor: $raw_path -> $REPLY"
+                return 1
+                ;;
+            3)
+                log_error "source.$key points outside the project at $REPLY, which AGENTSYNC_EXTERNAL_SOURCE_ROOTS does not list; add that directory (or a parent) to the variable to read from it"
                 return 1
                 ;;
         esac

@@ -123,7 +123,7 @@ run_external_sync() {
     EXTERNAL_TOOLS_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_external_tools.XXXXXX")"
     write_external_fixture "$EXTERNAL_TOOLS_ROOT"
 
-    run run_external_sync
+    AGENTSYNC_EXTERNAL_SOURCE_ROOTS="$EXTERNAL_TOOLS_ROOT" run run_external_sync
 
     [ "$status" -eq 0 ]
     [ -f ".external/skills/external-skill/SKILL.md" ]
@@ -266,6 +266,7 @@ run_external_sync() {
     write_project_sources
     make_outside_rules
     write_rules_config "$OUTSIDE_ROOT/rules"
+    export AGENTSYNC_EXTERNAL_SOURCE_ROOTS="$OUTSIDE_ROOT/rules"
 
     run run_agentsync sync
     [ "$status" -eq 0 ]
@@ -276,10 +277,52 @@ run_external_sync() {
     [ "$status" -eq 0 ]
 }
 
+@test "source containment: an outside source.rules not listed in AGENTSYNC_EXTERNAL_SOURCE_ROOTS is refused" {
+    write_project_sources
+    make_outside_rules
+    write_rules_config "$OUTSIDE_ROOT/rules"
+    local other_root
+    other_root="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_other.XXXXXX")"
+
+    run env -u AGENTSYNC_EXTERNAL_SOURCE_ROOTS AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync
+    [ "$status" -eq 1 ]
+    printf '%s' "$output" | grep -qF -- "source.rules points outside the project at"
+    printf '%s' "$output" | grep -qF -- "which AGENTSYNC_EXTERNAL_SOURCE_ROOTS does not list"
+    [ ! -e ".claude" ]
+
+    AGENTSYNC_EXTERNAL_SOURCE_ROOTS="relative/path:$other_root" run run_agentsync sync
+    _rm_rf_resilient "$other_root"
+    [ "$status" -eq 1 ]
+    [ ! -e ".claude" ]
+}
+
+@test "source containment: a trusted parent directory admits every source below it" {
+    write_project_sources
+    make_outside_rules
+    write_rules_config "$OUTSIDE_ROOT/rules"
+
+    AGENTSYNC_EXTERNAL_SOURCE_ROOTS="/nonexistent-agentsync-root:$OUTSIDE_ROOT" run run_agentsync sync
+
+    [ "$status" -eq 0 ]
+    [ -f ".claude/rules/outside.md" ]
+}
+
+@test "doctor fails an outside source that AGENTSYNC_EXTERNAL_SOURCE_ROOTS does not list" {
+    write_project_sources
+    make_outside_rules
+    write_rules_config "$OUTSIDE_ROOT/rules"
+
+    run env -u AGENTSYNC_EXTERNAL_SOURCE_ROOTS AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" doctor
+
+    [ "$status" -eq 2 ]
+    printf '%s' "$output" | grep -qF -- "source.rules points outside the project and AGENTSYNC_EXTERNAL_SOURCE_ROOTS does not list it"
+}
+
 @test "source containment: explicit ../ source.rules resolves from the project root" {
     write_project_sources
     make_outside_rules
     write_rules_config "../$(basename "$OUTSIDE_ROOT")/rules"
+    export AGENTSYNC_EXTERNAL_SOURCE_ROOTS="$OUTSIDE_ROOT"
 
     run run_agentsync sync
     [ "$status" -eq 0 ]

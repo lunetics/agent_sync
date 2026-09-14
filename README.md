@@ -645,8 +645,21 @@ source:
   tools: "/home/me/agentic/.ai/tools"
 ```
 
+Then trust that tree from outside the repository, in your shell profile or CI
+environment:
+
+```bash
+export AGENTSYNC_EXTERNAL_SOURCE_ROOTS="/home/me/agentic"   # colon-separated
+```
+
 Sources outside the project follow these rules:
 
+- **Trusted roots only.** A value outside the project must resolve under an
+  absolute directory listed in `AGENTSYNC_EXTERNAL_SOURCE_ROOTS`; otherwise
+  `sync` and `check` stop before writing, and `doctor` reports it. Only the
+  environment grants that trust, never `agent_sync.yaml`, so syncing a cloned
+  repository — including the `shell-init` hook on `cd` — cannot read your
+  files from wherever its config points.
 - **Explicit values only.** A `source.agents`, `source.rules`, `source.skills`,
   `source.commands`, `source.subagents`, or `source.tools` value written in the
   selected project config may point outside the project, as an absolute path

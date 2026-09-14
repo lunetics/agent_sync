@@ -80,6 +80,7 @@ YAML
     mkdir -p "$outside/rules"
     printf '%s\n' 'format: 2' 'tools:' '  enabled: []' 'source:' "  agents: \"$outside/AGENTS.md\"" "  rules: \"$outside/rules\"" \
         > .ai/agent_sync.yaml
+    export AGENTSYNC_EXTERNAL_SOURCE_ROOTS="$outside"
 
     run run_agentsync doctor
     local missing_status="$status" missing_output="$output"

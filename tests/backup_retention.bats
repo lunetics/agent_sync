@@ -6,6 +6,8 @@ setup() {
     setup_test_project
     unset AGENTSYNC_BACKUP_LIMIT AGENTSYNC_BACKUP_MAX_AGE_DAYS AGENTSYNC_CONFIG_PATH
     source "$REPO_ROOT/lib/helpers/paths.sh"
+    source "$REPO_ROOT/lib/helpers/yaml.sh"
+    source "$REPO_ROOT/lib/helpers/project_config.sh"
     source "$REPO_ROOT/lib/helpers/backup.sh"
     RETENTION_EVIDENCE="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_retention_evidence.XXXXXX")"
 }

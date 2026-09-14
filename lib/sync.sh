@@ -28,6 +28,8 @@ source "$SCRIPT_DIR/helpers/tmp.sh"
 source "$SCRIPT_DIR/helpers/yaml.sh"
 # shellcheck source=helpers/version.sh
 source "$SCRIPT_DIR/helpers/version.sh"
+# shellcheck source=helpers/project_config.sh
+source "$SCRIPT_DIR/helpers/project_config.sh"
 # shellcheck source=helpers/paths.sh
 source "$SCRIPT_DIR/helpers/paths.sh"
 # shellcheck source=helpers/filters.sh
@@ -155,31 +157,11 @@ EOF
 
 # Resolve project config path
 resolve_project_config_path() {
-    local config_env="${AGENTSYNC_CONFIG_PATH:-}"
-    if [[ -n "$config_env" ]]; then
-        local env_path="$config_env"
-        if [[ "$env_path" != /* ]]; then
-            env_path="$REPO_ROOT/$env_path"
-        fi
-
-        if [[ -f "$env_path" ]]; then
-            PROJECT_CONFIG_PATH="$env_path"
-            return 0
-        fi
-        log_error "AGENTSYNC_CONFIG_PATH is set but file not found: $env_path"
-        return 1
+    if ! project_config_path_r "$REPO_ROOT"; then
+        log_error "AGENTSYNC_CONFIG_PATH is set but file not found: $REPLY"
+        exit 1
     fi
-
-    local project_config="$REPO_ROOT/.ai/agent_sync.yaml"
-    if [[ -f "$project_config" ]]; then
-        PROJECT_CONFIG_PATH="$project_config"
-        return 0
-    fi
-
-    local legacy_config="$REPO_ROOT/agent_sync.yaml"
-    if [[ -f "$legacy_config" ]]; then
-        PROJECT_CONFIG_PATH="$legacy_config"
-    fi
+    PROJECT_CONFIG_PATH="$REPLY"
 }
 
 # Resolve source path from project config (supports both root keys and source.* keys)

@@ -46,6 +46,18 @@ run_agentsync_env() {
     [ -f .claude/skills/config-safety-sentinel.md ]
 }
 
+@test "check hands a relative explicit config outside .ai to its isolated sync" {
+    run_agentsync init --tools claude --yes --no-sync >/dev/null 2>&1
+    mkdir -p config
+    mv .ai/agent_sync.yaml config/agentsync.yaml
+    run_agentsync_env AGENTSYNC_CONFIG_PATH config/agentsync.yaml sync >/dev/null 2>&1
+
+    run run_agentsync_env AGENTSYNC_CONFIG_PATH config/agentsync.yaml check
+
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"safe and synced"* ]]
+}
+
 @test "a missing config remains usable for a dry-run" {
     run_agentsync init --tools claude --yes --no-sync >/dev/null 2>&1
     rm .ai/agent_sync.yaml

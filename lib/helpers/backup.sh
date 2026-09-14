@@ -5,10 +5,8 @@
 # records missing targets as well, so restore can remove paths created by a
 # failed or accidental operation. Snapshot directories are self-ignored by git.
 #
-# Depends on: paths.sh (_path_parent_r, _canon_dir_r).
-
-# shellcheck source=yaml.sh
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/yaml.sh"
+# Depends on: paths.sh (_path_parent_r, _canon_dir_r), yaml.sh
+# (parse_yaml_value_r), project_config.sh (project_config_path_r).
 
 BACKUP_PREPARED_TARGETS=()
 BACKUP_LOADED_STATES=()
@@ -25,23 +23,15 @@ _backup_error() {
     echo "Error: $1" >&2
 }
 
-# Load the project policy before any target or backup-store mutation. An
-# explicit config is authoritative, as in sync; otherwise prefer .ai/ to root.
+# Load the project policy before any target or backup-store mutation.
 backup_configure() {
     local root="$1"
-    local config="${AGENTSYNC_CONFIG_PATH:-}"
     BACKUP_RETENTION_MODE="bounded"
-    if [[ -n "$config" ]]; then
-        [[ "$config" == /* ]] || config="$root/$config"
-        if [[ ! -f "$config" ]]; then
-            _backup_error "AGENTSYNC_CONFIG_PATH is set but file not found: $config"
-            return 1
-        fi
-    elif [[ -f "$root/.ai/agent_sync.yaml" ]]; then
-        config="$root/.ai/agent_sync.yaml"
-    elif [[ -f "$root/agent_sync.yaml" ]]; then
-        config="$root/agent_sync.yaml"
+    if ! project_config_path_r "$root"; then
+        _backup_error "AGENTSYNC_CONFIG_PATH is set but file not found: $REPLY"
+        return 1
     fi
+    local config="$REPLY"
 
     if [[ -n "$config" ]]; then
         parse_yaml_value_r "$config" "backup"

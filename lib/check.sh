@@ -24,38 +24,20 @@ source "$SCRIPT_DIR/helpers/tmp.sh"
 source "$SCRIPT_DIR/helpers/yaml.sh"
 # shellcheck source=helpers/version.sh
 source "$SCRIPT_DIR/helpers/version.sh"
+# shellcheck source=helpers/project_config.sh
+source "$SCRIPT_DIR/helpers/project_config.sh"
 
-# Resolve the project config with the same explicit-path semantics as sync.
-# An explicitly selected path is authoritative: a typo must not silently fall
-# back to a different local or legacy config.
-resolve_check_config_path() {
-    local config_env="${AGENTSYNC_CONFIG_PATH:-}"
-    if [[ -n "$config_env" ]]; then
-        local env_path="$config_env"
-        if [[ "$env_path" != /* ]]; then
-            env_path="$REPO_ROOT/$env_path"
-        fi
-        if [[ -f "$env_path" ]]; then
-            printf '%s\n' "$env_path"
-            return 0
-        fi
-        echo "❌ AGENTSYNC_CONFIG_PATH is set but file not found: $env_path" >&2
-        return 1
-    fi
-
-    if [[ -f "$REPO_ROOT/.ai/agent_sync.yaml" ]]; then
-        printf '%s\n' "$REPO_ROOT/.ai/agent_sync.yaml"
-    elif [[ -f "$REPO_ROOT/agent_sync.yaml" ]]; then
-        printf '%s\n' "$REPO_ROOT/agent_sync.yaml"
-    fi
-}
+if ! project_config_path_r "$REPO_ROOT"; then
+    echo "❌ AGENTSYNC_CONFIG_PATH is set but file not found: $REPLY" >&2
+    exit 1
+fi
+CHECK_CONFIG_PATH="$REPLY"
 
 # Same gate as sync, checked up front so CI reports the pin rather than a
 # "sync failed inside check" wrapper. Only committed outputs make it fatal:
 # there, every machine must generate byte-identical files.
 _check_version_pin() {
-    local config
-    config=$(resolve_check_config_path) || exit 1
+    local config="$CHECK_CONFIG_PATH"
     [[ -n "$config" ]] || return 0
 
     local version_mode
@@ -163,6 +145,7 @@ done < "$COPY_LIST"
 if ! AGENTSYNC_REPO_ROOT="$TEMP_ROOT" \
      AGENTSYNC_SKIP_POST_SYNC=true \
      AGENTSYNC_INTERNAL_SKIP_BACKUP=true \
+     AGENTSYNC_CONFIG_PATH="$CHECK_CONFIG_PATH" \
      "$SCRIPT_DIR/sync.sh" --force >"$SYNC_LOG" 2>&1; then
     echo "❌ Sync script failed during check"
     echo "Sync output (last 40 lines):"

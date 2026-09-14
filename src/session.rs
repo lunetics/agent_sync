@@ -1,5 +1,6 @@
 //! State one render shares across its steps: the workspace, path rules, the
-//! log, and the manifest's record of what this run wrote (`manifest.sh`).
+//! log, the run's `--dry-run` and `--force`, and the manifest's record of what
+//! this run wrote (`manifest.sh`).
 
 use std::collections::BTreeSet;
 
@@ -11,6 +12,10 @@ pub struct Session {
     pub ws: Workspace,
     pub paths: Paths,
     pub log: Log,
+    pub dry_run: bool,
+    pub force: bool,
+    manifest: Option<BTreeSet<String>>,
+    preserved: usize,
     touched: BTreeSet<String>,
     legacy_payload_warned: bool,
 }
@@ -21,6 +26,10 @@ impl Session {
             ws,
             paths,
             log: Log::default(),
+            dry_run: false,
+            force: false,
+            manifest: None,
+            preserved: 0,
             touched: BTreeSet::new(),
             legacy_payload_warned: false,
         }
@@ -28,6 +37,51 @@ impl Session {
 
     pub fn display(&self, path: &str) -> String {
         self.paths.display(path)
+    }
+
+    /// `SYNC_MANIFEST_ACTIVE="true"` with `MANIFEST_KEYS` loaded: from here on
+    /// a sweep keeps what the previous sync did not generate.
+    pub fn activate_manifest(&mut self, paths: BTreeSet<String>) {
+        self.manifest = Some(paths);
+    }
+
+    /// `sync_may_prune`: outside a manifest-aware run, or under `--force`,
+    /// every extraneous entry may go; otherwise a file the manifest records, or
+    /// a directory it records a file below.
+    pub fn may_prune(&self, abs: &str) -> bool {
+        let Some(manifest) = &self.manifest else {
+            return true;
+        };
+        if self.force {
+            return true;
+        }
+        self.paths.to_repo_relative(abs).is_none_or(|rel| {
+            let below = format!("{rel}/");
+            manifest.contains(&rel)
+                || (self.ws.is_dir(abs)
+                    && manifest
+                        .range(below.clone()..)
+                        .next()
+                        .is_some_and(|key| key.starts_with(&below)))
+        })
+    }
+
+    /// `sync_note_preserved`.
+    pub fn note_preserved(&mut self, shown: &str) {
+        if self.dry_run {
+            self.log.warning(&format!(
+                "Would keep {shown} (not from .ai/src/; --force to prune)"
+            ));
+        } else {
+            self.log.warning(&format!(
+                "Kept {shown} (not from .ai/src/; move it into .ai/src/, or re-run with --force to prune)"
+            ));
+        }
+        self.preserved += 1;
+    }
+
+    pub fn preserved(&self) -> usize {
+        self.preserved
     }
 
     /// `manifest_record_write`: paths outside the root are ignored silently.
@@ -99,6 +153,42 @@ mod tests {
         assert_eq!(
             s.log.tail(3)[0],
             "⚠  Legacy payload override layout detected: .ai/src/mcp/claude.json"
+        );
+    }
+
+    #[test]
+    fn only_manifest_paths_may_be_pruned_once_the_manifest_is_active_unless_forced() {
+        let mut s = test_session();
+        s.ws.create_dir_all("/proj/.claude/skills/old").unwrap();
+        s.ws.create_dir_all("/proj/.claude/skills/mine").unwrap();
+        assert!(s.may_prune("/proj/.claude/rules/mine.md"));
+        s.activate_manifest(BTreeSet::from([
+            ".claude/rules/old.md".to_string(),
+            ".claude/skills/old/SKILL.md".to_string(),
+        ]));
+        assert!(s.may_prune("/proj/.claude/rules/old.md"));
+        assert!(!s.may_prune("/proj/.claude/rules/mine.md"));
+        assert!(s.may_prune("/proj/.claude/skills/old"));
+        assert!(!s.may_prune("/proj/.claude/skills/mine"));
+        assert!(!s.may_prune("/proj/.claude/skills/ol"));
+        assert!(s.may_prune("/elsewhere/mine.md"));
+        s.force = true;
+        assert!(s.may_prune("/proj/.claude/rules/mine.md"));
+    }
+
+    #[test]
+    fn a_preserved_entry_is_counted_and_worded_for_the_run() {
+        let mut s = test_session();
+        s.note_preserved(".claude/rules/mine.md");
+        s.dry_run = true;
+        s.note_preserved(".claude/rules/other.md");
+        assert_eq!(s.preserved(), 2);
+        assert_eq!(
+            s.log.tail(2),
+            [
+                "[WARNING] Kept .claude/rules/mine.md (not from .ai/src/; move it into .ai/src/, or re-run with --force to prune)",
+                "[WARNING] Would keep .claude/rules/other.md (not from .ai/src/; --force to prune)"
+            ]
         );
     }
 }

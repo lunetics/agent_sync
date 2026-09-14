@@ -297,6 +297,20 @@ impl Workspace {
         Ok(())
     }
 
+    /// `chmod +x` as the default umask applies it; the in-memory tree has no modes.
+    pub fn make_executable(&mut self, path: &str) -> Result<(), Error> {
+        #[cfg(unix)]
+        if self.writes_disk(path) {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = std::fs::metadata(path)
+                .map_err(|e| Error::io(path, e))?
+                .permissions();
+            permissions.set_mode(permissions.mode() | 0o111);
+            return std::fs::set_permissions(path, permissions).map_err(|e| Error::io(path, e));
+        }
+        Ok(())
+    }
+
     /// `cp -r src dst` onto a missing `dst`: a file, or a whole tree with its
     /// empty directories.
     pub fn copy(&mut self, src: &str, dst: &str) -> Result<(), Error> {

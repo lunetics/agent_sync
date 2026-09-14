@@ -1,6 +1,6 @@
 //! Rule, command, and subagent directory operations of
 //! `lib/helpers/rule_operations.sh` and the directory loops of
-//! `lib/helpers/format_conversion.sh`, for a forced render.
+//! `lib/helpers/format_conversion.sh`.
 
 use crate::session::Session;
 use crate::{Error, convert, filters, paths, text};
@@ -220,8 +220,20 @@ pub fn merge_rules_to_file(
         .filter(|name| filters::matches(name, include, exclude))
         .collect();
 
+    if s.dry_run {
+        let extra = if agents_file.is_some() {
+            " +agents"
+        } else {
+            ""
+        };
+        s.log.step(&format!(
+            "{src_disp}/ → {dest_disp} ({} files merged{extra}) (dry-run)",
+            files.len()
+        ));
+        return Ok(());
+    }
     s.ws.create_dir_all(&paths::parent(dest_file))?;
-    s.ws.remove(dest_file)?;
+    let _ = s.ws.remove(dest_file);
     if let Some(agents) = agents_file.filter(|a| s.ws.is_file(a)) {
         let mut preamble = read(s, agents)?;
         preamble.extend_from_slice(b"\n---\n\n");
@@ -266,7 +278,9 @@ pub fn sync_rules(
     }
     let src_disp = s.display(src_dir);
     let dest_disp = s.display(dest_dir);
-    s.ws.create_dir_all(dest_dir)?;
+    if !s.dry_run {
+        s.ws.create_dir_all(dest_dir)?;
+    }
 
     let mut valid: Vec<String> = Vec::new();
     for name in md_files(s, src_dir) {
@@ -282,12 +296,15 @@ pub fn sync_rules(
                 opts.extension
             )
         };
+        valid.push(dest_name.clone());
+        if s.dry_run {
+            continue;
+        }
         let dest_path = format!("{dest_dir}/{dest_name}");
         let bytes = read(s, &format!("{src_dir}/{name}"))?;
         let rendered = apply_rule_header(&bytes, opts.header, opts.scoped_header);
         s.ws.write(&dest_path, rendered)?;
         s.record_write(&dest_path);
-        valid.push(dest_name);
     }
 
     let managed_suffix = if opts.extension.is_empty() {
@@ -304,8 +321,17 @@ pub fn sync_rules(
         if s.was_touched(&path) {
             continue;
         }
-        s.ws.remove(&path)?;
-        s.log.step(&format!("Removed: {dest_disp}/{name}"));
+        if !s.may_prune(&path) {
+            s.note_preserved(&format!("{dest_disp}/{name}"));
+            continue;
+        }
+        if s.dry_run {
+            s.log
+                .step(&format!("Would remove: {dest_disp}/{name} (obsolete)"));
+        } else {
+            s.ws.remove(&path)?;
+            s.log.step(&format!("Removed: {dest_disp}/{name}"));
+        }
         cleaned += 1;
     }
 
@@ -314,8 +340,9 @@ pub fn sync_rules(
     } else {
         format!(", include='{}'", opts.include)
     };
+    let suffix = if s.dry_run { " (dry-run)" } else { "" };
     s.log.step(&format!(
-        "{src_disp}/ → {dest_disp}/ ({} updates, {cleaned} cleanups){extra}",
+        "{src_disp}/ → {dest_disp}/ ({} updates, {cleaned} cleanups){extra}{suffix}",
         valid.len()
     ));
     Ok(())
@@ -375,7 +402,9 @@ pub fn sync_commands_as_skills(
     }
     let src_disp = s.display(src_dir);
     let dest_disp = s.display(dest_dir);
-    s.ws.create_dir_all(dest_dir)?;
+    if !s.dry_run {
+        s.ws.create_dir_all(dest_dir)?;
+    }
 
     let mut valid: Vec<String> = Vec::new();
     for name in md_files(s, src_dir) {
@@ -385,6 +414,9 @@ pub fn sync_commands_as_skills(
         let stem = name.strip_suffix(".md").unwrap_or(&name).to_string();
         let skill_dir = format!("{dest_dir}/command-{stem}");
         valid.push(format!("command-{stem}"));
+        if s.dry_run {
+            continue;
+        }
         let source = read(s, &format!("{src_dir}/{name}"))?;
 
         s.ws.create_dir_all(&skill_dir)?;
@@ -404,7 +436,7 @@ pub fn sync_commands_as_skills(
             s.ws.remove(&policy)?;
             let agents_dir = format!("{skill_dir}/agents");
             if s.ws.list(&agents_dir).is_empty() {
-                s.ws.remove(&agents_dir)?;
+                let _ = s.ws.remove(&agents_dir);
             }
         }
     }
@@ -413,14 +445,21 @@ pub fn sync_commands_as_skills(
         if !name.starts_with("command-") || !s.ws.is_dir(&format!("{dest_dir}/{name}")) {
             continue;
         }
-        if !valid.contains(&name) {
+        if valid.contains(&name) {
+            continue;
+        }
+        if s.dry_run {
+            s.log
+                .step(&format!("Would remove obsolete generated skill: {name}"));
+        } else {
             s.ws.remove(&format!("{dest_dir}/{name}"))?;
             s.log
                 .step(&format!("Removed obsolete generated skill: {name}"));
         }
     }
+    let suffix = if s.dry_run { " (dry-run)" } else { "" };
     s.log.step(&format!(
-        "{src_disp}/*.md → {dest_disp}/command-*/SKILL.md ({} generated)",
+        "{src_disp}/*.md → {dest_disp}/command-*/SKILL.md ({} generated){suffix}",
         valid.len()
     ));
     Ok(())
@@ -440,6 +479,15 @@ impl Conversion {
             Self::CommandToml | Self::AgentToml => ".toml",
             Self::AgentAmazonqJson => ".json",
             Self::AgentOpencodeMd => ".md",
+        }
+    }
+
+    fn dry_run_label(self) -> &'static str {
+        match self {
+            Self::CommandToml => "md→toml",
+            Self::AgentToml => "agent md→toml",
+            Self::AgentAmazonqJson => "agent md→json",
+            Self::AgentOpencodeMd => "agent md→opencode md",
         }
     }
 
@@ -479,11 +527,20 @@ pub fn sync_converted(
         let stem = name.strip_suffix(".md").unwrap_or(&name).to_string();
         let dest_name = format!("{stem}{ext}");
         let dest_file = format!("{dest_dir}/{dest_name}");
-        let source = read(s, &format!("{src_dir}/{name}"))?;
+        valid.push(dest_name);
+        let src_file = format!("{src_dir}/{name}");
+        if s.dry_run {
+            let (src_disp, dest_disp) = (s.display(&src_file), s.display(&dest_file));
+            s.log.step(&format!(
+                "{src_disp} → {dest_disp} ({}) (dry-run)",
+                conversion.dry_run_label()
+            ));
+            continue;
+        }
+        let source = read(s, &src_file)?;
         s.ws.create_dir_all(dest_dir)?;
         s.ws.write(&dest_file, conversion.render(&stem, &source))?;
         s.record_write(&dest_file);
-        valid.push(dest_name);
     }
 
     if s.ws.is_dir(dest_dir) {
@@ -496,8 +553,17 @@ pub fn sync_converted(
             if s.was_touched(&path) {
                 continue;
             }
-            s.ws.remove(&path)?;
-            s.log.step(&format!("Removed: {dest_disp}/{name}"));
+            if !s.may_prune(&path) {
+                s.note_preserved(&format!("{dest_disp}/{name}"));
+                continue;
+            }
+            if s.dry_run {
+                s.log
+                    .step(&format!("Would remove: {dest_disp}/{name} (obsolete)"));
+            } else {
+                s.ws.remove(&path)?;
+                s.log.step(&format!("Removed: {dest_disp}/{name}"));
+            }
         }
     }
 
@@ -665,6 +731,113 @@ mod tests {
         );
         assert!(!s.ws.exists("/proj/.agents/skills/command-gone"));
         assert!(s.ws.exists("/proj/.agents/skills/mine"));
+    }
+
+    #[test]
+    fn dry_runs_and_kept_files_log_what_the_bash_helpers_log() {
+        let mut s = test_session();
+        file(&mut s, "/proj/.ai/src/rules/core.md", "# Core\n");
+        file(
+            &mut s,
+            "/proj/.ai/src/agents/rev.md",
+            "---\nname: rev\n---\nBody\n",
+        );
+        file(
+            &mut s,
+            "/proj/.ai/src/commands/review.md",
+            "---\ndescription: R\n---\nBody\n",
+        );
+        file(&mut s, "/proj/.cursor/rules/old.mdc", "old");
+        file(&mut s, "/proj/.cursor/rules/mine.mdc", "mine");
+        file(&mut s, "/proj/.codex/agents/old.toml", "old");
+        file(&mut s, "/proj/.codex/agents/mine.toml", "mine");
+        file(&mut s, "/proj/.agents/skills/command-gone/SKILL.md", "x");
+        s.activate_manifest(
+            [".cursor/rules/old.mdc", ".codex/agents/old.toml"]
+                .map(String::from)
+                .into(),
+        );
+        let opts = RuleOptions {
+            extension: ".mdc",
+            header: "",
+            scoped_header: "",
+            include: "",
+            exclude: "",
+        };
+
+        s.dry_run = true;
+        sync_rules(&mut s, "/proj/.ai/src/rules", "/proj/.cursor/rules", &opts).unwrap();
+        sync_converted(
+            &mut s,
+            "/proj/.ai/src/agents",
+            "/proj/.codex/agents",
+            Conversion::AgentToml,
+        )
+        .unwrap();
+        sync_commands_as_skills(
+            &mut s,
+            "/proj/.ai/src/commands",
+            "/proj/.agents/skills",
+            "",
+            "",
+        )
+        .unwrap();
+        merge_rules_to_file(
+            &mut s,
+            "/proj/.ai/src/rules",
+            "/proj/.rules",
+            "",
+            "",
+            Some("/proj/.ai/src/rules/core.md"),
+        )
+        .unwrap();
+        sync_converted(
+            &mut s,
+            "/proj/.ai/src/commands",
+            "/proj/.gemini/commands",
+            Conversion::CommandToml,
+        )
+        .unwrap();
+        assert!(s.ws.exists("/proj/.cursor/rules/old.mdc"));
+        assert!(!s.ws.exists("/proj/.rules"));
+
+        s.dry_run = false;
+        sync_rules(&mut s, "/proj/.ai/src/rules", "/proj/.cursor/rules", &opts).unwrap();
+        sync_converted(
+            &mut s,
+            "/proj/.ai/src/agents",
+            "/proj/.codex/agents",
+            Conversion::AgentToml,
+        )
+        .unwrap();
+        assert_eq!(s.ws.list("/proj/.cursor/rules"), ["core.mdc", "mine.mdc"]);
+        assert_eq!(s.ws.list("/proj/.codex/agents"), ["mine.toml", "rev.toml"]);
+        assert_eq!(s.preserved(), 4);
+
+        let lines: Vec<&str> = s.log.lines().iter().map(|(_, l)| l.as_str()).collect();
+        assert_eq!(
+            lines,
+            [
+                "[WARNING] Would keep .cursor/rules/mine.mdc (not from .ai/src/; --force to prune)",
+                "   📁 Would remove: .cursor/rules/old.mdc (obsolete)",
+                "   📁 .ai/src/rules/ → .cursor/rules/ (1 updates, 1 cleanups) (dry-run)",
+                "   📁 .ai/src/agents/rev.md → .codex/agents/rev.toml (agent md→toml) (dry-run)",
+                "[WARNING] Would keep .codex/agents/mine.toml (not from .ai/src/; --force to prune)",
+                "   📁 Would remove: .codex/agents/old.toml (obsolete)",
+                "   📁 .ai/src/agents/ → .codex/agents/ (1 agents, md→toml)",
+                "   📁 Would remove obsolete generated skill: command-gone",
+                "   📁 .ai/src/commands/*.md → .agents/skills/command-*/SKILL.md (1 generated) (dry-run)",
+                "   📁 .ai/src/rules/ → .rules (1 files merged +agents) (dry-run)",
+                "   📁 .ai/src/commands/review.md → .gemini/commands/review.toml (md→toml) (dry-run)",
+                "   📁 .ai/src/commands/ → .gemini/commands/ (1 commands, md→toml)",
+                "[WARNING] Kept .cursor/rules/mine.mdc (not from .ai/src/; move it into .ai/src/, or re-run with --force to prune)",
+                "   📁 Removed: .cursor/rules/old.mdc",
+                "   📁 .ai/src/rules/ → .cursor/rules/ (1 updates, 1 cleanups)",
+                "[WARNING] Kept .codex/agents/mine.toml (not from .ai/src/; move it into .ai/src/, or re-run with --force to prune)",
+                "   📁 Removed: .codex/agents/old.toml",
+                "   📁 .ai/src/agents/ → .codex/agents/ (1 agents, md→toml)",
+            ]
+        );
     }
 
     #[test]

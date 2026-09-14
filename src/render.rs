@@ -482,7 +482,14 @@ fn sync_rules_step(s: &mut Session, run: &Run, tool: &Tool, dests: &Dests, displ
     let exclude = tool.filter("targets.rules.exclude");
 
     if tool.value("targets.rules.inline_into_agents") == "true" && !dests.agents.is_empty() {
-        inline_rules_into_agents(s, &src_rules, &dests.agents, &include, &exclude)?;
+        if s.dry_run {
+            s.log.step(&format!(
+                "Would append rule references to {} (dry-run)",
+                paths::leaf(&dests.agents)
+            ));
+        } else {
+            inline_rules_into_agents(s, &src_rules, &dests.agents, &include, &exclude)?;
+        }
     } else if !dests.rules.is_empty() {
         if tool.value("targets.rules.merge_to_file") == "true" {
             let prepend = (tool.value("targets.rules.prepend_agents") == "true"
@@ -502,7 +509,7 @@ fn sync_rules_step(s: &mut Session, run: &Run, tool: &Tool, dests: &Dests, displ
                 exclude: &exclude,
             };
             rules::sync_rules(s, &src_rules, &dests.rules, &opts).map_err(|e| io(s, e))?;
-            if tool.value("targets.rules.append_imports") == "true" {
+            if tool.value("targets.rules.append_imports") == "true" && !s.dry_run {
                 if dests.agents.is_empty() {
                     s.log.warning(&format!(
                         "Skipping append_imports for {display} because targets.agents.dest is missing"
@@ -521,6 +528,7 @@ fn sync_rules_step(s: &mut Session, run: &Run, tool: &Tool, dests: &Dests, displ
     if !dests.agents.is_empty()
         && !dests.rules.is_empty()
         && dests.agents.starts_with(&format!("{}/", dests.rules))
+        && !s.dry_run
     {
         let _ = file_ops::copy_file(s, &src_agents, &dests.agents);
     }
@@ -692,8 +700,10 @@ fn sync_skills_step(s: &mut Session, run: &Run, tool: &Tool, dests: &Dests, disp
         } else {
             String::new()
         };
-        if !target.is_empty() {
+        if !target.is_empty() && !s.dry_run {
             inline_skills_into_file(s, &src_skills, &target, &include, &exclude)?;
+        } else if s.dry_run {
+            s.log.step("Would append skill index (dry-run)");
         }
     }
     Ok(())
@@ -749,7 +759,9 @@ fn sync_commands_step(
         } else {
             String::new()
         };
-        if !target.is_empty() {
+        if !target.is_empty() && s.dry_run {
+            s.log.step("Would append command index (dry-run)");
+        } else if !target.is_empty() {
             s.log.info(&format!(
                 "{display} has no native commands surface — appending command index to {}",
                 paths::leaf(&target)
@@ -845,6 +857,9 @@ fn sync_payloads_step(s: &mut Session, tool: &Tool, dests: &Dests) -> Step {
         }
         if let Some(src) = payload::resolve_source(s, tool, resource).filter(|p| s.ws.is_file(p)) {
             file_ops::copy_file(s, &src, dest).map_err(|e| io(s, e))?;
+            if resource == "guard" && !s.dry_run {
+                s.ws.make_executable(dest).map_err(|e| io(s, e))?;
+            }
         }
     }
     Ok(())
@@ -863,6 +878,13 @@ fn compose_opencode(s: &mut Session, settings: &str, mcp: &str, dest: &str) -> S
                 failure.message
             ));
             Err(Stop(failure.code))
+        }
+        Ok(_) if s.dry_run => {
+            s.log.step(&format!(
+                "Would compose OpenCode settings and MCP → {} (dry-run)",
+                s.display(dest)
+            ));
+            Ok(())
         }
         Ok(composed) => {
             s.ws.create_dir_all(&paths::parent(dest))

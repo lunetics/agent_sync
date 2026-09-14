@@ -1340,7 +1340,7 @@ git commit -m "feat(native): write the project through the workspace and stream 
 - Consumes: `Workspace::on_disk`, fallible `remove`/`create_dir_all` (Task 1); Task 0c's pruning rule.
 - Produces: `Session::dry_run: bool` and `Session::force: bool` (public fields, both `false` by default, which is what `check` needs); `Session::activate_manifest(&mut self, paths: BTreeSet<String>)` (`SYNC_MANIFEST_ACTIVE` with `MANIFEST_KEYS`); `Session::may_prune(&self, abs: &str) -> bool` (`sync_may_prune` with Task 0c's directory rule); `Session::note_preserved(&mut self, shown: &str)` and `Session::preserved(&self) -> usize` (`sync_note_preserved`, `SYNC_PRESERVED_COUNT`); `Workspace::make_executable(&mut self, path: &str) -> Result<(), Error>`. Every copy, sweep, converter, inliner, and composer logs its `(dry-run)` or `Would …` line and writes nothing under `dry_run`, and keeps an extraneous entry `may_prune` refuses.
 
-- [ ] **Step 1: Replace `src/session.rs`**
+- [x] **Step 1: Replace `src/session.rs`**
 
 ```rust
 //! State one render shares across its steps: the workspace, path rules, the
@@ -1539,7 +1539,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Replace `src/file_ops.rs`**
+- [x] **Step 2: Replace `src/file_ops.rs`**
 
 ```rust
 //! `lib/helpers/file_ops.sh`: copies and sweeps that honour `--dry-run`, and
@@ -1799,7 +1799,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 3: Dry-run and preserve branches in `src/rules.rs`**
+- [x] **Step 3: Dry-run and preserve branches in `src/rules.rs`**
 
 Change the last module doc line from `` //! `lib/helpers/format_conversion.sh`, for a forced render. `` to:
 
@@ -2232,7 +2232,7 @@ Add this test in the `tests` module, before `fn converted_directories_sweep_thei
     }
 ```
 
-- [ ] **Step 4: The render's own dry-run branches in `src/render.rs`**
+- [x] **Step 4: The render's own dry-run branches in `src/render.rs`**
 
 In `sync_rules_step`, replace:
 
@@ -2330,7 +2330,7 @@ In `compose_opencode`, add this arm before `Ok(composed) => {`:
         }
 ```
 
-- [ ] **Step 5: `make_executable` in `src/workspace.rs`**
+- [x] **Step 5: `make_executable` in `src/workspace.rs`**
 
 Add before the doc comment of `copy` (`` /// `cp -r src dst` onto a missing `dst` ``):
 
@@ -2350,7 +2350,7 @@ Add before the doc comment of `copy` (`` /// `cp -r src dst` onto a missing `dst
     }
 ```
 
-- [ ] **Step 6: Run the gates, confirm green**
+- [x] **Step 6: Run the gates, confirm green**
 
 ```bash
 cargo test 2>&1 | grep 'test result'
@@ -2360,7 +2360,7 @@ cargo clippy --all-targets -- -D warnings
 
 Expected: `120 passed` (unit) and `7 passed` (integration); fmt and clippy exit 0.
 
-- [ ] **Step 7: Cross-check the asserted lines against the Bash helpers**
+- [x] **Step 7: Cross-check the asserted lines against the Bash helpers**
 
 ```bash
 bash -c '
@@ -2389,7 +2389,7 @@ tmp_cleanup; rm -rf "$dir"'
 
 Expected: the eighteen lines of `dry_runs_and_kept_files_log_what_the_bash_helpers_log`, in its order.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/session.rs src/file_ops.rs src/rules.rs src/render.rs src/workspace.rs docs/plans/2026-09-14-rust-migration-phase-3-native-sync.md

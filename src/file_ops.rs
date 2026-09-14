@@ -1,17 +1,23 @@
-//! `lib/helpers/file_ops.sh` for a forced render: every extraneous entry a
-//! sweep owns is pruned, as `sync_may_prune` allows under `--force`.
+//! `lib/helpers/file_ops.sh`: copies and sweeps that honour `--dry-run`, and
+//! prune an extraneous entry only when `Session::may_prune` allows it.
 
 use crate::session::Session;
 use crate::{Error, filters, paths};
 
 /// `cleanup_path`: removes `target` when it exists; true when something went.
+/// A failed removal is not an error: Bash calls it inside an `if`, where
+/// `set -e` does not apply.
 pub fn cleanup_path(s: &mut Session, target: &str) -> bool {
     if !s.ws.exists(target) {
         return false;
     }
-    let _ = s.ws.remove(target);
     let shown = s.display(target);
-    s.log.step(&format!("Removed: {shown}"));
+    if s.dry_run {
+        s.log.step(&format!("Would remove: {shown} (dry-run)"));
+    } else {
+        let _ = s.ws.remove(target);
+        s.log.step(&format!("Removed: {shown}"));
+    }
     true
 }
 
@@ -23,11 +29,15 @@ pub fn copy_file(s: &mut Session, src: &str, dest: &str) -> Result<(), Error> {
     }
     let src_disp = s.display(src);
     let dest_disp = s.display(dest);
+    if s.dry_run {
+        s.log.step(&format!("{src_disp} → {dest_disp} (dry-run)"));
+        return Ok(());
+    }
     s.ws.create_dir_all(&paths::parent(dest))?;
     if s.ws.is_dir(dest) {
         s.ws.copy(src, &format!("{dest}/{}", paths::leaf(src)))?;
     } else {
-        s.ws.remove(dest)?;
+        let _ = s.ws.remove(dest);
         s.ws.copy(src, dest)?;
     }
     s.record_write(dest);
@@ -50,22 +60,27 @@ pub fn sync_dir(
     }
     let src_disp = s.display(src);
     let dest_disp = s.display(dest);
-    s.ws.create_dir_all(dest)?;
+    if !s.dry_run {
+        s.ws.create_dir_all(dest)?;
+    }
 
     let mut source_items: Vec<String> = Vec::new();
     for name in s.ws.glob(src) {
         if !filters::matches(&name, include, exclude) {
             continue;
         }
+        source_items.push(name.clone());
+        if s.dry_run {
+            continue;
+        }
         let target = format!("{dest}/{name}");
-        s.ws.remove(&target)?;
+        let _ = s.ws.remove(&target);
         s.ws.copy(&format!("{src}/{name}"), &target)?;
         if s.ws.is_dir(&target) {
             s.record_tree(&target);
         } else {
             s.record_write(&target);
         }
-        source_items.push(name);
     }
 
     let mut cleaned = 0usize;
@@ -77,8 +92,17 @@ pub fn sync_dir(
         if s.was_touched(&item) {
             continue;
         }
-        s.ws.remove(&item)?;
-        s.log.step(&format!("Removed: {dest_disp}/{name}"));
+        if !s.may_prune(&item) {
+            s.note_preserved(&format!("{dest_disp}/{name}"));
+            continue;
+        }
+        if s.dry_run {
+            s.log
+                .step(&format!("Would remove: {dest_disp}/{name} (extraneous)"));
+        } else {
+            s.ws.remove(&item)?;
+            s.log.step(&format!("Removed: {dest_disp}/{name}"));
+        }
         cleaned += 1;
     }
 
@@ -87,8 +111,9 @@ pub fn sync_dir(
     } else {
         format!(", include='{include}'")
     };
+    let suffix = if s.dry_run { " (dry-run)" } else { "" };
     s.log.step(&format!(
-        "{src_disp}/ → {dest_disp}/ ({} updates, {cleaned} cleanups){extra}",
+        "{src_disp}/ → {dest_disp}/ ({} updates, {cleaned} cleanups){extra}{suffix}",
         source_items.len()
     ));
     Ok(())
@@ -96,6 +121,8 @@ pub fn sync_dir(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use super::*;
     use crate::session::test_session;
     use crate::workspace::Content;
@@ -162,5 +189,67 @@ mod tests {
         file(&mut s, "/proj/.cursor/rules/core.mdc", "x");
         assert!(cleanup_path(&mut s, "/proj/.cursor/rules"));
         assert!(!cleanup_path(&mut s, "/proj/.cursor/rules"));
+    }
+
+    #[test]
+    fn a_dry_run_reports_every_change_and_makes_none() {
+        let mut s = test_session();
+        s.dry_run = true;
+        file(&mut s, "/proj/.ai/src/AGENTS.md", "new");
+        file(&mut s, "/proj/.ai/src/skills/a/SKILL.md", "a");
+        file(&mut s, "/proj/.claude/skills/stale/SKILL.md", "s");
+        file(&mut s, "/proj/.cursor/rules/core.mdc", "x");
+        copy_file(&mut s, "/proj/.ai/src/AGENTS.md", "/proj/CLAUDE.md").unwrap();
+        sync_dir(
+            &mut s,
+            "/proj/.ai/src/skills",
+            "/proj/.claude/skills",
+            "",
+            "",
+        )
+        .unwrap();
+        assert!(cleanup_path(&mut s, "/proj/.cursor/rules"));
+        assert!(!s.ws.exists("/proj/CLAUDE.md"));
+        assert!(s.ws.exists("/proj/.claude/skills/stale"));
+        assert!(!s.ws.exists("/proj/.claude/skills/a"));
+        assert!(s.ws.exists("/proj/.cursor/rules/core.mdc"));
+        assert!(s.touched().is_empty());
+        assert_eq!(
+            s.log.tail(4),
+            [
+                "   📁 .ai/src/AGENTS.md → CLAUDE.md (dry-run)",
+                "   📁 Would remove: .claude/skills/stale (extraneous)",
+                "   📁 .ai/src/skills/ → .claude/skills/ (1 updates, 1 cleanups) (dry-run)",
+                "   📁 Would remove: .cursor/rules (dry-run)"
+            ]
+        );
+    }
+
+    #[test]
+    fn sync_dir_keeps_an_entry_the_manifest_never_recorded() {
+        let mut s = test_session();
+        file(&mut s, "/proj/.ai/src/skills/a/SKILL.md", "a");
+        file(&mut s, "/proj/.claude/skills/mine/SKILL.md", "m");
+        file(&mut s, "/proj/.claude/skills/old/SKILL.md", "o");
+        s.activate_manifest(BTreeSet::from([".claude/skills/old/SKILL.md".to_string()]));
+        sync_dir(
+            &mut s,
+            "/proj/.ai/src/skills",
+            "/proj/.claude/skills",
+            "",
+            "",
+        )
+        .unwrap();
+        assert!(s.ws.exists("/proj/.claude/skills/mine"));
+        assert!(!s.ws.exists("/proj/.claude/skills/old"));
+        assert_eq!(s.preserved(), 1);
+        assert_eq!(
+            s.log.tail(3),
+            [
+                "[WARNING] Kept .claude/skills/mine (not from .ai/src/; move it into .ai/src/, or re-run with --force to prune)",
+                "   📁 Removed: .claude/skills/old",
+                "   📁 .ai/src/skills/ → .claude/skills/ (1 updates, 1 cleanups)"
+            ]
+        );
     }
 }

@@ -4,7 +4,7 @@
 
 **Goal:** Make the native `sync`, `check`, and `list` read explicit `source.*` roots outside the project only when `AGENTSYNC_EXTERNAL_SOURCE_ROOTS` trusts them, read tool YAML and payloads from `source.tools`, build the overlays from the resolved sources, and refuse a source symlink that escapes the project, exactly as release 0.36.0's `lib/helpers/paths.sh`, `lib/helpers/shared.sh`, `lib/helpers/tool_resolver.sh`, and `lib/sync.sh` do.
 
-**Architecture:** `Paths` gains the trusted external roots and the explicit roots a config registers: `classify_explicit_source` is `explicit_source_root_r`, `is_safe_source` admits the registered roots, and `escaping_source_link` is `refuse_escaping_source_links` over the disk. `render::resolve_sources` registers the roots before it checks `AGENTS.md`, as `_resolve_sources` does, and sets `Session::tools_dir`, which tool loading, payload lookup, and `--if-stale` read in place of `.ai/src/tools`. `render::refuse_escaping_source_links` runs between the configless refusal and the pin, in `sync` and in `check`'s render. The shared and engine-skill overlays mirror the resolved `Sources` (`build_source_overlay_tree`) instead of `.ai/src`. The workspace already reads paths outside the project root from the disk, in memory too, so `check` needs no seeding. The seam stays the CLI process boundary: `tests/source_overrides.bats` under `AGENTSYNC_NATIVE=1` plus parity fixtures; disk-touching unit tests are `#[cfg(unix)]`.
+**Architecture:** `Paths` gains the trusted external roots and the explicit roots a config registers: `classify_explicit_source` is `explicit_source_root_r`, `is_safe_source` admits the registered roots, and `escaping_source_link` is `refuse_escaping_source_links` over the disk. `render::resolve_sources` registers the roots before it checks `AGENTS.md`, as `_resolve_sources` does, and sets `Session::tools_dir`, which tool loading, payload lookup, and `--if-stale` read in place of `.ai/src/tools`. `render::refuse_escaping_source_links` runs between the configless refusal and the pin, in `sync` and in `check`'s render. The shared and engine-skill overlays mirror the resolved `Sources` (`build_source_overlay_tree`) instead of `.ai/src`. The workspace already reads paths outside the project root from the disk, in memory too; a configured source inside the project but outside `.ai/` is seeded into `check`'s workspace (amended in Task 3), because `lib/check.sh` read it from the project rather than from its copy. The seam stays the CLI process boundary: `tests/source_overrides.bats` under `AGENTSYNC_NATIVE=1` plus parity fixtures; disk-touching unit tests are `#[cfg(unix)]`.
 
 **Tech stack:** Rust 2024 edition (MSRV 1.85), clap 4.6, include_dir 0.7, thiserror 2, sha2 0.11, signal-hook 0.4; dev: assert_cmd 2, predicates 3, tempfile 3. No new dependency. Design: `docs/specs/2026-09-12-rust-migration-design.md`, "Phase 3b", family 3. Previous plan: `docs/plans/2026-09-14-rust-migration-phase-3b-backup-retention.md`.
 
@@ -574,11 +574,12 @@ git commit -m "feat(native): trust outside sources and refuse escaping source li
 
 **Files:**
 - Modify: `src/overlay.rs` (`build_tree` split; new `build_source_tree`, `mirror_source`, `fill_parent`; `setup_shared`, `setup_base_src`; test)
+- Modify (amended during execution): `src/cli/check.rs` (`seed_workspace` seeds the configured sources inside the project but outside `.ai/`; test)
 
 **Interfaces:**
 - Produces: `pub fn build_source_tree(s: &mut Session, name: &str, sources: &Sources, parent_src: &str, categories: &[&str]) -> Result<String, Error>`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append inside the tests module of `src/overlay.rs` (create `#[cfg(test)] mod tests { use super::*; use crate::session::test_session; use crate::workspace::Content; }` if the module has none):
 
@@ -599,12 +600,12 @@ Append inside the tests module of `src/overlay.rs` (create `#[cfg(test)] mod tes
     }
 ```
 
-- [ ] **Step 2: Run it, confirm it fails**
+- [x] **Step 2: Run it, confirm it fails**
 
 Run: `cargo test overlay:: 2>&1 | grep -E '^test .*(FAILED|ok)$|^error'`
 Expected: `the_engine_skill_layer_keeps_configured_sources ... FAILED` (the overlay mirrored `.ai/src`, which has no `rules/`).
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Split the parent fill out of `build_tree` and add the source-driven builder:
 
@@ -697,7 +698,7 @@ fn mirror_source(s: &mut Session, file: bool, raw: &str, dest: &str) -> Result<b
 
 `build_tree` keeps its mirror loop and ends with `fill_parent(ws, &src, parent_src, categories, &[])?; Ok(dir)`. In `setup_shared`, replace `build_tree(&mut s.ws, "shared", &child_src, &parent_src, &categories)?` with `build_source_tree(s, "shared", &sources.clone(), &parent_src, &categories)?` and drop `child_src`; in `setup_base_src`, replace the `build_tree` call with `build_source_tree(s, "base-src", &sources.clone(), &base_src, &["skills"])?`.
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -3
@@ -708,9 +709,9 @@ for f in shared base_skills profiles sync check; do
 done
 ```
 
-Expected: `176 passed` and `11 passed`; only the `list`-driven failures remain in `source_overrides.bats`; `0` elsewhere.
+Expected: `177 passed` and `11 passed`; `source_overrides native=0`; `0` elsewhere.
 
-- [ ] **Step 5: Lint and commit**
+- [x] **Step 5: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings
@@ -780,7 +781,7 @@ printf 'source_overrides native=%s\n' "$(AGENTSYNC_NATIVE=1 bats --tap tests/sou
 printf 'list native=%s\n' "$(AGENTSYNC_NATIVE=1 bats --tap tests/list.bats | grep -c '^not ok')"
 ```
 
-Expected: `177 passed` and `11 passed`; `source_overrides native=0`; `list native=0`.
+Expected: `178 passed` and `11 passed`; `source_overrides native=0`; `list native=0`.
 
 - [ ] **Step 5: Lint and commit**
 
@@ -849,7 +850,7 @@ for f in source_overrides shared base_skills profiles list sync check config_saf
 done
 ```
 
-Expected: `177 passed` and `11 passed`; lint exit 0; every line `bash=0 native=0` except `native_parity bash=1 native=1` (family 4).
+Expected: `178 passed` and `11 passed`; lint exit 0; every line `bash=0 native=0` except `native_parity bash=1 native=1` (family 4).
 
 - [ ] **Step 5: Commit**
 
@@ -885,4 +886,11 @@ The family is closed when every box is ticked, `source_overrides.bats` is green 
 - Verified: `cargo test` 175 and 11 passed; fmt and clippy exit 0 (clippy asked for `s.ws.glob(tools_dir)` without the borrow). Native bats: `source_overrides` 7 failures (1, 2, 3, 5, 13, 15, 17: skills and rules from outside sources missing from the overlays), `sync`, `check`, `shared` 0.
 - Plan amended: none beyond the counts.
 - Next: Task 3 Step 1.
+- Blocker: none.
+
+### 2026-09-14 — Task 3 done
+- Commits: "feat(native): build source overlays from the resolved sources".
+- Verified: `cargo test` 177 and 11 passed (three further runs identical; one earlier run printed only `error: test failed` with no failing test named, not reproduced); fmt and clippy exit 0. Native bats: `source_overrides`, `check`, `shared`, `base_skills`, `profiles`, `sync`, `config_safety` all 0.
+- Plan amended: after the overlays, `source_overrides` 3 and 5 still failed natively with `Source agents file not found: <project>/sources/AGENTS.md`: `check`'s workspace held only what `lib/check.sh` copied, while Bash's isolated sync read `source.*` from the project itself. `cli::check::seed_workspace` now seeds each configured source (nested `source.<key>`, the top-level key for all but `tools`) that lies inside the project and outside `.ai/`, with the test `sources_inside_the_project_but_outside_ai_are_read_from_the_project`. The shared-overlay unit test now passes resolved sources, which `setup_shared` mirrors instead of `.ai/src`. Later counts are one higher.
+- Next: Task 4 Step 1 (its test is already written in `src/project.rs`).
 - Blocker: none.

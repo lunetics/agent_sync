@@ -10,7 +10,7 @@ use crate::paths::Paths;
 use crate::render::{self, Env};
 use crate::session::Session;
 use crate::workspace::Workspace;
-use crate::{Error, engine_version, overlay, project_config, version, yaml_subset};
+use crate::{Error, engine_version, overlay, paths, project_config, version, yaml_subset};
 
 const MANIFEST_REL: &str = ".ai/.sync-manifest";
 
@@ -65,7 +65,7 @@ pub fn check(root: &str, env: &Env) -> Result<Report, Error> {
     report.out("Checking AgentSync configuration synchronization...");
 
     let manifest = manifest_paths(root)?;
-    let ws = match seed_workspace(root, &manifest, config_path.as_deref()) {
+    let ws = match seed_workspace(root, &manifest, config_path.as_deref(), config.as_deref()) {
         Ok(ws) => ws,
         Err(detail) => {
             report.out("❌ Failed to prepare temporary workspace for check");
@@ -193,11 +193,14 @@ fn manifest_paths(root: &str) -> Result<Vec<String>, Error> {
 }
 
 /// What `lib/check.sh` copied with `tar`: `.ai/` without backups, a root
-/// `agent_sync.yaml`, and every manifest output that exists.
+/// `agent_sync.yaml`, and every manifest output that exists; plus the
+/// configured sources inside the project but outside `.ai/`, which its
+/// isolated sync read from the project through `AGENTSYNC_INTERNAL_SOURCE_BASE_ROOT`.
 fn seed_workspace(
     root: &str,
     manifest: &[String],
     selected: Option<&str>,
+    config_text: Option<&str>,
 ) -> Result<Workspace, String> {
     let mut ws = Workspace::new(root);
     let ai = Path::new(root).join(".ai");
@@ -228,6 +231,40 @@ fn seed_workspace(
     {
         ws.seed_from_disk(path, Path::new(path), &is_git)
             .map_err(|e| e.to_string())?;
+    }
+    for key in [
+        "agents",
+        "rules",
+        "skills",
+        "commands",
+        "subagents",
+        "tools",
+    ] {
+        let Some(text) = config_text else {
+            break;
+        };
+        let nested = yaml_subset::value(text, &format!("source.{key}"));
+        let raw = if nested.is_empty() && key != "tools" {
+            yaml_subset::value(text, key)
+        } else {
+            nested
+        };
+        if raw.is_empty() {
+            continue;
+        }
+        let abs = if raw.starts_with('/') {
+            paths::normalize(&raw)
+        } else {
+            paths::normalize(&format!("{root}/{raw}"))
+        };
+        let below_root = abs.starts_with(&format!("{root}/"));
+        if !below_root || abs.starts_with(&format!("{root}/.ai/")) || is_git(&abs) {
+            continue;
+        }
+        if Path::new(&abs).exists() {
+            ws.seed_from_disk(&abs, Path::new(&abs), &is_git)
+                .map_err(|e| e.to_string())?;
+        }
     }
     Ok(ws)
 }
@@ -283,10 +320,35 @@ mod tests {
     }
 
     #[test]
+    fn sources_inside_the_project_but_outside_ai_are_read_from_the_project() {
+        let (_dir, root) = project();
+        write(Path::new(&root), "sources/AGENTS.md", "# External\n");
+        write(Path::new(&root), "sources/tools/claude.yaml", "name: C\n");
+        write(
+            Path::new(&root),
+            ".ai/agent_sync.yaml",
+            "tools:\n  enabled: [claude]\nsource:\n  agents: \"sources/AGENTS.md\"\n  tools: \"sources/tools\"\n",
+        );
+        let report = check(&root, &Env::default()).unwrap();
+        assert!(
+            !report.stdout.contains("Sync script failed"),
+            "{}",
+            report.stdout
+        );
+        assert!(report.stdout.contains("Missing: CLAUDE.md\n"));
+    }
+
+    #[test]
     fn manifest_outputs_that_match_the_render_are_in_sync() {
         let (_dir, root) = project();
         let mut session = Session::new(
-            seed_workspace(&root, &[], Some(&format!("{root}/.ai/agent_sync.yaml"))).unwrap(),
+            seed_workspace(
+                &root,
+                &[],
+                Some(&format!("{root}/.ai/agent_sync.yaml")),
+                None,
+            )
+            .unwrap(),
             Paths::for_disk_root(&root),
         );
         render::render(&mut session, &Env::default()).unwrap();

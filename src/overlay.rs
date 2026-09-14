@@ -49,7 +49,78 @@ pub fn build_tree(
         }
     }
 
+    fill_parent(ws, &src, parent_src, categories, &[])?;
+    Ok(dir)
+}
+
+/// `build_source_overlay_tree`: mirror each resolved source, then fill the
+/// inherited categories from the parent. A category whose source resolves
+/// outside the safe roots is neither mirrored nor filled.
+pub fn build_source_tree(
+    s: &mut Session,
+    name: &str,
+    sources: &Sources,
+    parent_src: &str,
+    categories: &[&str],
+) -> Result<String, Error> {
+    let dir = format!("{OVERLAY_ROOT}/{name}");
+    s.ws.remove(&dir)?;
+    let src = format!("{dir}/src");
+    s.ws.create_dir_all(&src)?;
+    mirror_source(s, true, &sources.agents, &format!("{src}/AGENTS.md"))?;
+    let mut refused = Vec::new();
+    for (category, raw) in [
+        ("rules", &sources.rules),
+        ("skills", &sources.skills),
+        ("commands", &sources.commands),
+        ("agents", &sources.subagents),
+    ] {
+        if !mirror_source(s, false, raw, &format!("{src}/{category}"))? {
+            refused.push(category);
+        }
+    }
+    fill_parent(&mut s.ws, &src, parent_src, categories, &refused)?;
+    Ok(dir)
+}
+
+/// `_overlay_mirror_source`: `false`, copying nothing, when the source
+/// resolves outside the safe roots.
+fn mirror_source(s: &mut Session, file: bool, raw: &str, dest: &str) -> Result<bool, Error> {
+    if raw.is_empty() {
+        return Ok(true);
+    }
+    let abs = s.paths.absolute(raw);
+    let present = if file {
+        s.ws.is_file(&abs)
+    } else {
+        s.ws.is_dir(&abs)
+    };
+    if !present {
+        return Ok(true);
+    }
+    let Some(canonical) = s.paths.canonicalize_with_existing_ancestor(&abs) else {
+        return Ok(false);
+    };
+    if !s.paths.is_safe_source(&canonical) {
+        return Ok(false);
+    }
+    s.ws.copy(&abs, dest)?;
+    Ok(true)
+}
+
+/// `_overlay_fill_parent`: parent files of the inherited categories the tree
+/// lacks, except categories in `skipped`.
+fn fill_parent(
+    ws: &mut Workspace,
+    src: &str,
+    parent_src: &str,
+    categories: &[&str],
+    skipped: &[&str],
+) -> Result<(), Error> {
     for category in categories {
+        if skipped.contains(category) {
+            continue;
+        }
         let parent_dir = format!("{parent_src}/{category}");
         if !ws.is_dir(&parent_dir) {
             continue;
@@ -64,7 +135,7 @@ pub fn build_tree(
             ws.copy(&file, &target)?;
         }
     }
-    Ok(dir)
+    Ok(())
 }
 
 /// `_overlay_rewrite_sources`: only the paths the overlay materialised.
@@ -146,8 +217,7 @@ pub fn setup_shared(
     if categories.is_empty() {
         return Ok(None);
     }
-    let child_src = format!("{root}/.ai/src");
-    let dir = build_tree(&mut s.ws, "shared", &child_src, &parent_src, &categories)?;
+    let dir = build_source_tree(s, "shared", &sources.clone(), &parent_src, &categories)?;
     rewrite_sources(&s.ws, &dir, sources);
     s.log.info(&format!(
         "Shared overlay active: {parent_src} ({})",
@@ -174,7 +244,7 @@ pub fn setup_base_src(
     if !s.ws.is_dir(child_src) {
         return Ok(());
     }
-    let dir = build_tree(&mut s.ws, "base-src", child_src, &base_src, &["skills"])?;
+    let dir = build_source_tree(s, "base-src", &sources.clone(), &base_src, &["skills"])?;
     rewrite_sources(&s.ws, &dir, sources);
     Ok(())
 }
@@ -365,7 +435,11 @@ mod tests {
             Workspace::on_disk(&root),
             crate::paths::Paths::on_disk(&root),
         );
-        let mut sources = Sources::default();
+        let mut sources = Sources {
+            agents: ".ai/src/AGENTS.md".into(),
+            rules: ".ai/src/rules".into(),
+            ..Sources::default()
+        };
 
         let config = "shared:\n  path: \"../parent\"\n  inherit: skills, tools\n";
         let overlay = setup_shared(&mut s, config, &mut sources).unwrap();
@@ -399,6 +473,22 @@ mod tests {
             assert_eq!(setup_shared(&mut s, config, &mut sources).unwrap(), None);
             assert_eq!(s.log.tail(1), [line]);
         }
+    }
+
+    #[test]
+    fn the_engine_skill_layer_keeps_configured_sources() {
+        let mut s = test_session();
+        file(&mut s.ws, "/proj/.ai/src/AGENTS.md", "# Project\n");
+        file(&mut s.ws, "/proj/shared-rules/r.md", "r\n");
+        let mut sources = Sources {
+            agents: ".ai/src/AGENTS.md".into(),
+            rules: "shared-rules".into(),
+            ..Sources::default()
+        };
+        setup_base_src(&mut s, None, "/proj/.ai/src", &mut sources).unwrap();
+        assert_eq!(sources.rules, "/<agentsync-overlay>/base-src/src/rules");
+        assert!(s.ws.is_file("/<agentsync-overlay>/base-src/src/rules/r.md"));
+        assert!(s.ws.is_file("/<agentsync-overlay>/base-src/src/skills/agentsync/SKILL.md"));
     }
 
     #[test]

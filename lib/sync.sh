@@ -165,7 +165,8 @@ resolve_project_config_path() {
             PROJECT_CONFIG_PATH="$env_path"
             return 0
         fi
-        log_warning "AGENTSYNC_CONFIG_PATH is set but file not found: $env_path"
+        log_error "AGENTSYNC_CONFIG_PATH is set but file not found: $env_path"
+        return 1
     fi
 
     local project_config="$REPO_ROOT/.ai/agent_sync.yaml"
@@ -755,7 +756,13 @@ _load_run_config() {
     fi
 
     resolve_project_config_path
-    [[ -n "$PROJECT_CONFIG_PATH" ]] || return 0
+    if [[ -z "$PROJECT_CONFIG_PATH" ]]; then
+        if [[ "$DRY_RUN" == "true" ]]; then
+            return 0
+        fi
+        log_error "No project configuration found; refusing write sync with cleanup defaults. Create .ai/agent_sync.yaml or set AGENTSYNC_CONFIG_PATH."
+        return 1
+    fi
 
     local cfg_default_enabled cfg_default_cleanup cfg_skip_post_sync
     cfg_default_enabled=$(parse_yaml_value "$PROJECT_CONFIG_PATH" "defaults.enabled")

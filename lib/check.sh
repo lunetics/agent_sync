@@ -25,13 +25,38 @@ source "$SCRIPT_DIR/helpers/yaml.sh"
 # shellcheck source=helpers/version.sh
 source "$SCRIPT_DIR/helpers/version.sh"
 
+# Resolve the project config with the same explicit-path semantics as sync.
+# An explicitly selected path is authoritative: a typo must not silently fall
+# back to a different local or legacy config.
+resolve_check_config_path() {
+    local config_env="${AGENTSYNC_CONFIG_PATH:-}"
+    if [[ -n "$config_env" ]]; then
+        local env_path="$config_env"
+        if [[ "$env_path" != /* ]]; then
+            env_path="$REPO_ROOT/$env_path"
+        fi
+        if [[ -f "$env_path" ]]; then
+            printf '%s\n' "$env_path"
+            return 0
+        fi
+        echo "❌ AGENTSYNC_CONFIG_PATH is set but file not found: $env_path" >&2
+        return 1
+    fi
+
+    if [[ -f "$REPO_ROOT/.ai/agent_sync.yaml" ]]; then
+        printf '%s\n' "$REPO_ROOT/.ai/agent_sync.yaml"
+    elif [[ -f "$REPO_ROOT/agent_sync.yaml" ]]; then
+        printf '%s\n' "$REPO_ROOT/agent_sync.yaml"
+    fi
+}
+
 # Same gate as sync, checked up front so CI reports the pin rather than a
 # "sync failed inside check" wrapper. Only committed outputs make it fatal:
 # there, every machine must generate byte-identical files.
 _check_version_pin() {
-    local config="$REPO_ROOT/.ai/agent_sync.yaml"
-    [[ -f "$config" ]] || config="$REPO_ROOT/agent_sync.yaml"
-    [[ -f "$config" ]] || return 0
+    local config
+    config=$(resolve_check_config_path) || exit 1
+    [[ -n "$config" ]] || return 0
 
     local outputs
     outputs=$(parse_yaml_value "$config" "outputs")

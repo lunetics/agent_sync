@@ -45,7 +45,7 @@ lib/sync.sh                       1170-1180 _sync_cleanup seals the restored sna
 
 **Files:** none changed.
 
-- [ ] **Step 1: Record the baseline**
+- [x] **Step 1: Record the baseline**
 
 ```bash
 git log --oneline -1
@@ -76,7 +76,7 @@ Expected: the family 3 close commit; `178 passed` and `11 passed`; the native `r
   - `pub fn preflight(root: &str, snapshot: &str) -> Preflight` — `root` canonical
   - `backup::discard_safety(store: &str, safety: &str, previous_latest: &str) -> std::io::Result<()>`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `src/witness.rs` with only the tests module and add `pub mod witness;` to `src/lib.rs` after `pub mod version;`:
 
@@ -258,12 +258,12 @@ Append inside `mod tests` in `src/backup.rs`:
     }
 ```
 
-- [ ] **Step 2: Run the tests, confirm they fail**
+- [x] **Step 2: Run the tests, confirm they fail**
 
 Run: `cargo test --lib witness 2>&1 | grep -E '^error' | sort | uniq -c`
 Expected: errors for `seal`, `preflight`, and `Preflight` not found.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Above the tests module in `src/witness.rs`:
 
@@ -578,18 +578,109 @@ pub fn discard_safety(store: &str, safety: &str, previous_latest: &str) -> std::
 }
 ```
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 Run: `cargo test 2>&1 | grep 'test result' | head -3`
 Expected: `183 passed` and `11 passed`.
 
-- [ ] **Step 5: Lint and commit**
+- [x] **Step 5: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings
 git add src/witness.rs src/lib.rs src/backup.rs docs/plans/2026-09-14-rust-migration-phase-3b-rollback-witness.md
 git commit -m "feat(native): seal and check the post-operation witness"
 ```
+
+---
+
+### Task 1b: A FIFO Under a Target Is Backed Up Without Being Opened (amended during execution)
+
+Task 0's baseline hung on `sync with a FIFO under a target succeeds and records it by type`: `backup::copy_preserving` called `std::fs::copy` on the FIFO, whose `open` blocks until a writer appears. A trapped `TERM` never took effect, because the process never returned from `open`. Bash copies with `tar` or `cp -pPR`, which recreate the FIFO without reading it.
+
+**Files:**
+- Modify: `src/backup.rs` (`copy_preserving`; test)
+
+- [ ] **Step 1: Write the failing test**
+
+Append inside `mod tests` in `src/backup.rs`:
+
+```rust
+    #[test]
+    fn a_fifo_under_a_target_is_recreated_not_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = std::fs::canonicalize(dir.path())
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        std::fs::create_dir_all(format!("{root}/.claude/skills")).unwrap();
+        let made = std::process::Command::new("mkfifo")
+            .arg(format!("{root}/.claude/skills/pipe"))
+            .status()
+            .is_ok_and(|status| status.success());
+        if !made {
+            return;
+        }
+        let snapshot = create(
+            &root,
+            "sync",
+            &[format!("{root}/.claude/skills")],
+            Retention::Bounded,
+        )
+        .unwrap();
+        use std::os::unix::fs::FileTypeExt;
+        let copied = std::fs::symlink_metadata(format!("{snapshot}/files/.claude/skills/pipe")).unwrap();
+        assert!(copied.file_type().is_fifo());
+        std::fs::remove_file(format!("{root}/.claude/skills/pipe")).unwrap();
+        restore(&root, &snapshot).unwrap();
+        let restored = std::fs::symlink_metadata(format!("{root}/.claude/skills/pipe")).unwrap();
+        assert!(restored.file_type().is_fifo());
+    }
+```
+
+- [ ] **Step 2: Run it, confirm it fails**
+
+Run: `cargo test --lib backup::tests::a_fifo 2>&1 | tail -3` in the background and stop it after 20 seconds.
+Expected: it does not finish (the copy blocks in `open`).
+
+- [ ] **Step 3: Write the implementation**
+
+In `copy_preserving`, before `std::fs::copy(src, dst)?;`:
+
+```rust
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::FileTypeExt;
+        let kind = meta.file_type();
+        if kind.is_fifo() {
+            let made = std::process::Command::new("mkfifo").arg(dst).status()?;
+            if !made.success() {
+                return Err(std::io::Error::other(format!(
+                    "mkfifo failed for {}",
+                    dst.display()
+                )));
+            }
+            return std::fs::set_permissions(dst, meta.permissions());
+        }
+        if kind.is_socket() || kind.is_block_device() || kind.is_char_device() {
+            return Ok(());
+        }
+    }
+```
+
+- [ ] **Step 4: Run the tests, confirm green**
+
+Run: `cargo test 2>&1 | grep 'test result' | head -3`
+Expected: `184 passed` and `11 passed`.
+
+- [ ] **Step 5: Lint and commit**
+
+```bash
+cargo fmt --all --check && cargo clippy --all-targets -- -D warnings
+git add src/backup.rs docs/plans/2026-09-14-rust-migration-phase-3b-rollback-witness.md
+git commit -m "fix(native): recreate a FIFO in a backup instead of reading it"
+```
+
+Every later count in this plan is one higher.
 
 ---
 
@@ -998,4 +1089,11 @@ The family is closed when every box is ticked, `rollback_preflight.bats` is gree
 - Verified: plan written against `lib/helpers/backup_state.sh`, `git diff 0.35.2 0.36.0 -- lib/helpers/backup.sh lib/sync.sh`, `tests/rollback_preflight.bats`, and `src/backup.rs`, `src/cli/rollback.rs`, `src/cli/sync.rs`, `src/manifest.rs`.
 - Plan amended: none.
 - Next: Task 0 Step 1.
+- Blocker: none.
+
+### 2026-09-14 — Tasks 0 and 1 done
+- Commits: "feat(native): seal and check the post-operation witness".
+- Verified: Task 0 at `b9669f6`: `cargo test` 178 and 11; native `rollback_preflight` 23 failures (1–8, 11–16, 18–20, 22, 26–30), `rollback`, `backup`, `backup_retention` 0. Case 28 hung the native `sync` for 21 minutes and a `sync` from the earlier post-merge baseline had hung for almost 6 hours: that run, recorded on 2026-09-14 as killed for low memory, was this hang; both were ended with `kill -9`, since the blocked `open` never reaches the signal flag. Task 1: `cargo test` 183 and 11 passed; fmt and clippy exit 0.
+- Plan amended: Task 1b added for the FIFO; later counts are one higher.
+- Next: Task 1b Step 1.
 - Blocker: none.

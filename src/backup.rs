@@ -97,7 +97,7 @@ fn exists_or_link(path: &Path) -> bool {
 }
 
 /// `_backup_validate_rel`.
-fn validate_rel(rel: &str, allow_store_parent: bool) -> Result<(), Error> {
+pub(crate) fn validate_rel(rel: &str, allow_store_parent: bool) -> Result<(), Error> {
     if rel.is_empty() || rel == "." || rel.starts_with('/') {
         let shown = if rel.is_empty() { "<empty>" } else { rel };
         return Err(refuse(format!("Refusing unsafe backup target: {shown}")));
@@ -126,7 +126,7 @@ fn validate_rel(rel: &str, allow_store_parent: bool) -> Result<(), Error> {
 
 /// `_backup_safe_target_path_r`: `<canonical_root>/<rel>`, once its nearest
 /// existing ancestor is a directory inside the root.
-fn safe_target_path(
+pub(crate) fn safe_target_path(
     canonical_root: &str,
     rel: &str,
     allow_store_parent: bool,
@@ -248,7 +248,7 @@ fn write_store_file(store: &str, name: &str, bytes: &[u8]) -> Result<(), Error> 
 }
 
 /// `mktemp [-d] "<dir>/<prefix>XXXXXX"`: created exclusively, mode `0600` or `0700`.
-fn create_unique(dir: &str, prefix: &str, directory: bool) -> Result<PathBuf, Error> {
+pub(crate) fn create_unique(dir: &str, prefix: &str, directory: bool) -> Result<PathBuf, Error> {
     let pid = std::process::id();
     let mut attempt = 0u64;
     loop {
@@ -472,7 +472,9 @@ pub fn snapshot_path(supplied_root: &str, requested: &str) -> Result<String, Err
     if path.is_symlink()
         || !path.is_dir()
         || !path.join(".complete").is_file()
+        || path.join(".complete").is_symlink()
         || !path.join("targets.tsv").is_file()
+        || path.join("targets.tsv").is_symlink()
     {
         return Err(refuse(format!(
             "Backup snapshot is missing or incomplete: {id}"
@@ -625,6 +627,20 @@ pub fn latest(supplied_root: &str) -> Result<Option<String>, Error> {
         }
     }
     Ok(complete_snapshots(&store).pop())
+}
+
+/// `_rollback_discard_safety`: remove a safety snapshot no restore will use and
+/// put `.latest` back.
+pub fn discard_safety(store: &str, safety: &str, previous_latest: &str) -> std::io::Result<()> {
+    remove_all(Path::new(safety))?;
+    if previous_latest.is_empty() {
+        return match std::fs::remove_file(format!("{store}/.latest")) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e),
+            _ => Ok(()),
+        };
+    }
+    write_store_file(store, ".latest", format!("{previous_latest}\n").as_bytes())
+        .map_err(|e| std::io::Error::other(e.to_string()))
 }
 
 /// `backup_list`: `(id, operation, created_at)` per complete snapshot.
@@ -1210,6 +1226,31 @@ mod tests {
                 .unwrap_err()
                 .to_string(),
             "Backup limit must be a non-negative integer: x"
+        );
+    }
+
+    #[test]
+    fn a_symlinked_completion_marker_is_not_a_complete_snapshot() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = std::fs::canonicalize(dir.path())
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        std::fs::write(format!("{root}/CLAUDE.md"), "x\n").unwrap();
+        let snapshot = create(
+            &root,
+            "sync",
+            &[format!("{root}/CLAUDE.md")],
+            Retention::Bounded,
+        )
+        .unwrap();
+        std::fs::rename(format!("{snapshot}/.complete"), format!("{root}/marker")).unwrap();
+        std::os::unix::fs::symlink(format!("{root}/marker"), format!("{snapshot}/.complete"))
+            .unwrap();
+        let id = paths::leaf(&snapshot);
+        assert_eq!(
+            snapshot_path(&root, &id).unwrap_err().to_string(),
+            format!("Backup snapshot is missing or incomplete: {id}")
         );
     }
 }

@@ -349,7 +349,7 @@ git commit -m "fix(sync): sort the .gitignore block by bytes in every locale"
 - Consumes: Phase 2's `Workspace`, `Paths`, `Log`.
 - Produces: `Workspace::on_disk(root: &str) -> Workspace` — paths below `root` read and write the disk, `/<agentsync>` and `/<agentsync-overlay>` stay in memory; `Workspace::create_dir_all(&mut self, &str) -> Result<(), Error>` and `Workspace::remove(&mut self, &str) -> Result<(), Error>` (both were infallible); `Workspace::copy` of a disk file onto the disk goes through `std::fs::copy`, so modes travel as `cp` carries them. `Paths::on_disk(root: &str) -> Paths` canonicalises below-root paths through the disk, where `Paths::for_disk_root` stays lexical for `check`. `log::Sink = Box<dyn FnMut(Stream, &str)>`; `Log::streaming(colors: bool, sink: Sink) -> Log` hands every line to the sink instead of keeping it; `Log::done(&mut self, &str)` is `log_done`; with `colors` the tagged lines carry `logging.sh`'s escape codes and emoji. `overlay::cleanup_profile(&mut Workspace) -> Result<(), Error>` and `overlay::merge_shared_parent(…) -> Result<(), Error>`.
 
-- [ ] **Step 1: Replace `src/workspace.rs`**
+- [x] **Step 1: Replace `src/workspace.rs`**
 
 ```rust
 //! The file tree a render reads and writes.
@@ -820,7 +820,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Replace `src/log.rs`**
+- [x] **Step 2: Replace `src/log.rs`**
 
 ```rust
 //! The engine's log voice, mirroring `lib/helpers/logging.sh`. `check` captures
@@ -1011,7 +1011,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 3: Resolve below-root paths through the disk in `src/paths.rs`**
+- [x] **Step 3: Resolve below-root paths through the disk in `src/paths.rs`**
 
 Replace the `Paths` struct, `Paths::new`, and `Paths::for_disk_root`:
 
@@ -1164,7 +1164,7 @@ Add this test in the `tests` module, before `fn the_logical_root_prefers_pwd_whe
 
 ```
 
-- [ ] **Step 4: Propagate the fallible `remove` and `create_dir_all`**
+- [x] **Step 4: Propagate the fallible `remove` and `create_dir_all`**
 
 In `src/overlay.rs`, `build_tree` gains `?` on its three calls:
 
@@ -1300,7 +1300,7 @@ In `src/render.rs`, the two sites map the error to the run's stop:
             s.ws.remove(dest).map_err(|e| io(s, e))?;
 ```
 
-- [ ] **Step 5: Run the gates, confirm green**
+- [x] **Step 5: Run the gates, confirm green**
 
 ```bash
 cargo test 2>&1 | grep 'test result'
@@ -1310,7 +1310,7 @@ cargo clippy --all-targets -- -D warnings
 
 Expected: `115 passed` (unit) and `7 passed` (integration); fmt and clippy exit 0. The three new tests are `a_workspace_on_disk_writes_the_project_and_keeps_the_engine_in_memory` (a `0755` script keeps its mode through `copy`), `a_streaming_log_hands_coloured_lines_to_its_sink_in_order`, and `a_symlinked_directory_below_the_root_cannot_carry_a_dest_outside`.
 
-- [ ] **Step 6: Confirm the coloured prefixes against `logging.sh`**
+- [x] **Step 6: Confirm the coloured prefixes against `logging.sh`**
 
 ```bash
 script -q /dev/null bash -c 'source lib/helpers/logging.sh; log_info a; log_warning b; log_done c' | od -c | head -8
@@ -1318,7 +1318,7 @@ script -q /dev/null bash -c 'source lib/helpers/logging.sh; log_info a; log_warn
 
 Expected: `033 [ 0 ; 3 4 m` before `🔵 [INFO]`, `033 [ 0 ; 3 3 m` before `⚠️  [WARNING]` (two spaces), `033 [ 0 ; 3 2 m` before `✅ [DONE]`, each tag closed by `033 [ 0 m` and followed by a space — the bytes the streaming log test asserts. This is the macOS form of `script`; on Linux run `script -qc '<command>' /dev/null`. `script` needs a pseudo-terminal; a sandbox that denies `openpty` must run this step outside it.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/workspace.rs src/log.rs src/paths.rs src/overlay.rs src/file_ops.rs src/rules.rs src/render.rs src/cli/check.rs docs/plans/2026-09-14-rust-migration-phase-3-native-sync.md

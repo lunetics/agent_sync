@@ -9,7 +9,7 @@ pub fn cleanup_path(s: &mut Session, target: &str) -> bool {
     if !s.ws.exists(target) {
         return false;
     }
-    s.ws.remove(target);
+    let _ = s.ws.remove(target);
     let shown = s.display(target);
     s.log.step(&format!("Removed: {shown}"));
     true
@@ -23,11 +23,11 @@ pub fn copy_file(s: &mut Session, src: &str, dest: &str) -> Result<(), Error> {
     }
     let src_disp = s.display(src);
     let dest_disp = s.display(dest);
-    s.ws.create_dir_all(&paths::parent(dest));
+    s.ws.create_dir_all(&paths::parent(dest))?;
     if s.ws.is_dir(dest) {
         s.ws.copy(src, &format!("{dest}/{}", paths::leaf(src)))?;
     } else {
-        s.ws.remove(dest);
+        s.ws.remove(dest)?;
         s.ws.copy(src, dest)?;
     }
     s.record_write(dest);
@@ -50,7 +50,7 @@ pub fn sync_dir(
     }
     let src_disp = s.display(src);
     let dest_disp = s.display(dest);
-    s.ws.create_dir_all(dest);
+    s.ws.create_dir_all(dest)?;
 
     let mut source_items: Vec<String> = Vec::new();
     for name in s.ws.glob(src) {
@@ -58,7 +58,7 @@ pub fn sync_dir(
             continue;
         }
         let target = format!("{dest}/{name}");
-        s.ws.remove(&target);
+        s.ws.remove(&target)?;
         s.ws.copy(&format!("{src}/{name}"), &target)?;
         if s.ws.is_dir(&target) {
             s.record_tree(&target);
@@ -77,7 +77,7 @@ pub fn sync_dir(
         if s.was_touched(&item) {
             continue;
         }
-        s.ws.remove(&item);
+        s.ws.remove(&item)?;
         s.log.step(&format!("Removed: {dest_disp}/{name}"));
         cleaned += 1;
     }

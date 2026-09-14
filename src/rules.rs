@@ -220,8 +220,8 @@ pub fn merge_rules_to_file(
         .filter(|name| filters::matches(name, include, exclude))
         .collect();
 
-    s.ws.create_dir_all(&paths::parent(dest_file));
-    s.ws.remove(dest_file);
+    s.ws.create_dir_all(&paths::parent(dest_file))?;
+    s.ws.remove(dest_file)?;
     if let Some(agents) = agents_file.filter(|a| s.ws.is_file(a)) {
         let mut preamble = read(s, agents)?;
         preamble.extend_from_slice(b"\n---\n\n");
@@ -266,7 +266,7 @@ pub fn sync_rules(
     }
     let src_disp = s.display(src_dir);
     let dest_disp = s.display(dest_dir);
-    s.ws.create_dir_all(dest_dir);
+    s.ws.create_dir_all(dest_dir)?;
 
     let mut valid: Vec<String> = Vec::new();
     for name in md_files(s, src_dir) {
@@ -304,7 +304,7 @@ pub fn sync_rules(
         if s.was_touched(&path) {
             continue;
         }
-        s.ws.remove(&path);
+        s.ws.remove(&path)?;
         s.log.step(&format!("Removed: {dest_disp}/{name}"));
         cleaned += 1;
     }
@@ -375,7 +375,7 @@ pub fn sync_commands_as_skills(
     }
     let src_disp = s.display(src_dir);
     let dest_disp = s.display(dest_dir);
-    s.ws.create_dir_all(dest_dir);
+    s.ws.create_dir_all(dest_dir)?;
 
     let mut valid: Vec<String> = Vec::new();
     for name in md_files(s, src_dir) {
@@ -387,24 +387,24 @@ pub fn sync_commands_as_skills(
         valid.push(format!("command-{stem}"));
         let source = read(s, &format!("{src_dir}/{name}"))?;
 
-        s.ws.create_dir_all(&skill_dir);
+        s.ws.create_dir_all(&skill_dir)?;
         let skill_file = format!("{skill_dir}/SKILL.md");
         s.ws.write(&skill_file, convert::command_to_skill(&stem, &source))?;
         s.record_write(&skill_file);
 
         let policy = format!("{skill_dir}/agents/openai.yaml");
         if convert::read_field(&source, "disable-model-invocation") == b"true" {
-            s.ws.create_dir_all(&format!("{skill_dir}/agents"));
+            s.ws.create_dir_all(&format!("{skill_dir}/agents"))?;
             s.ws.write(
                 &policy,
                 b"policy:\n  allow_implicit_invocation: false\n".to_vec(),
             )?;
             s.record_write(&policy);
         } else if s.ws.is_file(&policy) {
-            s.ws.remove(&policy);
+            s.ws.remove(&policy)?;
             let agents_dir = format!("{skill_dir}/agents");
             if s.ws.list(&agents_dir).is_empty() {
-                s.ws.remove(&agents_dir);
+                s.ws.remove(&agents_dir)?;
             }
         }
     }
@@ -414,7 +414,7 @@ pub fn sync_commands_as_skills(
             continue;
         }
         if !valid.contains(&name) {
-            s.ws.remove(&format!("{dest_dir}/{name}"));
+            s.ws.remove(&format!("{dest_dir}/{name}"))?;
             s.log
                 .step(&format!("Removed obsolete generated skill: {name}"));
         }
@@ -480,7 +480,7 @@ pub fn sync_converted(
         let dest_name = format!("{stem}{ext}");
         let dest_file = format!("{dest_dir}/{dest_name}");
         let source = read(s, &format!("{src_dir}/{name}"))?;
-        s.ws.create_dir_all(dest_dir);
+        s.ws.create_dir_all(dest_dir)?;
         s.ws.write(&dest_file, conversion.render(&stem, &source))?;
         s.record_write(&dest_file);
         valid.push(dest_name);
@@ -496,7 +496,7 @@ pub fn sync_converted(
             if s.was_touched(&path) {
                 continue;
             }
-            s.ws.remove(&path);
+            s.ws.remove(&path)?;
             s.log.step(&format!("Removed: {dest_disp}/{name}"));
         }
     }

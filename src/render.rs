@@ -128,7 +128,7 @@ pub fn render(s: &mut Session, env: &Env) -> Step {
                 s.log.out(String::new());
             }
         }
-        overlay::cleanup_profile(&mut s.ws);
+        overlay::cleanup_profile(&mut s.ws).map_err(|e| io(s, e))?;
     }
     Ok(())
 }
@@ -865,8 +865,9 @@ fn compose_opencode(s: &mut Session, settings: &str, mcp: &str, dest: &str) -> S
             Err(Stop(failure.code))
         }
         Ok(composed) => {
-            s.ws.create_dir_all(&paths::parent(dest));
-            s.ws.remove(dest);
+            s.ws.create_dir_all(&paths::parent(dest))
+                .map_err(|e| io(s, e))?;
+            s.ws.remove(dest).map_err(|e| io(s, e))?;
             s.ws.write(dest, composed.into_bytes())
                 .map_err(|e| io(s, e))?;
             s.record_write(dest);

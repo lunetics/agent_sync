@@ -1,12 +1,14 @@
-//! The file tree a render reads and writes, held in memory.
+//! The file tree a render reads and writes.
 //!
 //! `lib/check.sh` copied `.ai/` and the manifest's outputs into a temporary
-//! root with `tar` and ran `sync.sh` there. The workspace is that copy without
-//! the copy: paths below the project root and below the virtual engine and
-//! overlay roots are served from an index of disk paths, embedded templates,
-//! and bytes written by the render. Any other absolute path reads the disk.
+//! root with `tar` and ran `sync.sh` there. The in-memory workspace is that copy
+//! without the copy: paths below the project root and below the virtual engine
+//! and overlay roots are served from an index of disk paths, embedded templates,
+//! and bytes written by the render. A workspace on disk reads and writes the
+//! project itself, as `sync.sh` does, and keeps only the virtual roots in memory.
 
 use std::collections::BTreeMap;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use crate::paths::{self, ENGINE_ROOT};
@@ -28,20 +30,31 @@ enum Entry {
 #[derive(Debug)]
 pub struct Workspace {
     root: String,
+    on_disk: bool,
     entries: BTreeMap<String, Entry>,
 }
 
 impl Workspace {
-    /// An empty tree rooted at `root`, with the embedded engine mounted.
+    /// An empty in-memory tree rooted at `root`, with the embedded engine mounted.
     pub fn new(root: &str) -> Self {
         let mut ws = Self {
             root: root.to_string(),
+            on_disk: false,
             entries: BTreeMap::new(),
         };
-        ws.create_dir_all(root);
+        ws.mkdir_entries(root);
         for (rel, bytes) in catalog::engine_files() {
             ws.insert_file(&format!("{ENGINE_ROOT}/{rel}"), Content::Embedded(bytes));
         }
+        ws
+    }
+
+    /// The project at `root` read and written on disk; the embedded engine and
+    /// the overlay trees stay in memory.
+    pub fn on_disk(root: &str) -> Self {
+        let mut ws = Self::new(root);
+        ws.entries.retain(|path, _| paths::is_virtual(path));
+        ws.on_disk = true;
         ws
     }
 
@@ -50,7 +63,11 @@ impl Workspace {
     }
 
     fn indexed(&self, path: &str) -> bool {
-        paths::is_within(path, &self.root) || paths::is_virtual(path)
+        paths::is_virtual(path) || (!self.on_disk && paths::is_within(path, &self.root))
+    }
+
+    fn writes_disk(&self, path: &str) -> bool {
+        self.on_disk && !paths::is_virtual(path)
     }
 
     /// Adds the disk tree at `disk` under `at`, skipping every path for which
@@ -66,7 +83,7 @@ impl Workspace {
             self.insert_file(at, Content::Disk(disk.to_path_buf()));
             return Ok(());
         }
-        self.create_dir_all(at);
+        self.mkdir_entries(at);
         self.seed_dir(at, disk, "", skip)
     }
 
@@ -105,13 +122,13 @@ impl Workspace {
         Ok(())
     }
 
+    /// Adds a file to the in-memory index, creating its parents.
     pub fn insert_file(&mut self, path: &str, content: Content) {
-        self.create_dir_all(&paths::parent(path));
+        self.mkdir_entries(&paths::parent(path));
         self.entries.insert(path.to_string(), Entry::File(content));
     }
 
-    /// `mkdir -p`.
-    pub fn create_dir_all(&mut self, path: &str) {
+    fn mkdir_entries(&mut self, path: &str) {
         let mut current = path.to_string();
         while !matches!(self.entries.get(&current), Some(Entry::Dir)) {
             self.entries.insert(current.clone(), Entry::Dir);
@@ -121,6 +138,15 @@ impl Workspace {
             }
             current = up;
         }
+    }
+
+    /// `mkdir -p`.
+    pub fn create_dir_all(&mut self, path: &str) -> Result<(), Error> {
+        if self.writes_disk(path) {
+            return std::fs::create_dir_all(path).map_err(|e| Error::io(path, e));
+        }
+        self.mkdir_entries(path);
+        Ok(())
     }
 
     pub fn is_file(&self, path: &str) -> bool {
@@ -216,6 +242,9 @@ impl Workspace {
 
     /// `>`: the parent directory must exist.
     pub fn write(&mut self, path: &str, bytes: Vec<u8>) -> Result<(), Error> {
+        if self.writes_disk(path) {
+            return std::fs::write(path, bytes).map_err(|e| Error::io(path, e));
+        }
         if !self.is_dir(&paths::parent(path)) || self.is_dir(path) {
             return Err(not_found(path));
         }
@@ -226,6 +255,14 @@ impl Workspace {
 
     /// `>>`: creates the file when missing, the parent directory must exist.
     pub fn append(&mut self, path: &str, bytes: &[u8]) -> Result<(), Error> {
+        if self.writes_disk(path) {
+            return std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+                .and_then(|mut file| file.write_all(bytes))
+                .map_err(|e| Error::io(path, e));
+        }
         let mut current = if self.is_file(path) {
             self.read(path)?
         } else {
@@ -236,7 +273,16 @@ impl Workspace {
     }
 
     /// `rm -rf`.
-    pub fn remove(&mut self, path: &str) {
+    pub fn remove(&mut self, path: &str) -> Result<(), Error> {
+        if self.writes_disk(path) {
+            let removed = match std::fs::symlink_metadata(path) {
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                Err(e) => Err(e),
+                Ok(meta) if meta.is_dir() => std::fs::remove_dir_all(path),
+                Ok(_) => std::fs::remove_file(path),
+            };
+            return removed.map_err(|e| Error::io(path, e));
+        }
         let prefix = format!("{path}/");
         let doomed: Vec<String> = self
             .entries
@@ -248,6 +294,7 @@ impl Workspace {
             self.entries.remove(&key);
         }
         self.entries.remove(path);
+        Ok(())
     }
 
     /// `cp -r src dst` onto a missing `dst`: a file, or a whole tree with its
@@ -255,6 +302,14 @@ impl Workspace {
     pub fn copy(&mut self, src: &str, dst: &str) -> Result<(), Error> {
         if self.is_file(src) {
             let content = self.content_of(src)?;
+            if self.writes_disk(dst) {
+                return match content {
+                    Content::Disk(disk) => std::fs::copy(&disk, dst).map(|_| ()),
+                    Content::Embedded(bytes) => std::fs::write(dst, bytes),
+                    Content::Bytes(bytes) => std::fs::write(dst, bytes),
+                }
+                .map_err(|e| Error::io(dst, e));
+            }
             if !self.is_dir(&paths::parent(dst)) {
                 return Err(not_found(dst));
             }
@@ -264,7 +319,7 @@ impl Workspace {
         if !self.is_dir(src) {
             return Err(not_found(src));
         }
-        self.create_dir_all(dst);
+        self.create_dir_all(dst)?;
         for name in self.list(src) {
             self.copy(&format!("{src}/{name}"), &format!("{dst}/{name}"))?;
         }
@@ -297,7 +352,7 @@ mod tests {
             Content::Bytes(b"# Core\n".to_vec()),
         );
         ws.insert_file("/proj/.ai/src/rules/.hidden.md", Content::Bytes(Vec::new()));
-        ws.create_dir_all("/proj/.ai/src/skills/empty");
+        ws.create_dir_all("/proj/.ai/src/skills/empty").unwrap();
         ws
     }
 
@@ -321,7 +376,7 @@ mod tests {
     fn write_needs_a_parent_and_append_creates_the_file() {
         let mut ws = ws();
         assert!(ws.write("/proj/missing/x.md", b"x".to_vec()).is_err());
-        ws.create_dir_all("/proj/out");
+        ws.create_dir_all("/proj/out").unwrap();
         ws.append("/proj/out/a.md", b"one\n").unwrap();
         ws.append("/proj/out/a.md", b"two\n").unwrap();
         assert_eq!(ws.read("/proj/out/a.md").unwrap(), b"one\ntwo\n");
@@ -334,7 +389,7 @@ mod tests {
         assert!(ws.is_dir("/proj/copy/skills/empty"));
         assert!(ws.is_file("/proj/copy/rules/core.md"));
         assert_eq!(ws.files_under("/proj/copy").len(), 2);
-        ws.remove("/proj/copy/rules");
+        ws.remove("/proj/copy/rules").unwrap();
         assert!(!ws.exists("/proj/copy/rules/core.md"));
         assert!(ws.is_dir("/proj/copy/skills"));
     }
@@ -359,5 +414,53 @@ mod tests {
             .unwrap();
         assert_eq!(ws.read("/proj/.ai/src/rules/core.md").unwrap(), b"c");
         assert!(!ws.exists("/proj/.ai/backups"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_workspace_on_disk_writes_the_project_and_keeps_the_engine_in_memory() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().to_string_lossy().into_owned();
+        std::fs::create_dir_all(dir.path().join(".ai/src/skills/a/scripts")).unwrap();
+        let script = dir.path().join(".ai/src/skills/a/scripts/run.sh");
+        std::fs::write(&script, "#!/bin/sh\n").unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        let mut ws = Workspace::on_disk(&root);
+        assert!(ws.is_file("/<agentsync>/lib/config.yaml"));
+        assert!(!ws.exists(&format!("{root}/CLAUDE.md")));
+
+        ws.copy(
+            "/<agentsync>/lib/templates/settings/claude.json",
+            &format!("{root}/settings.json"),
+        )
+        .unwrap();
+        assert!(dir.path().join("settings.json").is_file());
+
+        ws.copy(
+            &format!("{root}/.ai/src/skills/a"),
+            &format!("{root}/.claude/skills/a"),
+        )
+        .unwrap();
+        let copied = dir.path().join(".claude/skills/a/scripts/run.sh");
+        assert_eq!(
+            std::fs::metadata(&copied).unwrap().permissions().mode() & 0o777,
+            0o755
+        );
+
+        ws.append(&format!("{root}/.claude/skills/a/x.md"), b"1\n")
+            .unwrap();
+        ws.append(&format!("{root}/.claude/skills/a/x.md"), b"2\n")
+            .unwrap();
+        assert_eq!(
+            ws.read(&format!("{root}/.claude/skills/a/x.md")).unwrap(),
+            b"1\n2\n"
+        );
+
+        ws.remove(&format!("{root}/.claude")).unwrap();
+        ws.remove(&format!("{root}/.claude")).unwrap();
+        assert!(!dir.path().join(".claude").exists());
+        assert!(ws.write(&format!("{root}/missing/x"), Vec::new()).is_err());
     }
 }

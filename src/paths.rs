@@ -106,6 +106,7 @@ pub struct Paths {
     pub root: String,
     pub root_canonical: String,
     home: Option<String>,
+    lexical_below_root: bool,
 }
 
 impl Paths {
@@ -114,6 +115,7 @@ impl Paths {
             root: root.to_string(),
             root_canonical: root_canonical.to_string(),
             home: home.filter(|h| !h.is_empty()).map(str::to_string),
+            lexical_below_root: true,
         }
     }
 
@@ -125,6 +127,16 @@ impl Paths {
         Self::new(root, &canonical, std::env::var("HOME").ok().as_deref())
     }
 
+    /// Paths for a project a render writes in place: below the root, too, a
+    /// path is canonicalised through its nearest existing ancestor on disk, so
+    /// a symlinked directory cannot carry a destination out of the project.
+    pub fn on_disk(root: &str) -> Self {
+        Self {
+            lexical_below_root: false,
+            ..Self::for_disk_root(root)
+        }
+    }
+
     /// `normalize_absolute_path_r`: relative paths are taken from the root.
     pub fn absolute(&self, path: &str) -> String {
         if path.starts_with('/') {
@@ -134,15 +146,16 @@ impl Paths {
         }
     }
 
-    /// `canonicalize_with_existing_ancestor_r`. Below the root the result is
-    /// lexical: `check` renders into a workspace that, like the tar copy Bash
-    /// rendered into, has no symlinks under the root. Virtual roots are their
-    /// own canonical form; anything else resolves through the disk.
+    /// `canonicalize_with_existing_ancestor_r`. Below the root of an in-memory
+    /// render the result is lexical: `check` renders into a workspace that, like
+    /// the tar copy Bash rendered into, has no symlinks under the root. Virtual
+    /// roots are their own canonical form; anything else resolves through the disk.
     pub fn canonicalize_with_existing_ancestor(&self, abs: &str) -> Option<String> {
         if is_virtual(abs) {
             return Some(abs.to_string());
         }
         if let Some(rest) = abs.strip_prefix(&self.root)
+            && self.lexical_below_root
             && (rest.is_empty() || rest.starts_with('/'))
         {
             return Some(format!("{}{rest}", self.root_canonical));
@@ -334,6 +347,51 @@ mod tests {
             None
         );
         assert!(log.tail(1)[0].contains("resolves outside repository root: ../outside/x -> "));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_symlinked_directory_below_the_root_cannot_carry_a_dest_outside() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("proj");
+        std::fs::create_dir_all(dir.path().join("outside")).unwrap();
+        std::fs::create_dir(&root).unwrap();
+        std::os::unix::fs::symlink(dir.path().join("outside"), root.join(".claude")).unwrap();
+        let root = root.to_string_lossy().into_owned();
+        let mut log = Log::default();
+
+        let lexical = Paths::for_disk_root(&root);
+        assert!(
+            lexical
+                .resolve_dest(
+                    ".claude/rules",
+                    "targets.rules.dest for Claude Code",
+                    &mut log
+                )
+                .is_some()
+        );
+
+        let on_disk = Paths::on_disk(&root);
+        assert_eq!(
+            on_disk.resolve_dest(
+                ".claude/rules",
+                "targets.rules.dest for Claude Code",
+                &mut log
+            ),
+            None
+        );
+        let outside = std::fs::canonicalize(dir.path().join("outside")).unwrap();
+        assert_eq!(
+            log.tail(1),
+            [format!(
+                "[ERROR] targets.rules.dest for Claude Code resolves outside repository root: .claude/rules -> {}/rules",
+                outside.to_string_lossy()
+            )]
+        );
+        assert_eq!(
+            on_disk.resolve_dest("CLAUDE.md", "targets.agents.dest for Claude Code", &mut log),
+            Some(format!("{root}/CLAUDE.md"))
+        );
     }
 
     #[cfg(unix)]

@@ -212,7 +212,7 @@ fn merge_shared_parent(ws: &mut Workspace, root: &str) -> Result<(), Error> {
     };
     if let Some(parent) = overlay::shared_parent_src(&config, root) {
         let inherit = yaml_subset::value(&config, "shared.inherit");
-        overlay::merge_shared_parent(ws, &parent, &overlay::inherit_categories(&inherit));
+        overlay::merge_shared_parent(ws, &parent, &overlay::inherit_categories(&inherit))?;
     }
     Ok(())
 }

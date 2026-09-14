@@ -32,9 +32,9 @@ pub fn build_tree(
     categories: &[&str],
 ) -> Result<String, Error> {
     let dir = format!("{OVERLAY_ROOT}/{name}");
-    ws.remove(&dir);
+    ws.remove(&dir)?;
     let src = format!("{dir}/src");
-    ws.create_dir_all(&src);
+    ws.create_dir_all(&src)?;
 
     if ws.is_dir(child_src) {
         let agents = format!("{child_src}/AGENTS.md");
@@ -60,7 +60,7 @@ pub fn build_tree(
             if ws.exists(&target) {
                 continue;
             }
-            ws.create_dir_all(&paths::parent(&target));
+            ws.create_dir_all(&paths::parent(&target))?;
             ws.copy(&file, &target)?;
         }
     }
@@ -134,8 +134,8 @@ pub fn setup_profile(
     Ok(true)
 }
 
-pub fn cleanup_profile(ws: &mut Workspace) {
-    ws.remove(&format!("{OVERLAY_ROOT}/profile"));
+pub fn cleanup_profile(ws: &mut Workspace) -> Result<(), Error> {
+    ws.remove(&format!("{OVERLAY_ROOT}/profile"))
 }
 
 /// `shared_parent_src`: the parent's `.ai/src/`, resolved on disk from the root.
@@ -180,9 +180,13 @@ pub fn inherit_categories(raw: &str) -> Vec<&'static str> {
 /// The `shared:` block of `lib/check.sh`: parent files of the inherited
 /// categories are merged into the workspace's `.ai/src/` where the project
 /// has no file at that path, read from disk as `find -type f` lists them.
-pub fn merge_shared_parent(ws: &mut Workspace, parent_src: &str, categories: &[&str]) {
+pub fn merge_shared_parent(
+    ws: &mut Workspace,
+    parent_src: &str,
+    categories: &[&str],
+) -> Result<(), Error> {
     let child_src = format!("{}/.ai/src", ws.root());
-    ws.create_dir_all(&child_src);
+    ws.create_dir_all(&child_src)?;
     for category in categories {
         let parent_dir = PathBuf::from(format!("{parent_src}/{category}"));
         if !parent_dir.is_dir() {
@@ -197,6 +201,7 @@ pub fn merge_shared_parent(ws: &mut Workspace, parent_src: &str, categories: &[&
             }
         }
     }
+    Ok(())
 }
 
 fn collect_regular_files(dir: &Path, rel: &str, out: &mut Vec<(String, PathBuf)>) {
@@ -308,7 +313,7 @@ mod tests {
         assert_eq!(shared_parent_src("shared:\n  path: \".\"\n", &root), None);
 
         let mut ws = Workspace::new(&root);
-        merge_shared_parent(&mut ws, &parent, &["rules"]);
+        merge_shared_parent(&mut ws, &parent, &["rules"]).unwrap();
         assert_eq!(
             ws.read(&format!("{root}/.ai/src/rules/p.md")).unwrap(),
             b"p"

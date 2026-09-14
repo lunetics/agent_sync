@@ -44,28 +44,15 @@ tool_resolver_init_user_dir() {
     fi
 }
 
-# Select the project configuration for every read-only consumer. An explicit
-# AGENTSYNC_CONFIG_PATH wins, including when the file lives outside the project;
-# a missing explicit file is reported and then the normal fallback is used.
+# Set PROJECT_CONFIG_PATH for a CLI command through project_config_path_r.
+# Exits <status> (default 1) when AGENTSYNC_CONFIG_PATH names a missing file.
 tool_resolver_select_project_config() {
-    PROJECT_CONFIG_PATH=""
-    local configured="${AGENTSYNC_CONFIG_PATH:-}"
-    if [[ -n "$configured" ]]; then
-        [[ "$configured" == /* ]] || configured="$REPO_ROOT/$configured"
-        if [[ -f "$configured" ]]; then
-            PROJECT_CONFIG_PATH="$configured"
-            export PROJECT_CONFIG_PATH
-            return 0
-        fi
-        echo "⚠  AGENTSYNC_CONFIG_PATH is set but file not found: $configured" >&2
+    local status="${1:-1}"
+    if ! project_config_path_r "$REPO_ROOT"; then
+        echo "$(_red "Error"): AGENTSYNC_CONFIG_PATH is set but file not found: $REPLY" >&2
+        exit "$status"
     fi
-
-    if [[ -f "$REPO_ROOT/.ai/agent_sync.yaml" ]]; then
-        PROJECT_CONFIG_PATH="$REPO_ROOT/.ai/agent_sync.yaml"
-    elif [[ -f "$REPO_ROOT/agent_sync.yaml" ]]; then
-        PROJECT_CONFIG_PATH="$REPO_ROOT/agent_sync.yaml"
-    fi
-    export PROJECT_CONFIG_PATH
+    PROJECT_CONFIG_PATH="$REPLY"
 }
 
 # Path to base tool catalog (install-dir).

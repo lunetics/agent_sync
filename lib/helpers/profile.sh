@@ -24,7 +24,7 @@ _profile_prepare_context() {
     }
     DEFAULT_REPO_ROOT="$(cd "$system_dir/.." && pwd)"
 
-    tool_resolver_select_project_config
+    tool_resolver_select_project_config 2
     tool_resolver_init_user_dir
 
     export REPO_ROOT REPO_ROOT_CANONICAL DEFAULT_REPO_ROOT PROJECT_CONFIG_PATH

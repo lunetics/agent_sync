@@ -91,3 +91,20 @@ run_agentsync_env() {
     [ "$status" -ne 0 ]
     [[ "$output" == *"AGENTSYNC_CONFIG_PATH is set but file not found"* ]]
 }
+
+@test "read-only commands reject an invalid explicit config path instead of using the local config" {
+    run_agentsync init --tools claude --yes --no-sync >/dev/null 2>&1
+    local missing_config="$TEST_PROJECT/missing-agent-sync.yaml"
+
+    run run_agentsync_env AGENTSYNC_CONFIG_PATH "$missing_config" list
+    [ "$status" -eq 1 ]
+    printf '%s' "$output" | grep -qF -- "AGENTSYNC_CONFIG_PATH is set but file not found: $missing_config"
+
+    run run_agentsync_env AGENTSYNC_CONFIG_PATH "$missing_config" show claude
+    [ "$status" -eq 1 ]
+    printf '%s' "$output" | grep -qF -- "AGENTSYNC_CONFIG_PATH is set but file not found: $missing_config"
+
+    run run_agentsync_env AGENTSYNC_CONFIG_PATH "$missing_config" doctor
+    [ "$status" -eq 2 ]
+    printf '%s' "$output" | grep -qF -- "AGENTSYNC_CONFIG_PATH is set but file not found: $missing_config"
+}

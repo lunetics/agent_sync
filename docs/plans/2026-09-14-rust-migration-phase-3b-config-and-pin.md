@@ -26,6 +26,8 @@
 
 Implementation waits for these. Each has a recommendation, and the tasks are written against it.
 
+Taken on 2026-09-14: all four as recommended. No dependency is added.
+
 1. **Phase 3b as four plans.** The spec section lists four families (config and pin, retention, outside sources, rollback witness) with disjoint modules. One plan for all four would be the size of Phase 3's (8 769 lines) and reviewable only as a whole. **Recommended:** one plan per family, in the spec's order, each closed with its own receipt; `native-next` treats Phase 3b as closed when all four are. Alternative: a single Phase 3b plan.
 2. **`src/version.rs` for the pin policy.** The module map already names `src/version.rs` as the home of `lib/helpers/version.sh`; `engine_version` stays in `src/lib.rs`, where every command reads it. **Recommended:** create `src/version.rs` with `Mode`, `mode`, `mismatch_error`, and `hint`, and let `render` and `cli::check` share it. Alternative: keep the two copies of the hint text in `render.rs` and `cli/check.rs`.
 3. **Quirk 13.** `version_pin: warn` followed later by a `version_pin:` mapping with `mode: strict` answers `warn` in Bash. **Recommended:** reproduce it (it follows from `yaml_subset` mirroring `yaml.sh`) and number it 13. Alternative: none that keeps `yaml_subset` a mirror.
@@ -60,7 +62,7 @@ Out of this family, as the spec orders: `backup.retention`, `source.*` outside t
 - Consumes: branch `feat/native-engine-phase-1` at `8677ed9` or later, with `main` (0.36.0) merged; `cargo` on `PATH` (or `~/.cargo/bin/cargo`).
 - Produces: recorded counts to measure the family against.
 
-- [ ] **Step 1: Confirm the branch and the toolchain**
+- [x] **Step 1: Confirm the branch and the toolchain**
 
 ```bash
 git branch --show-current
@@ -72,7 +74,7 @@ bats --version
 
 Expected: `feat/native-engine-phase-1`; an empty status apart from `?? target/`; `8677ed9 fix(check): let the isolated sync inherit shared sources itself` in the log; `cargo 1.85` or newer; `Bats 1.5` or newer.
 
-- [ ] **Step 2: Record the baseline**
+- [x] **Step 2: Record the baseline**
 
 Run the bats files one at a time: the full suite with `--jobs 6` exhausted memory on the development machine on 2026-09-14.
 
@@ -114,7 +116,7 @@ and `0` Bash failures. The six per-file native counts are the baseline Tasks 3 t
   - `pub fn select(root: &str, explicit: Option<&str>, is_file: &dyn Fn(&str) -> bool) -> Selection`
   - `pub fn missing_message(path: &str) -> String`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `src/project_config.rs` with the tests only:
 
@@ -193,12 +195,12 @@ mod tests {
 
 In `src/lib.rs`, add `pub mod project_config;` in alphabetical position among the `pub mod` lines.
 
-- [ ] **Step 2: Run the tests, confirm they fail**
+- [x] **Step 2: Run the tests, confirm they fail**
 
 Run: `cargo test project_config 2>&1 | tail -5`
 Expected: compile errors `cannot find type `Selection` in this scope` and `cannot find function `select``.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Insert above `#[cfg(test)]` in `src/project_config.rs`:
 
@@ -245,12 +247,12 @@ pub fn missing_message(path: &str) -> String {
 }
 ```
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 Run: `cargo test project_config 2>&1 | grep 'test result'`
 Expected: `test result: ok. 5 passed` on the unit line.
 
-- [ ] **Step 5: Lint and commit**
+- [x] **Step 5: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings

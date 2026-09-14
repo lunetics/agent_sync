@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.36.0
+
+Sources can live outside the project, rollback no longer discards what changed after the operation it undoes, and `agent_sync.yaml` gains a strict engine pin and a retention mode that never prunes recovery data. Every change in this release started as a pull request from [@lunetics](https://github.com/lunetics) (#9, #10, #11, #12, #13).
+
+### Added
+
+- **`source.*` in `agent_sync.yaml` may point outside the project.** A separately maintained tree of rules, skills, commands, subagents, and tool configs can feed several projects: set `source.rules: /home/me/agentic/.ai/rules`, or a `../` path. `source.tools` supplies both the tool YAML and its `settings`/`hooks`/`mcp` payloads, and `check` and `sync --if-stale` read the same roots. Only values written explicitly in the project config widen where sources are read from. Defaults, auto-detected layouts, and symlinks under `.ai/src/` keep the project boundary, and `/`, your home directory, and the project root or any directory containing it are refused. Commands that write tool config (`customize`, `profile`, `adopt`, `simplify --apply`, `enable --scaffold`) refuse a `source.tools` outside the project instead of editing it. (#9)
+- **`rollback` refuses to overwrite what changed after the operation.** Every init, sync, and rollback now records the state its targets were left in (`after.tsv` in the snapshot). Rollback compares the targets against that record first. A file added, edited, or removed since then, such as a `.claude/settings.json` created after a skills-only sync, stops the rollback before anything is written, naming the first changed path. `--force` restores anyway, still taking the safety snapshot. Snapshots made by earlier versions have no record; they restore as before, with a warning that later changes cannot be detected. (#13)
+- **`version_pin.mode: strict` makes a local-outputs pin mismatch fatal.** Committed outputs already stop `sync` and `check` when the running engine differs from `agentsync_version`; local outputs only warned. Nest `mode: strict` under `version_pin:` (or write the shorthand `version_pin: strict`) to stop there as well. `warn` is the default, and any other value stops `sync` and `check` before they write. (#10)
+- **`backup.retention: preserve` keeps every existing snapshot and staging entry.** Setting both `AGENTSYNC_BACKUP_LIMIT` and `AGENTSYNC_BACKUP_MAX_AGE_DAYS` to `0` still let the next backup sweep abandoned `.tmp.*` staging, which can hold the only copy of an interrupted run's state. Under `preserve`, init, sync, and rollback prune nothing that existed when they started; new snapshots are still created. `bounded`, the previous behaviour, stays the default. An invalid policy or bound now stops init, sync, and a rollback restore before they write, where it used to surface as a "Could not prune" warning afterwards; `check` and `rollback --list` skip the validation. (#12)
+
+### Fixed
+
+- **A mistyped `AGENTSYNC_CONFIG_PATH` no longer falls back to another config.** A path to a missing file printed a warning and went on with `.ai/agent_sync.yaml`, so a typo synced with a different policy than intended. `sync`, `check`, `init`, a rollback restore, and the commands that read the config (`list`, `show`, `doctor`, and the rest) now stop with `AGENTSYNC_CONFIG_PATH is set but file not found`. (#11)
+- **Deleting `agent_sync.yaml` no longer wipes every tool's outputs.** Without a config no tool was enabled, so the cleanup defaults removed every generated file and the manifest, and sync still exited 0. A write sync with no config and no enabled tool is now refused before anything changes, naming `agentsync enable <tool>`. A project that enables tools in their own `.ai/src/tools/<tool>.yaml` still syncs without a config. (#11)
+- **`check` honours a config outside `.ai/`.** Its isolated sync copies only `.ai/` and the managed outputs, so a relative `AGENTSYNC_CONFIG_PATH` such as `config/agentsync.yaml` was looked up again inside the copy. It fell back to `.ai/agent_sync.yaml` there, and `check` reported outputs as missing that `sync` had generated correctly. `check` now hands the resolved path to that sync.
+- **`agentsync update` renders the changelog for a terminal.** Entries reached the user as literal `**bold**` and backticks, and each paragraph ran off the window as one line. Inline markers are stripped and prose wraps to the terminal width.
+
+### Internal
+
+- One helper, `project_config_path_r`, locates the project config for `sync`, `check`, the backup policy, and the read-only commands; each reports a missing explicit path in its own voice.
+- The tool-override directory is resolved once per process, keeping the configuration lookup on sync's hot path free of subshells.
+
 ## 0.35.2
 
 No engine changes. 0.35.1 ships correct code, but its CI was red on the Windows and macOS runners; this release puts the tag on a commit that is green on all three platforms.

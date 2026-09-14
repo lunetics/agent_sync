@@ -742,7 +742,10 @@ _load_run_config() {
     backup_configure "$REPO_ROOT" || return 1
     [[ -n "$PROJECT_CONFIG_PATH" ]] || return 0
 
-    VERSION_PIN_MODE=$(version_pin_mode "$PROJECT_CONFIG_PATH") || exit 1
+    if ! VERSION_PIN_MODE=$(version_pin_mode "$PROJECT_CONFIG_PATH"); then
+        log_error "Unknown version_pin.mode '$VERSION_PIN_MODE' in ${PROJECT_CONFIG_PATH#"$REPO_ROOT/"} — expected 'warn' or 'strict'"
+        exit 1
+    fi
 
     local cfg_default_enabled cfg_default_cleanup cfg_skip_post_sync
     cfg_default_enabled=$(parse_yaml_value "$PROJECT_CONFIG_PATH" "defaults.enabled")

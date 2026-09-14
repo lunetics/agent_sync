@@ -50,7 +50,16 @@ set_version_pin_mode() {
     [[ "$output" == *"pins agentsync 0.1.0"* ]]
 }
 
-@test "version pin: local mode only warns and still syncs" {
+@test "version pin: local mode without version_pin only warns and still syncs" {
+    run_agentsync init --tools claude --yes --no-sync --outputs local >/dev/null 2>&1
+    pin_version 0.1.0
+    run run_agentsync sync
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"pins agentsync 0.1.0"* ]]
+    [ -f CLAUDE.md ]
+}
+
+@test "version pin: local mode set to warn only warns and still syncs" {
     run_agentsync init --tools claude --yes --no-sync --outputs local >/dev/null 2>&1
     pin_version 0.1.0
     set_version_pin_mode warn
@@ -58,6 +67,32 @@ set_version_pin_mode() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"pins agentsync 0.1.0"* ]]
     [ -f CLAUDE.md ]
+}
+
+@test "version pin: the scalar shorthand makes local mode strict" {
+    run_agentsync init --tools claude --yes --no-sync --outputs local >/dev/null 2>&1
+    pin_version 0.1.0
+    printf 'version_pin: strict\n' >> .ai/agent_sync.yaml
+    run run_agentsync sync
+    [ "$status" -eq 1 ]
+    printf '%s' "$output" | grep -qF "version_pin.mode 'strict'"
+    [ ! -f CLAUDE.md ]
+}
+
+@test "version pin: check treats gitignore.update false as committed, like sync" {
+    run_agentsync init --tools claude --yes --no-sync >/dev/null 2>&1
+    grep -v '^outputs:' .ai/agent_sync.yaml | sed 's/^  update: true$/  update: false/' > .ai/agent_sync.yaml.tmp
+    mv .ai/agent_sync.yaml.tmp .ai/agent_sync.yaml
+    grep -q '^  update: false$' .ai/agent_sync.yaml
+    run_agentsync sync >/dev/null 2>&1
+    pin_version 0.1.0
+    set_version_pin_mode strict
+    run run_agentsync sync
+    [ "$status" -eq 1 ]
+    printf '%s' "$output" | grep -qF "committed outputs must come"
+    run run_agentsync check
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"committed outputs must come"* ]]
 }
 
 @test "version pin: local mode can be made strict for sync" {
@@ -89,8 +124,16 @@ set_version_pin_mode() {
     set_version_pin_mode refuse
     run run_agentsync sync
     [ "$status" -eq 1 ]
-    [[ "$output" == *"Unknown version_pin.mode 'refuse'"* ]]
+    printf '%s' "$output" | grep -qF "[ERROR] Unknown version_pin.mode 'refuse' in .ai/agent_sync.yaml"
     [ ! -f CLAUDE.md ]
+}
+
+@test "version pin: check rejects an unknown mode" {
+    run_agentsync init --tools claude --yes --no-sync --outputs local >/dev/null 2>&1
+    set_version_pin_mode refuse
+    run run_agentsync check
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Unknown version_pin.mode 'refuse' in .ai/agent_sync.yaml"* ]]
 }
 
 @test "version pin: a matching pin is silent" {

@@ -41,11 +41,17 @@ _check_version_pin() {
     [[ -n "$config" ]] || return 0
 
     local version_mode
-    version_mode=$(version_pin_mode "$config") || exit 1
+    if ! version_mode=$(version_pin_mode "$config"); then
+        echo "❌ Unknown version_pin.mode '$version_mode' in ${config#"$REPO_ROOT/"} — expected 'warn' or 'strict'" >&2
+        exit 1
+    fi
 
     local outputs
     outputs=$(parse_yaml_value "$config" "outputs")
     outputs="${outputs//\"/}"
+    if [[ -z "$outputs" && "$(parse_yaml_value "$config" "gitignore.update")" == "false" ]]; then
+        outputs="committed"
+    fi
     [[ "$outputs" == "committed" || "$version_mode" == "strict" ]] || return 0
 
     local pinned engine

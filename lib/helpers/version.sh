@@ -22,7 +22,8 @@ pinned_version() {
 
 # Echo the configured mismatch policy. The nested form is canonical; the
 # scalar form is accepted as a compact compatibility shorthand.
-# Defaults to warn, preserving the historical local-output behaviour.
+# Defaults to warn, preserving the historical local-output behaviour. An unknown
+# value is echoed as well and returns 1, so the caller reports it in its own voice.
 version_pin_mode() {
     local config="$1"
     local mode shorthand
@@ -39,7 +40,7 @@ version_pin_mode() {
         "") echo "warn" ;;
         warn|strict) echo "$mode" ;;
         *)
-            echo "❌ Unknown version_pin.mode '$mode' in $config — expected 'warn' or 'strict'." >&2
+            echo "$mode"
             return 1
             ;;
     esac

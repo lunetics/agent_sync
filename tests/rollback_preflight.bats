@@ -431,6 +431,36 @@ missing${tab}-${tab}absent.md"
     [ "$(cat "$snapshot/after.tsv")" = "$expected" ]
 }
 
+@test "snapshot post-state hashes names that hash tools escape" {
+    [[ "$OSTYPE" != msys* ]] || skip "Windows does not allow these characters in filenames"
+    mkdir -p .codex
+    printf 'slash\n' > '.codex/back\slash'
+    printf 'newline\n' > $'.codex/new\nline'
+    printf 'percent\n' > '.codex/100%'
+    local snapshot tab=$'\t'
+    snapshot="$(backup_create "$TEST_PROJECT" sync .codex)"
+    backup_seal "$TEST_PROJECT" "$snapshot"
+    grep -qxF -- "file${tab}$(file_sha256 '.codex/back\slash')${tab}.codex/back\\slash" "$snapshot/after.tsv"
+    grep -qxF -- "file${tab}$(printf 'newline\n' | file_sha256 /dev/stdin)${tab}.codex/new%0Aline" "$snapshot/after.tsv"
+    grep -qxF -- "file${tab}$(file_sha256 '.codex/100%')${tab}.codex/100%25" "$snapshot/after.tsv"
+}
+
+@test "an unreadable file is the reported conflict, not the files hashed after it" {
+    sync_once
+    local victim
+    victim="$(find .claude/skills -type f | LC_ALL=C sort | head -1)"
+    [ -n "$victim" ]
+    chmod 000 "$victim"
+    if [ -r "$victim" ]; then
+        chmod 644 "$victim"
+        skip "file permissions do not restrict this user"
+    fi
+    run run_agentsync rollback "$SYNC_ID" --dry-run
+    chmod 644 "$victim"
+    [ "$status" -eq 1 ]
+    printf '%s' "$output" | grep -qF -- "Error: Rollback conflict: $victim changed after"
+}
+
 @test "sync through a .claude symlink inside the project succeeds and seals" {
     mkdir -p tooling/claude
     create_test_symlink tooling/claude .claude

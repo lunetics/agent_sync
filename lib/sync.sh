@@ -868,6 +868,7 @@ _resolve_sources() {
     [[ -n "$override_subagents" ]] && SOURCE_SUBAGENTS="$override_subagents"
 
     register_explicit_source_roots "$PROJECT_CONFIG_PATH" || exit 1
+    tool_resolver_init_user_dir
 
     local source_agents_abs
     source_agents_abs=$(resolve_source_path "$SOURCE_AGENTS" "source.agents")
@@ -895,12 +896,10 @@ _sync_is_stale() {
     [[ -d "$REPO_ROOT/.ai/profiles" ]] && roots+=("$REPO_ROOT/.ai/profiles")
     [[ -n "$PROJECT_CONFIG_PATH" && -f "$PROJECT_CONFIG_PATH" ]] && roots+=("$PROJECT_CONFIG_PATH")
 
-    # Honor source.* overrides that point outside .ai/src. Relative paths use
-    # the same source base as the resolver (normally REPO_ROOT; check may keep
-    # the original project root while generating in a temporary workspace).
+    # Honor source.* overrides and source.tools that point outside .ai/src.
     local source_base="${AGENTSYNC_INTERNAL_SOURCE_BASE_ROOT:-$REPO_ROOT}"
     local rel abs
-    for rel in "$SOURCE_AGENTS" "$SOURCE_RULES" "$SOURCE_SKILLS" "$SOURCE_TOOLS" "$SOURCE_COMMANDS" "$SOURCE_SUBAGENTS"; do
+    for rel in "$SOURCE_AGENTS" "$SOURCE_RULES" "$SOURCE_SKILLS" "$SOURCE_COMMANDS" "$SOURCE_SUBAGENTS" "$TOOL_RESOLVER_USER_DIR"; do
         [[ -n "$rel" ]] || continue
         if [[ "$rel" == /* ]]; then abs="$rel"; else abs="$source_base/$rel"; fi
         [[ "$abs" == "$src" || "$abs" == "$src"/* ]] && continue

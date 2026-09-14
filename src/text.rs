@@ -11,6 +11,17 @@ pub fn lines(bytes: &[u8]) -> Vec<&[u8]> {
     out
 }
 
+/// `sed 's/^/    /'`: every line, a final unterminated one included, gets four
+/// spaces; no newline is added.
+pub fn sed_indent(bytes: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(bytes.len());
+    for line in bytes.split_inclusive(|b| *b == b'\n') {
+        out.extend_from_slice(b"    ");
+        out.extend_from_slice(line);
+    }
+    out
+}
+
 /// POSIX `[[:space:]]` in the C locale.
 pub fn is_space(b: u8) -> bool {
     matches!(b, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c)
@@ -168,5 +179,13 @@ mod tests {
             json_escape(b"a\"b\\c\nd\te\x01"),
             b"a\\\"b\\\\c\\nd\\te\x01"
         );
+    }
+
+    #[test]
+    fn sed_indent_prefixes_every_line_and_adds_no_final_newline() {
+        assert_eq!(sed_indent(b"a\nb"), b"    a\n    b");
+        assert_eq!(sed_indent(b"a\n"), b"    a\n");
+        assert_eq!(sed_indent(b"\n"), b"    \n");
+        assert_eq!(sed_indent(b""), b"");
     }
 }

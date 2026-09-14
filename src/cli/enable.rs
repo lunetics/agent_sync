@@ -4,7 +4,7 @@
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use crate::paths::{self, Paths};
+use crate::paths;
 use crate::project::Project;
 use crate::style::Style;
 use crate::tool::Tool;
@@ -57,28 +57,6 @@ fn resolve_or_create_config(root: &Path) -> Result<PathBuf, Error> {
     )
     .map_err(|e| Error::io(&config, e))?;
     Ok(config)
-}
-
-/// `tool_resolver_user_dir_in_project`.
-fn tools_dir_in_project(project: &Project) -> bool {
-    let paths = Paths::on_disk(&project.root.to_string_lossy());
-    let abs = paths::normalize(&project.user_tools_dir().to_string_lossy());
-    paths
-        .canonicalize_with_existing_ancestor(&abs)
-        .is_some_and(|canonical| paths::is_within(&canonical, &paths.root_canonical))
-}
-
-/// `tool_resolver_require_project_user_dir`, printed; the caller exits 1.
-fn outside_tools_dir(project: &Project, style: &Style, err: &mut dyn Write) -> Result<u8, Error> {
-    put(
-        err,
-        &format!(
-            "{}: source.tools resolves outside the project: {}\nAgentSync only reads that catalog; edit its tool overrides where they live.\n",
-            style.red("Error"),
-            project.user_tools_dir().to_string_lossy()
-        ),
-    )?;
-    Ok(1)
 }
 
 fn tool_exists(project: &Project, slug: &str) -> Result<bool, Error> {
@@ -155,9 +133,9 @@ pub fn enable(
     }
 
     let project = discover()?;
-    if !tools_dir_in_project(&project) {
+    if !project.tools_dir_in_project() {
         if scaffold == Scaffold::Always {
-            return outside_tools_dir(&project, style, err);
+            return super::refuse_outside_tools_dir(&project, style, err);
         }
         scaffold = Scaffold::Never;
     }
@@ -269,10 +247,10 @@ pub fn disable(
         return Ok(1);
     }
     let project = discover()?;
-    if !tools_dir_in_project(&project) {
+    if !project.tools_dir_in_project() {
         for slug in args {
             if Tool::load(&project, slug)?.user_value("enabled") == "true" {
-                return outside_tools_dir(&project, style, err);
+                return super::refuse_outside_tools_dir(&project, style, err);
             }
         }
     }

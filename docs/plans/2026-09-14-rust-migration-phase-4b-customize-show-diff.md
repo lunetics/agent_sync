@@ -50,7 +50,7 @@ Reused: `project::Project`, `tool::Tool`, `catalog`, `payload::{find_new_overrid
 
 **Files:** none changed.
 
-- [ ] **Step 1: Record the baseline**
+- [x] **Step 1: Record the baseline**
 
 ```bash
 git log --oneline -1
@@ -80,7 +80,7 @@ Expected: this plan's commit; `192 passed`, `0 passed`, `11 passed`, `1 passed`;
   - `payload::legacy_warning(project: &Project, path: &Path) -> String`
   - `text::sed_indent(bytes: &[u8]) -> Vec<u8>`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append inside the tests module of `src/payload.rs`:
 
@@ -145,12 +145,12 @@ Append inside the tests module of `src/text.rs`:
     }
 ```
 
-- [ ] **Step 2: Run the tests, confirm they fail**
+- [x] **Step 2: Run the tests, confirm they fail**
 
 Run: `cargo test --lib 2>&1 | grep -E '^error' | sort | uniq -c`
 Expected: `cannot find function` for `effective_source`, `legacy_warning`, `base_source`, and `sed_indent`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `src/text.rs`, after `lines`:
 
@@ -288,7 +288,7 @@ pub(crate) fn refuse_outside_tools_dir(
 
 In `src/cli/enable.rs`: delete `tools_dir_in_project` and `outside_tools_dir`, replace `!tools_dir_in_project(&project)` with `!project.tools_dir_in_project()` and `outside_tools_dir(&project, style, err)` with `super::refuse_outside_tools_dir(&project, style, err)`, and drop the imports that become unused (`paths::{self, Paths}` if nothing else uses them).
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -4
@@ -298,7 +298,7 @@ AGENTSYNC_NATIVE=1 bats --tap tests/enable.bats | grep -c '^not ok'
 
 Expected: `194 passed`, `0`, `11`, `1`; `0`.
 
-- [ ] **Step 5: Lint and commit**
+- [x] **Step 5: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings
@@ -1730,4 +1730,11 @@ The plan is closed when every box is ticked, `customize.bats` is green under `AG
 - Verified: `scratchpad/phase4/customize_reference.sh` ran every command above in Bash (output in `customize_reference.out`); `printf 'a\nb' | sed 's/^/    /'` adds no final newline on macOS; `diff -u --label base --label override - <file>` reads the template from stdin outside the agent sandbox.
 - Plan amended: none.
 - Next: Task 0 Step 1.
+- Blocker: none.
+
+### 2026-09-14 — Tasks 0 and 1 done
+- Commits: "feat(native): resolve payload sources for the customize commands".
+- Verified: Task 0 at `bda3a9b`: `customize`, `simplify`, `doctor`, `source_overrides`, `resource_resolver`, `enable`, `native_parity` all `bash=0`. Task 1: `cargo test` 194 lib, 11 cli, 1 interrupt; fmt and clippy exit 0; release build; `AGENTSYNC_NATIVE=1 bats tests/enable.bats` 15 `ok`, 0 `not ok`.
+- Plan amended: none.
+- Next: Task 2 Step 1 (its module, tests, and `main` dispatch are written and pass `cargo test` at 196).
 - Blocker: none.

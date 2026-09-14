@@ -1,7 +1,9 @@
 //! Where a tool's settings, mcp, or hooks override lives, mirroring the lookups
 //! in `lib/helpers/tool_resolver.sh` that `list` reports on.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+use include_dir::File;
 
 use crate::paths::{self, ENGINE_ROOT};
 use crate::session::Session;
@@ -75,6 +77,84 @@ pub fn override_path(project: &Project, tool: &Tool, resource: &str) -> Option<P
             .user_tools_dir()
             .join(&tool.slug)
             .join(format!("{resource}.{ext}")),
+    )
+}
+
+/// A payload as Bash names it: a file on disk, or a shipped template under the
+/// virtual engine root.
+pub enum Source {
+    Disk(PathBuf),
+    Shipped(&'static File<'static>),
+}
+
+impl Source {
+    pub fn shown(&self) -> String {
+        match self {
+            Source::Disk(path) => path.to_string_lossy().into_owned(),
+            Source::Shipped(file) => {
+                format!(
+                    "{ENGINE_ROOT}/lib/templates/{}",
+                    file.path().to_string_lossy()
+                )
+            }
+        }
+    }
+
+    pub fn bytes(&self) -> Result<Vec<u8>, Error> {
+        match self {
+            Source::Disk(path) => std::fs::read(path).map_err(|e| Error::io(path, e)),
+            Source::Shipped(file) => Ok(file.contents().to_vec()),
+        }
+    }
+}
+
+/// `_find_base_payload`.
+pub fn base_source(tool: &Tool, resource: &str) -> Option<Source> {
+    tool.base_payload(resource).map(Source::Shipped)
+}
+
+/// `resolve_payload_source` for a CLI command: per-tool override, declared
+/// `targets.<resource>.source`, legacy flat layout, shared `mcp.json`, base.
+/// The second value is the path `_warn_legacy_payload_path` names.
+pub fn effective_source(
+    project: &Project,
+    tool: &Tool,
+    resource: &str,
+) -> Result<(Option<Source>, Option<PathBuf>), Error> {
+    if let Some(path) = find_new_override(project, &tool.slug, resource)? {
+        return Ok((Some(Source::Disk(path)), None));
+    }
+    let declared = tool.value(&format!("targets.{resource}.source"));
+    if !declared.is_empty() {
+        let abs = if declared.starts_with('/') {
+            PathBuf::from(&declared)
+        } else {
+            project.root.join(&declared)
+        };
+        if abs.is_file() {
+            let legacy = ["hooks", "mcp", "settings"]
+                .iter()
+                .any(|kind| declared.starts_with(&format!(".ai/src/{kind}/")));
+            let warn = legacy.then(|| abs.clone());
+            return Ok((Some(Source::Disk(abs)), warn));
+        }
+    }
+    if let Some(legacy) = legacy_override_path(project, tool, resource).filter(|p| p.is_file()) {
+        return Ok((Some(Source::Disk(legacy.clone())), Some(legacy)));
+    }
+    if resource == "mcp" && project.shared_mcp_path().is_file() {
+        return Ok((Some(Source::Disk(project.shared_mcp_path())), None));
+    }
+    Ok((base_source(tool, resource), None))
+}
+
+/// `_warn_legacy_payload_path`.
+pub fn legacy_warning(project: &Project, path: &Path) -> String {
+    let text = path.to_string_lossy();
+    let root = format!("{}/", project.root.to_string_lossy());
+    let rel = text.strip_prefix(&root).unwrap_or(&text);
+    format!(
+        "⚠  Legacy payload override layout detected: {rel}\n   Move to .ai/src/tools/<tool>/<resource>.<ext> (canonical since 0.11).\n   Migrate with: agentsync migrate --legacy\n"
     )
 }
 
@@ -253,6 +333,64 @@ mod tests {
         assert_eq!(
             legacy_override_path(&project, &codex, "settings"),
             Some(dir.path().join(".ai/src/settings/codex.toml"))
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_effective_source_walks_override_declared_legacy_shared_then_base() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = std::fs::canonicalize(dir.path()).unwrap();
+        let project = Project::at(&root).unwrap();
+        let cursor = Tool::load(&project, "cursor").unwrap();
+        let shown = |project: &Project, tool: &Tool, resource: &str| {
+            let (source, warn) = effective_source(project, tool, resource).unwrap();
+            (source.map(|s| s.shown()), warn)
+        };
+        assert_eq!(
+            shown(&project, &cursor, "hooks"),
+            (
+                Some("/<agentsync>/lib/templates/hooks/cursor.json".to_string()),
+                None
+            )
+        );
+        write(&root, ".ai/src/hooks/cursor.json", "{}\n");
+        let legacy = root.join(".ai/src/hooks/cursor.json");
+        assert_eq!(
+            shown(&project, &cursor, "hooks"),
+            (
+                Some(legacy.to_string_lossy().into_owned()),
+                Some(legacy.clone())
+            )
+        );
+        assert_eq!(
+            legacy_warning(&project, &legacy),
+            "⚠  Legacy payload override layout detected: .ai/src/hooks/cursor.json\n   Move to .ai/src/tools/<tool>/<resource>.<ext> (canonical since 0.11).\n   Migrate with: agentsync migrate --legacy\n"
+        );
+        write(&root, ".ai/src/tools/cursor/hooks.json", "{}\n");
+        assert_eq!(
+            shown(&project, &cursor, "hooks"),
+            (
+                Some(
+                    root.join(".ai/src/tools/cursor/hooks.json")
+                        .to_string_lossy()
+                        .into_owned()
+                ),
+                None
+            )
+        );
+        let claude = Tool::load(&project, "claude").unwrap();
+        write(&root, ".ai/src/mcp.json", "{}\n");
+        assert_eq!(
+            shown(&project, &claude, "mcp"),
+            (
+                Some(root.join(".ai/src/mcp.json").to_string_lossy().into_owned()),
+                None
+            )
+        );
+        assert_eq!(
+            base_source(&claude, "settings").unwrap().shown(),
+            "/<agentsync>/lib/templates/settings/claude.json"
         );
     }
 }

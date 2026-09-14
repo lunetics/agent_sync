@@ -5,7 +5,31 @@ pub mod rollback;
 pub mod sync;
 pub mod workspace;
 
+use std::io::Write;
+
 use clap::{Parser, Subcommand};
+
+use crate::Error;
+use crate::project::Project;
+use crate::style::Style;
+
+/// `tool_resolver_require_project_user_dir`: prints why and returns status 1.
+pub(crate) fn refuse_outside_tools_dir(
+    project: &Project,
+    style: &Style,
+    err: &mut dyn Write,
+) -> Result<u8, Error> {
+    err.write_all(
+        format!(
+            "{}: source.tools resolves outside the project: {}\nAgentSync only reads that catalog; edit its tool overrides where they live.\n",
+            style.red("Error"),
+            project.user_tools_dir().to_string_lossy()
+        )
+        .as_bytes(),
+    )
+    .map_err(|e| Error::io("<stderr>", e))?;
+    Ok(1)
+}
 
 /// Argument surface of the ported commands. `bin/agentsync.sh` delegates only
 /// the commands in its `_NATIVE_COMMANDS`, so nothing else reaches this parser.

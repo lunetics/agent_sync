@@ -71,6 +71,15 @@ impl Project {
         self.tools_dir.clone()
     }
 
+    /// `tool_resolver_user_dir_in_project`.
+    pub fn tools_dir_in_project(&self) -> bool {
+        let paths = paths::Paths::on_disk(&self.root.to_string_lossy());
+        let abs = paths::normalize(&self.tools_dir.to_string_lossy());
+        paths
+            .canonicalize_with_existing_ancestor(&abs)
+            .is_some_and(|canonical| paths::is_within(&canonical, &paths.root_canonical))
+    }
+
     pub fn user_tool_file(&self, slug: &str) -> PathBuf {
         self.user_tools_dir().join(format!("{slug}.yaml"))
     }

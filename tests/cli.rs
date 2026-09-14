@@ -178,6 +178,46 @@ fn sync_writes_outputs_then_refuses_to_overwrite_a_manual_edit_unless_forced() {
 
 #[cfg(unix)]
 #[test]
+fn a_terminated_sync_restores_the_pre_sync_state_and_dies_of_the_signal() {
+    use std::io::{BufRead, BufReader};
+    use std::os::unix::process::ExitStatusExt;
+
+    let dir = sync_project(Some("post_sync: \"sleep 1\"\n"));
+    std::fs::write(dir.path().join("CLAUDE.md"), "before-sync\n").unwrap();
+    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_agentsync"))
+        .env("AGENTSYNC_REPO_ROOT", dir.path())
+        .env("AGENTSYNC_ALLOW_POST_SYNC", "true")
+        .env_remove("AGENTSYNC_SKIP_POST_SYNC")
+        .arg("sync")
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+    for line in lines.by_ref() {
+        if line.unwrap().starts_with("[INFO] Running post-sync hook: ") {
+            break;
+        }
+    }
+    std::process::Command::new("kill")
+        .args(["-TERM", &child.id().to_string()])
+        .status()
+        .unwrap();
+    let rest: Vec<String> = lines.map(Result::unwrap).collect();
+    assert_eq!(child.wait().unwrap().signal(), Some(15));
+    assert_eq!(
+        rest[0],
+        "[WARNING] Sync failed; restoring pre-sync state..."
+    );
+    assert!(rest[1].starts_with("[INFO] Restored pre-sync state from "));
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("CLAUDE.md")).unwrap(),
+        "before-sync\n"
+    );
+    assert!(!dir.path().join(".claude/rules").exists());
+}
+
+#[cfg(unix)]
+#[test]
 fn a_failing_post_sync_hook_restores_the_pre_sync_state() {
     let dir = sync_project(Some("post_sync: \"false\"\n"));
     std::fs::write(dir.path().join("CLAUDE.md"), "before-sync\n").unwrap();

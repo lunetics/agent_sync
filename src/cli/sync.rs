@@ -3,6 +3,7 @@
 
 use std::path::Path;
 
+use crate::interrupt::{self, Interrupt};
 use crate::log::{Log, Sink};
 use crate::manifest::{self, Manifest};
 use crate::paths::{self, Paths};
@@ -121,13 +122,20 @@ pub fn run(root: &str, args: &[String], env: &Env, colors: bool, sink: Sink) -> 
     s.dry_run = args.dry_run;
     s.force = args.force;
     let mut tx = Transaction::default();
-    match sync(&mut s, &args, env, &mut tx) {
+    let status = match sync(&mut s, &args, env, &mut tx) {
         Ok(()) => 0,
         Err(Stop(status)) => {
             tx.fail(&mut s, env);
             status
         }
+    };
+    if let Some(mut interrupt) = s.interrupt.take()
+        && let Some(sig) = interrupt.received()
+    {
+        interrupt.resend(sig);
+        return interrupt::status(sig);
     }
+    status
 }
 
 fn print_usage(log: &mut Log) {
@@ -397,6 +405,7 @@ fn start_transaction(
         targets.push(format!("{root}/.gitignore"));
     }
     targets.push(format!("{root}/{}", manifest::REL));
+    s.interrupt = Some(Interrupt::arm());
     match backup::create(&root, "sync", &targets) {
         Ok(path) => {
             tx.backup = Some(path);
@@ -420,6 +429,7 @@ fn finalize(
     tx: &Transaction,
 ) -> Result<(), Stop> {
     let root = s.paths.root.clone();
+    render::checkpoint(s)?;
     if !s.dry_run && run.update_gitignore {
         let mut ignored = run.gitignore_profile.clone();
         if run.outputs != "committed" {
@@ -433,6 +443,7 @@ fn finalize(
             gitignore::update(&path, &ignored, &mut s.log).map_err(|e| io(s, e))?;
         }
     }
+    render::checkpoint(s)?;
     if !s.dry_run {
         let touched = s.touched().clone();
         manifest::write(&root, previous, &touched, &mut s.log).map_err(|e| io(s, e))?;

@@ -4,6 +4,7 @@
 
 use std::collections::BTreeSet;
 
+use crate::interrupt::Interrupt;
 use crate::log::Log;
 use crate::paths::Paths;
 use crate::workspace::Workspace;
@@ -14,6 +15,7 @@ pub struct Session {
     pub log: Log,
     pub dry_run: bool,
     pub force: bool,
+    pub interrupt: Option<Interrupt>,
     manifest: Option<BTreeSet<String>>,
     preserved: usize,
     touched: BTreeSet<String>,
@@ -28,6 +30,7 @@ impl Session {
             log: Log::default(),
             dry_run: false,
             force: false,
+            interrupt: None,
             manifest: None,
             preserved: 0,
             touched: BTreeSet::new(),
@@ -37,6 +40,14 @@ impl Session {
 
     pub fn display(&self, path: &str) -> String {
         self.paths.display(path)
+    }
+
+    /// The exit status of a trapped signal that arrived, once one has.
+    pub fn interrupted(&self) -> Option<u8> {
+        self.interrupt
+            .as_ref()?
+            .received()
+            .map(crate::interrupt::status)
     }
 
     /// `SYNC_MANIFEST_ACTIVE="true"` with `MANIFEST_KEYS` loaded: from here on

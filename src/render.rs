@@ -491,6 +491,7 @@ pub fn run_passes(s: &mut Session, run: &mut Run) -> Step {
             continue;
         }
         run.total += 1;
+        checkpoint(s)?;
         if run.enabled.contains(slug) {
             sync_tool(s, run, slug)?;
         } else {
@@ -518,6 +519,7 @@ pub fn run_passes(s: &mut Session, run: &mut Run) -> Step {
             .map_err(|e| io(s, e))?;
         for slug in tools {
             run.total += 1;
+            checkpoint(s)?;
             sync_tool(s, run, &slug)?;
             if run.printed {
                 s.log.out(String::new());
@@ -601,14 +603,20 @@ fn sync_tool(s: &mut Session, run: &mut Run, slug: &str) -> Step {
         let src = tool_source(s, &tool, "agents", &run.sources.agents, &display)?;
         file_ops::copy_file(s, &src, &dests.agents).map_err(|e| io(s, e))?;
     }
+    checkpoint(s)?;
     sync_rules_step(s, run, &tool, &dests, &display)?;
+    checkpoint(s)?;
     sync_skills_step(s, run, &tool, &dests, &display)?;
+    checkpoint(s)?;
     sync_commands_step(s, run, &tool, &dests, &display)?;
+    checkpoint(s)?;
     sync_subagents_step(s, run, &tool, &dests, &display)?;
+    checkpoint(s)?;
     sync_payloads_step(s, &tool, &dests)?;
+    checkpoint(s)?;
 
     let post_sync = tool.value("post_sync");
-    if !s.dry_run && !run_post_sync_hook(s, run, &display, &post_sync) {
+    if !s.dry_run && !run_post_sync_hook(s, run, &display, &post_sync)? {
         s.log.error(&format!(
             "Sync failed because post-sync hook failed for {display}"
         ));
@@ -619,22 +627,36 @@ fn sync_tool(s: &mut Session, run: &mut Run, slug: &str) -> Step {
     Ok(())
 }
 
+/// Where a trapped signal ends the run: Bash's trap fires once the command in
+/// progress returns.
+pub fn checkpoint(s: &Session) -> Step {
+    match s.interrupted() {
+        Some(status) => Err(Stop(status)),
+        None => Ok(()),
+    }
+}
+
 /// `run_post_sync_hook`: false when the hook ran and failed.
-fn run_post_sync_hook(s: &mut Session, run: &Run, display: &str, command: &str) -> bool {
+fn run_post_sync_hook(
+    s: &mut Session,
+    run: &Run,
+    display: &str,
+    command: &str,
+) -> Result<bool, Stop> {
     if command.is_empty() {
-        return true;
+        return Ok(true);
     }
     if run.skip_post_sync {
         s.log.info(&format!(
             "Skipping post-sync hook for {display} (AGENTSYNC_SKIP_POST_SYNC=true)"
         ));
-        return true;
+        return Ok(true);
     }
     if !run.allow_post_sync {
         s.log.warning(&format!(
             "Skipping post-sync hook for {display} (set AGENTSYNC_ALLOW_POST_SYNC=true to enable)"
         ));
-        return true;
+        return Ok(true);
     }
     s.log.info(&format!("Running post-sync hook: {command}"));
     let succeeded = std::process::Command::new("bash")
@@ -643,10 +665,11 @@ fn run_post_sync_hook(s: &mut Session, run: &Run, display: &str, command: &str) 
         .current_dir(&s.paths.root)
         .status()
         .is_ok_and(|status| status.success());
+    checkpoint(s)?;
     if !succeeded {
         s.log.warning("Post-sync hook failed");
     }
-    succeeded
+    Ok(succeeded)
 }
 
 fn sync_rules_step(s: &mut Session, run: &Run, tool: &Tool, dests: &Dests, display: &str) -> Step {

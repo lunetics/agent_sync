@@ -7025,12 +7025,12 @@ git commit -m "feat(native): serve sync and its workspace fan-out natively"
 - Consumes: `cli::sync` (Task 6), `Session` (Task 2).
 - Produces: `interrupt::Interrupt::arm() -> Interrupt` records `INT`, `TERM`, and (on Unix) `HUP` until dropped; `Interrupt::received(&self) -> Option<i32>`; `Interrupt::resend(&mut self, sig: i32)` restores the default action and raises the signal again, as `kill -$sig $$` does; `interrupt::status(sig: i32) -> u8` is `128 + sig`. `Session::interrupt: Option<Interrupt>` and `Session::interrupted(&self) -> Option<u8>`. `render::checkpoint(s: &Session) -> Step` stops the run with `128 + sig`. `cli::sync` arms the trap right before the backup, checks at every tool, every step of a tool, after a post-sync hook, and around the `.gitignore` update, restores through the failure path, and dies of the signal.
 
-- [ ] **Step 1: Add the signal crate**
+- [x] **Step 1: Add the signal crate**
 
 Run: `cargo add signal-hook@0.4 --no-default-features`
 Expected: `Cargo.toml` gains `signal-hook = { version = "0.4", default-features = false }` after `sha2`.
 
-- [ ] **Step 2: Create `src/interrupt.rs`**
+- [x] **Step 2: Create `src/interrupt.rs`**
 
 ```rust
 //! The `INT`, `TERM`, and `HUP` traps a transaction arms in `lib/sync.sh` and
@@ -7117,7 +7117,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 3: Declare the module in `src/lib.rs`**
+- [x] **Step 3: Declare the module in `src/lib.rs`**
 
 ```rust
 //! AgentSync native engine. `main.rs` is the only place that talks to the
@@ -7158,7 +7158,7 @@ pub fn engine_version() -> &'static str {
 }
 ```
 
-- [ ] **Step 4: Replace `src/session.rs`**
+- [x] **Step 4: Replace `src/session.rs`**
 
 ```rust
 //! State one render shares across its steps: the workspace, path rules, the
@@ -7368,7 +7368,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 5: Checkpoints in `src/render.rs`**
+- [x] **Step 5: Checkpoints in `src/render.rs`**
 
 In `run_passes`, add `checkpoint(s)?;` directly after each of the two `run.total += 1;` lines.
 
@@ -7469,7 +7469,7 @@ fn run_post_sync_hook(
 }
 ```
 
-- [ ] **Step 6: Arm, check, and re-raise in `src/cli/sync.rs`**
+- [x] **Step 6: Arm, check, and re-raise in `src/cli/sync.rs`**
 
 Add to the imports, before `use crate::log::{Log, Sink};`:
 
@@ -7520,7 +7520,7 @@ In `start_transaction`, add before `match backup::create(&root, "sync", &targets
 
 In `finalize`, add `render::checkpoint(s)?;` directly after `let root = s.paths.root.clone();`, and again directly after the closing brace of the `if !s.dry_run && run.update_gitignore { … }` block.
 
-- [ ] **Step 7: Add the integration test to `tests/cli.rs`, before `fn a_failing_post_sync_hook_restores_the_pre_sync_state`'s `#[cfg(unix)]`**
+- [x] **Step 7: Add the integration test to `tests/cli.rs`, before `fn a_failing_post_sync_hook_restores_the_pre_sync_state`'s `#[cfg(unix)]`**
 
 ```rust
 #[cfg(unix)]
@@ -7565,7 +7565,7 @@ fn a_terminated_sync_restores_the_pre_sync_state_and_dies_of_the_signal() {
 
 ```
 
-- [ ] **Step 8: Run the gates, confirm green**
+- [x] **Step 8: Run the gates, confirm green**
 
 ```bash
 cargo test 2>&1 | grep 'test result'
@@ -7577,7 +7577,7 @@ AGENTSYNC_NATIVE=1 bats --jobs 4 tests/sync_options.bats tests/drift.bats tests/
 
 Expected: `144 passed` (unit) and `11 passed` (integration) — `a_terminated_sync_restores_the_pre_sync_state_and_dies_of_the_signal` sends `SIGTERM` during a `sleep 1` hook and sees the restore lines, the pre-sync `CLAUDE.md`, and a death by signal 15; fmt and clippy exit 0; `0`.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add Cargo.toml Cargo.lock src/interrupt.rs src/lib.rs src/session.rs src/render.rs src/cli/sync.rs tests/cli.rs docs/plans/2026-09-14-rust-migration-phase-3-native-sync.md

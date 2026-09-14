@@ -35,12 +35,8 @@ _customize_prepare_context() {
     }
     DEFAULT_REPO_ROOT="$(cd "$system_dir/.." && pwd)"
 
-    PROJECT_CONFIG_PATH=""
-    if [[ -f "$project_dir/.ai/agent_sync.yaml" ]]; then
-        PROJECT_CONFIG_PATH="$project_dir/.ai/agent_sync.yaml"
-    elif [[ -f "$project_dir/agent_sync.yaml" ]]; then
-        PROJECT_CONFIG_PATH="$project_dir/agent_sync.yaml"
-    fi
+    tool_resolver_select_project_config
+    tool_resolver_init_user_dir
 
     export REPO_ROOT REPO_ROOT_CANONICAL DEFAULT_REPO_ROOT PROJECT_CONFIG_PATH
 }
@@ -107,6 +103,7 @@ USAGE
     _validate_resource "$resource"
 
     _customize_prepare_context
+    tool_resolver_require_project_user_dir
 
     case "$resource" in
         tool)     _customize_tool "$tool_name" "$full" ;;

@@ -5,6 +5,82 @@
 # Each resolver has two shapes: a `_r` variant returning through $REPLY, and an
 # echo wrapper for the `$(...)` call sites. Hot loops use `_r`.
 
+# Canonical source.* roots the project config names outside the project. Only
+# widens is_path_safe_source; destinations never consult it.
+EXPLICIT_SOURCE_ROOTS=()
+# Canonical AGENTSYNC_INTERNAL_SOURCE_BASE_ROOT while check's isolated sync runs.
+SOURCE_BASE_ROOT_CANONICAL=""
+
+# Set REPLY to the absolute, lexically normalised path of a source.* value.
+# Relative values resolve from the project root, which check's isolated sync
+# receives as AGENTSYNC_INTERNAL_SOURCE_BASE_ROOT.
+source_abs_path_r() {
+    local raw_path="$1"
+    [[ "$raw_path" == /* ]] || raw_path="${AGENTSYNC_INTERNAL_SOURCE_BASE_ROOT:-$REPO_ROOT}/$raw_path"
+    normalize_absolute_path_r "$raw_path"
+}
+
+# Classify an explicit source.* value. Returns 0 when it is written under the
+# project, where a symlink resolving outside stays refused; 1 for an acceptable
+# outside root; 2 when that root is /, $HOME, or the project root or one of its
+# ancestors. REPLY is the canonical path for 1 and 2.
+explicit_source_root_r() {
+    local raw_path="$1"
+    local project_root="${SOURCE_BASE_ROOT_CANONICAL:-$REPO_ROOT_CANONICAL}"
+
+    source_abs_path_r "$raw_path"
+    local abs_path="$REPLY"
+    local project_path="${AGENTSYNC_INTERNAL_SOURCE_BASE_ROOT:-$REPO_ROOT}"
+    [[ "$abs_path" == "$project_path/"* ]] && return 0
+    canonicalize_with_existing_ancestor_r "$abs_path" 2>/dev/null || return 0
+    local canonical_path="$REPLY"
+    [[ "$canonical_path" == "$project_root/"* ]] && return 0
+
+    local home_canonical=""
+    if [[ -n "${HOME:-}" ]] && _canon_dir_r "$HOME"; then
+        home_canonical="$REPLY"
+    fi
+    REPLY="$canonical_path"
+    if [[ "$canonical_path" == "/" || "$canonical_path" == "$home_canonical" || \
+          "$canonical_path" == "$project_root" || "$project_root" == "$canonical_path/"* ]]; then
+        return 2
+    fi
+    return 1
+}
+
+# Allowlist every source.* value <config> sets explicitly outside the project.
+# Defaults and auto-detected layouts are never registered. Returns 1 after
+# log_error when a value names a refused root.
+register_explicit_source_roots() {
+    local config="$1"
+    EXPLICIT_SOURCE_ROOTS=()
+    SOURCE_BASE_ROOT_CANONICAL=""
+    if [[ -n "${AGENTSYNC_INTERNAL_SOURCE_BASE_ROOT:-}" ]]; then
+        if ! _canon_dir_r "$AGENTSYNC_INTERNAL_SOURCE_BASE_ROOT"; then
+            log_error "Source base root not found: $AGENTSYNC_INTERNAL_SOURCE_BASE_ROOT"
+            return 1
+        fi
+        SOURCE_BASE_ROOT_CANONICAL="$REPLY"
+    fi
+    [[ -n "$config" && -f "$config" ]] || return 0
+
+    local key raw_path status
+    for key in agents rules skills tools commands subagents; do
+        parse_yaml_value_r "$config" "source.$key"
+        raw_path="$REPLY"
+        [[ -n "$raw_path" ]] || continue
+        status=0
+        explicit_source_root_r "$raw_path" || status=$?
+        case "$status" in
+            1) EXPLICIT_SOURCE_ROOTS+=("$REPLY") ;;
+            2)
+                log_error "source.$key must not be the filesystem root, the home directory, or the project root or its ancestor: $raw_path -> $REPLY"
+                return 1
+                ;;
+        esac
+    done
+}
+
 # Parent directory of a path. Matches `dirname` for every path this module
 # handles; a pathname starting with exactly two slashes is implementation-defined
 # in POSIX and normalisation collapses it before it can reach here.
@@ -226,6 +302,16 @@ is_path_safe_source() {
     if [[ "$candidate_path" == "$DEFAULT_REPO_ROOT" || "$candidate_path" == "$DEFAULT_REPO_ROOT/"* ]]; then
         return 0
     fi
+    if [[ -n "$SOURCE_BASE_ROOT_CANONICAL" ]] && \
+       [[ "$candidate_path" == "$SOURCE_BASE_ROOT_CANONICAL" || "$candidate_path" == "$SOURCE_BASE_ROOT_CANONICAL/"* ]]; then
+        return 0
+    fi
+    local explicit_root
+    for explicit_root in "${EXPLICIT_SOURCE_ROOTS[@]+"${EXPLICIT_SOURCE_ROOTS[@]}"}"; do
+        if [[ "$candidate_path" == "$explicit_root" || "$candidate_path" == "$explicit_root/"* ]]; then
+            return 0
+        fi
+    done
     # `shared:` overlay places child + parent files into a tmpdir; sync reads
     # from there. The tmpdir is owned by shared.sh and torn down on EXIT.
     if [[ -n "${SHARED_OVERLAY_DIR_CANONICAL:-}" ]] && \
@@ -258,15 +344,19 @@ resolve_source_path_r() {
         return 1
     fi
 
-    # First try resolving relative to REPO_ROOT (the user project)
-    normalize_absolute_path_r "$raw_path"
+    # First try resolving relative to the project root
+    source_abs_path_r "$raw_path"
     local abs_path_target="$REPLY"
     local canonical_path_target=""
     if canonicalize_with_existing_ancestor_r "$abs_path_target" 2>/dev/null; then
         canonical_path_target="$REPLY"
     fi
 
-    if [[ -n "$canonical_path_target" ]] && [[ -e "$canonical_path_target" ]] && is_path_safe_source "$canonical_path_target"; then
+    if [[ -n "$canonical_path_target" ]] && [[ -e "$canonical_path_target" ]]; then
+        if ! is_path_safe_source "$canonical_path_target"; then
+            log_error "$label resolves outside safe source roots: $raw_path -> $canonical_path_target"
+            return 1
+        fi
         REPLY="$abs_path_target"
         return 0
     fi

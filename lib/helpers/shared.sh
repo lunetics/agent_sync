@@ -64,16 +64,6 @@ build_overlay_tree() {
     local parent_src="$2"
     local categories_csv="$3"
 
-    local -a cats=()
-    local raw="${categories_csv//,/ }" tok
-    for tok in $raw; do
-        tok="${tok#"${tok%%[![:space:]]*}"}"
-        tok="${tok%"${tok##*[![:space:]]}"}"
-        [[ -z "$tok" ]] && continue
-        [[ "$tok" == "subagents" ]] && tok="agents"
-        cats+=("$tok")
-    done
-
     local tmpdir
     tmpdir=$(tmp_dir agentsync_shared) || return 1
     mkdir -p "$tmpdir/src"
@@ -89,22 +79,87 @@ build_overlay_tree() {
         done
     fi
 
-    # Fill in parent files for inherited categories — skip any path the child
-    # already provides (child wins).
-    local cat pdir f rel target
-    for cat in "${cats[@]}"; do
-        pdir="$parent_src/$cat"
+    _overlay_fill_parent "$tmpdir" "$parent_src" "$categories_csv" " "
+    echo "$tmpdir"
+}
+
+# Like build_overlay_tree, but the child side is the run's resolved SOURCE_*
+# paths, so source.* overrides survive the overlay. A category whose source
+# resolves outside the safe source roots is neither mirrored nor filled: it
+# keeps its original path and the sync step reports the refusal.
+#
+# Usage: build_source_overlay_tree <parent_src> <categories_csv>
+build_source_overlay_tree() {
+    local parent_src="$1"
+    local categories_csv="$2"
+
+    local tmpdir
+    tmpdir=$(tmp_dir agentsync_shared) || return 1
+    mkdir -p "$tmpdir/src"
+
+    local refused=" "
+    _overlay_mirror_source file "$SOURCE_AGENTS" "$tmpdir/src/AGENTS.md" || true
+    _overlay_mirror_source dir "$SOURCE_RULES" "$tmpdir/src/rules" || refused+="rules "
+    _overlay_mirror_source dir "$SOURCE_SKILLS" "$tmpdir/src/skills" || refused+="skills "
+    _overlay_mirror_source dir "$SOURCE_COMMANDS" "$tmpdir/src/commands" || refused+="commands "
+    _overlay_mirror_source dir "$SOURCE_SUBAGENTS" "$tmpdir/src/agents" || refused+="agents "
+
+    _overlay_fill_parent "$tmpdir" "$parent_src" "$categories_csv" "$refused"
+    echo "$tmpdir"
+}
+
+# Copy one resolved source (a file or a directory) to <dest>. Returns 1 without
+# copying when it resolves outside the safe source roots.
+# Usage: _overlay_mirror_source <file|dir> <source> <dest>
+_overlay_mirror_source() {
+    local kind="$1"
+    local raw_path="$2"
+    local dest="$3"
+
+    [[ -n "$raw_path" ]] || return 0
+    source_abs_path_r "$raw_path"
+    local abs_path="$REPLY"
+    if [[ "$kind" == "file" ]]; then
+        [[ -f "$abs_path" ]] || return 0
+    else
+        [[ -d "$abs_path" ]] || return 0
+    fi
+    canonicalize_with_existing_ancestor_r "$abs_path" 2>/dev/null || return 1
+    is_path_safe_source "$REPLY" || return 1
+
+    if [[ "$kind" == "file" ]]; then
+        cp "$abs_path" "$dest"
+    else
+        cp -R "$abs_path" "$dest"
+    fi
+}
+
+# Fill in parent files for inherited categories — skip any path the child
+# already provides (child wins) and every category named in <skipped>.
+# Usage: _overlay_fill_parent <tmpdir> <parent_src> <categories_csv> <skipped>
+_overlay_fill_parent() {
+    local tmpdir="$1"
+    local parent_src="$2"
+    local categories_csv="$3"
+    local skipped="$4"
+
+    local raw="${categories_csv//,/ }" tok pdir f rel target
+    for tok in $raw; do
+        tok="${tok#"${tok%%[![:space:]]*}"}"
+        tok="${tok%"${tok##*[![:space:]]}"}"
+        [[ -z "$tok" ]] && continue
+        [[ "$tok" == "subagents" ]] && tok="agents"
+        [[ "$skipped" == *" $tok "* ]] && continue
+        pdir="$parent_src/$tok"
         [[ -d "$pdir" ]] || continue
         while IFS= read -r -d '' f; do
             rel="${f#"$pdir/"}"
-            target="$tmpdir/src/$cat/$rel"
+            target="$tmpdir/src/$tok/$rel"
             [[ -e "$target" ]] && continue
             mkdir -p "$(dirname "$target")"
             cp "$f" "$target"
         done < <(find "$pdir" -type f -print0 2>/dev/null)
     done
-
-    echo "$tmpdir"
 }
 
 # Point the caller's SOURCE_* at an overlay tmpdir's `src/`, but only for the
@@ -218,7 +273,7 @@ shared_setup_overlay() {
     SHARED_OVERLAY_PARENT="$parent_src"
 
     local tmpdir
-    tmpdir=$(build_overlay_tree "$REPO_ROOT/.ai/src" "$parent_src" "$SHARED_OVERLAY_INHERIT")
+    tmpdir=$(build_source_overlay_tree "$parent_src" "$SHARED_OVERLAY_INHERIT")
     SHARED_OVERLAY_DIR="$tmpdir"
     SHARED_OVERLAY_DIR_CANONICAL=$(cd -P "$tmpdir" && pwd)
     export SHARED_OVERLAY_DIR_CANONICAL
@@ -251,14 +306,12 @@ base_src_setup_overlay() {
         [[ "$enabled" == "false" ]] && return 0
     fi
 
-    # The child is whatever the earlier overlays resolved to, so this layer
-    # composes instead of replacing them.
-    local child_src="$REPO_ROOT/.ai/src"
-    [[ -n "$SHARED_OVERLAY_DIR" ]] && child_src="$SHARED_OVERLAY_DIR"
-    [[ -d "$child_src" ]] || return 0
+    [[ -n "$SHARED_OVERLAY_DIR" || -d "$REPO_ROOT/.ai/src" ]] || return 0
 
+    # The child is whatever the earlier overlays and source.* resolved to, so
+    # this layer composes instead of replacing them.
     local tmpdir
-    tmpdir=$(build_overlay_tree "$child_src" "$base_src" "skills")
+    tmpdir=$(build_source_overlay_tree "$base_src" "skills")
     BASE_SRC_OVERLAY_DIR="$tmpdir"
     BASE_SRC_OVERLAY_DIR_CANONICAL=$(cd -P "$tmpdir" && pwd)
     export BASE_SRC_OVERLAY_DIR_CANONICAL

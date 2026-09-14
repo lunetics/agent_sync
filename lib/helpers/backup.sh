@@ -771,6 +771,20 @@ Options:
 HELP
 }
 
+_rollback_require_clean() {
+    backup_preflight "$1" "$2"
+    case "$BACKUP_PREFLIGHT_STATUS" in
+        clean) return 0 ;;
+        conflict)
+            _backup_error "Rollback conflict: $BACKUP_PREFLIGHT_DETAIL changed after the operation; no targets were restored"
+            ;;
+        *)
+            _backup_error "Snapshot $BACKUP_PREFLIGHT_DETAIL; no verified post-operation state, rollback refused"
+            ;;
+    esac
+    return 1
+}
+
 cmd_rollback() {
     local backup_id=""
     local list_only=false
@@ -850,7 +864,7 @@ cmd_rollback() {
 
     backup_load_targets "$root" "$snapshot" || return 1
 
-    backup_preflight "$root" "$snapshot" || return 1
+    _rollback_require_clean "$root" "$snapshot" || return 1
 
     echo "Rollback plan:"
     echo "  Backup: $backup_id"
@@ -876,8 +890,6 @@ cmd_rollback() {
     fi
 
     local -a current_targets=("${BACKUP_LOADED_PATHS[@]}")
-    # Confirmation can take arbitrarily long; recheck before creating recovery.
-    backup_preflight "$root" "$snapshot" || return 1
     local safety
     safety=$(backup_create \
         "$root" \
@@ -889,7 +901,7 @@ cmd_rollback() {
 
     # Do not arm automatic recovery until this final check succeeds: a refusal
     # must not itself restore the safety snapshot over a concurrent edit.
-    backup_preflight "$root" "$snapshot" || return 1
+    _rollback_require_clean "$root" "$snapshot" || return 1
 
     ROLLBACK_ROOT="$root"
     ROLLBACK_SAFETY_PATH="$safety"

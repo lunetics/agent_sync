@@ -317,7 +317,7 @@ main() {
                 cmd_engine "sync.sh" "$@"
             fi
             ;;
-        rollback)      _need prompts paths yaml project_config backup backup_state; shift; cmd_rollback "$@" ;;
+        rollback)      _need prompts paths yaml project_config manifest backup backup_state; shift; cmd_rollback "$@" ;;
         check)         shift; cmd_engine "check.sh" "$@" ;;
         setup-hooks)   shift; cmd_engine "setup_hooks.sh" "$@" ;;
         shell-init)    _need logging shell_init;                      shift; cmd_shell_init "$@" ;;

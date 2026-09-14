@@ -1,170 +1,290 @@
 #!/usr/bin/env bash
-# Post-operation witnesses for guarded CLI rollback. Depends on: backup.sh.
-# Trees are serialized in byte order with NUL-delimited names. Links are leaves:
-# hash their link text, never stat/read/traverse their mutable destination.
+# Post-operation witnesses for guarded CLI rollback.
+#
+# <snapshot>/after.tsv records the state of every target once the operation
+# that took the snapshot has finished, bound to the snapshot's targets.tsv.
+# Rollback compares the live targets with it, so a path created or edited
+# after that operation is never discarded silently. Symlinks are leaves
+# compared by link text; their destinations are never read.
+#
+# Depends on: backup.sh (_backup_canonical_root, _backup_snapshot_path,
+# _backup_validate_rel, _backup_safe_target_path_r), manifest.sh
+# (_manifest_hash_cmd, _manifest_hash_stream).
 
-_backup_hash_stream() (
-    set -o pipefail
-    if command -v sha256sum >/dev/null 2>&1; then
-        sha256sum
-    elif command -v shasum >/dev/null 2>&1; then
-        shasum -a 256
-    else
-        _backup_error "SHA-256 is required for verified rollback"
-        exit 1
-    fi | {
-        local digest rest
-        read -r digest rest || exit 1
-        [[ "$digest" =~ ^[0-9a-f]{64}$ ]] || exit 1
-        printf '%s\n' "$digest"
-    }
-)
+BACKUP_WITNESS_SCHEMA="post-state-v2"
+BACKUP_SEAL_REASON=""
+BACKUP_PREFLIGHT_STATUS=""
+BACKUP_PREFLIGHT_DETAIL=""
 
-_backup_state_mode() {
-    local mode
-    mode=$(stat -c '%a' "$1" 2>/dev/null) ||
-        mode=$(stat -f '%Lp' "$1" 2>/dev/null) || return 1
-    [[ "$mode" =~ ^[0-7]+$ ]] || return 1
-    printf '%s\0' "$mode"
+# Paths and link text are stored with %, tab, LF, and CR percent-encoded so one
+# record stays one tab-separated line.
+_backup_witness_escape_r() {
+    local text="$1" tab=$'\t' lf=$'\n' cr=$'\r'
+    text="${text//%/%25}"
+    text="${text//$tab/%09}"
+    text="${text//$lf/%0A}"
+    REPLY="${text//$cr/%0D}"
 }
 
-_backup_state_tree() {
-    local path="$1" rel="$2" child
-    if [[ -L "$path" ]]; then
-        printf 'link\0%s\0' "$rel"
-        readlink "$path" | _backup_hash_stream || return 1
-    elif [[ -f "$path" ]]; then
-        printf 'file\0%s\0' "$rel"
-        _backup_state_mode "$path" || return 1
-        _backup_hash_stream < "$path" || return 1
-    elif [[ -d "$path" ]]; then
-        [[ -r "$path" && -x "$path" ]] || {
-            _backup_error "Cannot inspect directory for rollback: $rel"
-            return 1
-        }
-        printf 'directory\0%s\0' "$rel"
-        _backup_state_mode "$path" || return 1
-        for child in "$path"/*; do
-            _backup_state_tree "$child" "$rel/${child##*/}" || return 1
+_backup_witness_hash_one_r() {
+    local tool="$2" out
+    REPLY="?"
+    # $tool may be "shasum -a 256" — intentional word split.
+    # shellcheck disable=SC2086
+    out=$($tool < "$1" 2>/dev/null) || return 1
+    REPLY="${out:0:64}"
+}
+
+# Appends one record per path below <abs> to the _WITNESS_* arrays of the
+# calling _backup_witness_print.
+_backup_witness_walk() {
+    local abs="$1" rel="$2" index child
+    index=${#_WITNESS_PATHS[@]}
+    _backup_witness_escape_r "$rel"
+    _WITNESS_PATHS[index]="$REPLY"
+    _WITNESS_VALUES[index]="-"
+    if [[ -L "$abs" ]]; then
+        _WITNESS_KINDS[index]="link"
+        _WITNESS_LINKS+=("$abs")
+        _WITNESS_LINK_SLOTS+=("$index")
+    elif [[ -f "$abs" ]]; then
+        _WITNESS_KINDS[index]="file"
+        [[ ! -x "$abs" ]] || _WITNESS_KINDS[index]="exec"
+        _WITNESS_FILES+=("$abs")
+        _WITNESS_FILE_SLOTS+=("$index")
+    elif [[ -d "$abs" ]]; then
+        _WITNESS_KINDS[index]="dir"
+        for child in "$abs"/*; do
+            _backup_witness_walk "$child" "$rel/${child##*/}"
         done
-    elif [[ -e "$path" ]]; then
-        _backup_error "Unsupported file type for verified rollback: $rel"
-        return 1
+    elif [[ -e "$abs" ]]; then
+        _WITNESS_KINDS[index]="other"
     else
-        printf 'missing\0%s\0' "$rel"
+        _WITNESS_KINDS[index]="missing"
     fi
 }
 
-_backup_tree_fingerprint() (
-    set -o pipefail
-    export LC_ALL=C
+# Print the witness of the targets listed in <targets.tsv>. Mode "seal" fails on
+# an unreadable file or link; mode "check" records it as "?" so it compares as
+# changed. On failure, prints the reason on stderr and returns 1.
+# Usage: _backup_witness_print <canonical-root> <targets.tsv> <seal|check>
+_backup_witness_print() (
+    local root="$1" targets="$2" mode="$3"
+    LC_ALL=C
     shopt -s dotglob nullglob
-    _backup_state_tree "$1" "$2" | _backup_hash_stream
-)
 
-_backup_target_fingerprint() {
-    local root="$1" rel="$2" parent="$1" component
-    local -a parts
-    _backup_validate_rel "$rel" || return 1
-    case "$rel" in
-        */|*//*)
-            _backup_error "Refusing non-normalized rollback target: $rel"
-            return 1
-            ;;
-    esac
-    IFS=/ read -ra parts <<< "$rel"
-    local index
-    for ((index = 0; index < ${#parts[@]} - 1; index++)); do
-        component="${parts[$index]}"
-        parent="$parent/$component"
-        # Never traverse an ancestor link, even one currently pointing inside
-        # the project. The linked data is not a rollback-owned subtree.
-        if [[ -L "$parent" ]]; then
-            _backup_error "Rollback target has a symlink ancestor: $rel"
-            return 1
+    local tool
+    tool=$(_manifest_hash_cmd)
+    if [[ -z "$tool" ]]; then
+        echo "no SHA-256 tool (sha256sum or shasum) is installed" >&2
+        exit 1
+    fi
+    if [[ -L "$targets" ]] || [[ ! -f "$targets" ]]; then
+        echo "the snapshot target list is missing" >&2
+        exit 1
+    fi
+
+    local -a _WITNESS_KINDS=() _WITNESS_VALUES=() _WITNESS_PATHS=()
+    local -a _WITNESS_FILES=("$targets") _WITNESS_FILE_SLOTS=(-1)
+    local -a _WITNESS_LINKS=() _WITNESS_LINK_SLOTS=()
+    local state rel extra
+    while IFS=$'\t' read -r state rel extra || [[ -n "$state$rel$extra" ]]; do
+        [[ -n "$state$rel$extra" ]] || continue
+        # A trailing slash would make [[ -L ]] follow a symlinked target.
+        if [[ "$state" != "present" && "$state" != "missing" ]] || [[ -n "$extra" ]] || \
+           [[ "$rel" == */ || "$rel" == *//* ]] || ! _backup_validate_rel "$rel" 2>/dev/null; then
+            echo "the snapshot target list is invalid" >&2
+            exit 1
         fi
-        if [[ -e "$parent" ]] && [[ ! -d "$parent" || ! -x "$parent" ]]; then
-            _backup_error "Cannot inspect rollback target ancestor: $rel"
-            return 1
+        if ! _backup_safe_target_path_r "$root" "$rel" 2>/dev/null; then
+            echo "target is not inside the project: $rel" >&2
+            exit 1
+        fi
+        _backup_witness_walk "$REPLY" "$rel"
+    done < "$targets"
+
+    local -a digests=() batch=() batch_index=() lines=()
+    local i output line
+    for ((i = 0; i < ${#_WITNESS_FILES[@]}; i++)); do
+        if [[ "${_WITNESS_FILES[i]}" == *$'\n'* ]]; then
+            _backup_witness_hash_one_r "${_WITNESS_FILES[i]}" "$tool" || true
+            digests[i]="$REPLY"
+        else
+            batch+=("${_WITNESS_FILES[i]}")
+            batch_index+=("$i")
         fi
     done
-    _backup_tree_fingerprint "$root/$rel" "$rel"
-}
+    # Hash tools escape a name containing a newline or backslash by prefixing the
+    # line with "\"; newline names were hashed from stdin above.
+    output=$(printf '%s\0' "${batch[@]}" | _manifest_hash_stream) || output=""
+    IFS=$'\n' read -r -d '' -a lines <<< "$output" || true
+    for ((i = 0; i < ${#batch[@]}; i++)); do
+        if [[ ${#lines[@]} -eq ${#batch[@]} ]]; then
+            line="${lines[i]#\\}"
+            digests[batch_index[i]]="${line:0:64}"
+        else
+            _backup_witness_hash_one_r "${batch[i]}" "$tool" || true
+            digests[batch_index[i]]="$REPLY"
+        fi
+    done
 
-# Seal only after the operation is complete. Never replace an existing witness.
-# Bind it to the target list and pre-image as well as the live post-image.
-backup_seal() {
-    local root snapshot target_hash before_hash temp rel digest
-    root=$(_backup_canonical_root "$1") || return 1
-    snapshot=$(_backup_snapshot_path "$root" "$2") || return 1
-    backup_load_targets "$root" "$snapshot" || return 1
-    if [[ -e "$snapshot/after.tsv" || -L "$snapshot/after.tsv" ]]; then
-        _backup_error "Snapshot already has a post-operation record"
-        return 1
-    fi
-    target_hash=$(_backup_hash_stream < "$snapshot/targets.tsv") || return 1
-    before_hash=$(_backup_tree_fingerprint "$snapshot/files" files) || return 1
-    temp=$(mktemp "$snapshot/.after.tmp.XXXXXX") || return 1
-    if ! (
-        printf 'post-state-v1\t%s\t%s\n' "$target_hash" "$before_hash"
-        for rel in "${BACKUP_LOADED_RELS[@]}"; do
-            digest=$(_backup_target_fingerprint "$root" "$rel") || exit 1
-            printf '%s\t%s\n' "$rel" "$digest"
+    local hex_re='^[0-9a-f]{64}$'
+    for ((i = 0; i < ${#_WITNESS_FILES[@]}; i++)); do
+        if [[ ! "${digests[i]}" =~ $hex_re ]]; then
+            if [[ $i -eq 0 ]] || [[ "$mode" == "seal" ]]; then
+                echo "could not hash ${_WITNESS_FILES[i]}" >&2
+                exit 1
+            fi
+            digests[i]="?"
+        fi
+        [[ $i -eq 0 ]] || _WITNESS_VALUES[_WITNESS_FILE_SLOTS[i]]="${digests[i]}"
+    done
+
+    if [[ ${#_WITNESS_LINKS[@]} -gt 0 ]]; then
+        lines=()
+        output=$(printf '%s\0' "${_WITNESS_LINKS[@]}" | xargs -0 readlink 2>/dev/null) || output=""
+        IFS=$'\n' read -r -d '' -a lines <<< "$output" || true
+        for ((i = 0; i < ${#_WITNESS_LINKS[@]}; i++)); do
+            if [[ ${#lines[@]} -eq ${#_WITNESS_LINKS[@]} ]]; then
+                output="${lines[i]}"
+            else
+                output=$(readlink "${_WITNESS_LINKS[i]}" 2>/dev/null && printf '.') || output=""
+                if [[ "$output" != *. ]]; then
+                    if [[ "$mode" == "seal" ]]; then
+                        echo "could not read link ${_WITNESS_LINKS[i]}" >&2
+                        exit 1
+                    fi
+                    _WITNESS_VALUES[_WITNESS_LINK_SLOTS[i]]="?"
+                    continue
+                fi
+                output="${output%.}"
+                output="${output%$'\n'}"
+            fi
+            _backup_witness_escape_r "$output"
+            _WITNESS_VALUES[_WITNESS_LINK_SLOTS[i]]="$REPLY"
         done
-    ) > "$temp"; then
-        rm -f "$temp"
-        _backup_error "Could not record verified post-operation state"
+    fi
+
+    printf '%s\t%s\n' "$BACKUP_WITNESS_SCHEMA" "${digests[0]}"
+    for ((i = 0; i < ${#_WITNESS_PATHS[@]}; i++)); do
+        printf '%s\t%s\t%s\n' "${_WITNESS_KINDS[i]}" "${_WITNESS_VALUES[i]}" "${_WITNESS_PATHS[i]}"
+    done
+)
+
+# Record the post-operation state of a snapshot's targets. Never replaces an
+# existing record. On failure the snapshot stays unsealed, nothing is printed,
+# and BACKUP_SEAL_REASON says why.
+# Usage: backup_seal <project-root> <snapshot-path-or-id>
+# shellcheck disable=SC2034
+backup_seal() {
+    local root snapshot stage reason
+    BACKUP_SEAL_REASON=""
+    if ! root=$(_backup_canonical_root "$1" 2>/dev/null) || \
+       ! snapshot=$(_backup_snapshot_path "$root" "$2" 2>/dev/null); then
+        BACKUP_SEAL_REASON="the snapshot is missing or incomplete"
         return 1
     fi
-    mv "$temp" "$snapshot/after.tsv"
+    if [[ -e "$snapshot/after.tsv" ]] || [[ -L "$snapshot/after.tsv" ]]; then
+        BACKUP_SEAL_REASON="the snapshot already has a post-operation record"
+        return 1
+    fi
+    # Staged in the store root so _backup_sweep_stale_staging reclaims a record
+    # abandoned by a killed run; the rename stays on one filesystem.
+    if ! stage=$(mktemp "${snapshot%/*}/.tmp.seal.$$.XXXXXX" 2>/dev/null); then
+        BACKUP_SEAL_REASON="could not stage the post-operation record"
+        return 1
+    fi
+    if ! reason=$( { _backup_witness_print "$root" "$snapshot/targets.tsv" seal > "$stage"; } 2>&1); then
+        rm -f "$stage"
+        BACKUP_SEAL_REASON="${reason:-could not inspect the targets}"
+        return 1
+    fi
+    if ! mv "$stage" "$snapshot/after.tsv" 2>/dev/null; then
+        rm -f "$stage"
+        BACKUP_SEAL_REASON="could not write the post-operation record"
+        return 1
+    fi
 }
 
-# Read-only, fail-closed preflight of ALL targets. No partial restore is started.
-backup_preflight() (
-    local root snapshot schema target_hash before_hash extra digest rel expected
-    root=$(_backup_canonical_root "$1") || return 1
-    snapshot=$(_backup_snapshot_path "$root" "$2") || return 1
-    backup_load_targets "$root" "$snapshot" || return 1
-    if [[ -L "$snapshot/after.tsv" || ! -f "$snapshot/after.tsv" ]]; then
-        _backup_error "No verified post-operation state for this snapshot; rollback refused"
+# Print the first path whose record differs between two witness bodies into
+# REPLY. Returns 1 when <stored> is not a well-formed body.
+_backup_witness_first_difference_r() {
+    local -a stored=() current=()
+    IFS=$'\n' read -r -d '' -a stored <<< "$1" || true
+    IFS=$'\n' read -r -d '' -a current <<< "$2" || true
+    [[ ${#stored[@]} -gt 0 ]] || return 1
+
+    local record_re=$'^((missing|dir|other)\t-|(file|exec)\t([0-9a-f]{64})|link\t[^\t]+)\t[^\t]+$'
+    local line tab=$'\t'
+    for line in "${stored[@]}"; do
+        [[ "$line" =~ $record_re ]] || return 1
+    done
+
+    local i=0 j stored_path current_path
+    while [[ $i -lt ${#stored[@]} && $i -lt ${#current[@]} ]] && \
+          [[ "${stored[i]}" == "${current[i]}" ]]; do
+        i=$((i + 1))
+    done
+    if [[ $i -ge ${#stored[@]} && $i -ge ${#current[@]} ]]; then
         return 1
+    elif [[ $i -ge ${#current[@]} ]]; then
+        REPLY="${stored[i]##*"$tab"}"
+        return 0
+    elif [[ $i -ge ${#stored[@]} ]]; then
+        REPLY="${current[i]##*"$tab"}"
+        return 0
     fi
-    exec 3< "$snapshot/after.tsv" || return 1
-    IFS=$'\t' read -r schema target_hash before_hash extra <&3 || return 1
-    if [[ "$schema" != post-state-v1 || -n "$extra" ||
-          ! "$target_hash" =~ ^[0-9a-f]{64}$ || ! "$before_hash" =~ ^[0-9a-f]{64}$ ]]; then
-        _backup_error "Invalid post-operation record; rollback refused"
-        return 1
-    fi
-    digest=$(_backup_hash_stream < "$snapshot/targets.tsv") || return 1
-    if [[ "$digest" != "$target_hash" ]]; then
-        _backup_error "Snapshot target list differs from its post-operation record"
-        return 1
-    fi
-    digest=$(_backup_tree_fingerprint "$snapshot/files" files) || return 1
-    if [[ "$digest" != "$before_hash" ]]; then
-        _backup_error "Snapshot recovery data differs from its post-operation record"
-        return 1
-    fi
-    local index
-    for ((index = 0; index < ${#BACKUP_LOADED_RELS[@]}; index++)); do
-        if ! IFS=$'\t' read -r rel expected extra <&3 ||
-           [[ "$rel" != "${BACKUP_LOADED_RELS[$index]}" || -n "$extra" ||
-              ! "$expected" =~ ^[0-9a-f]{64}$ ]]; then
-            _backup_error "Incomplete or invalid post-operation target record"
-            return 1
-        fi
-        digest=$(_backup_target_fingerprint "$root" "$rel") || {
-            _backup_error "Rollback conflict: cannot safely inspect $rel"
-            return 1
-        }
-        if [[ "$digest" != "$expected" ]]; then
-            _backup_error "Rollback conflict: $rel changed after the operation; no targets were restored"
-            return 1
+
+    stored_path="${stored[i]##*"$tab"}"
+    current_path="${current[i]##*"$tab"}"
+    REPLY="$stored_path"
+    [[ "$stored_path" != "$current_path" ]] || return 0
+    for ((j = i + 1; j < ${#current[@]}; j++)); do
+        if [[ "${current[j]##*"$tab"}" == "$stored_path" ]]; then
+            REPLY="$current_path"
+            return 0
         fi
     done
-    if IFS= read -r extra <&3 || [[ -n "$extra" ]]; then
-        _backup_error "Unexpected post-operation records; rollback refused"
-        return 1
+}
+
+# Compare the live targets with a snapshot's post-operation record. Read-only.
+# Sets BACKUP_PREFLIGHT_STATUS to clean, unsealed, or conflict, and
+# BACKUP_PREFLIGHT_DETAIL to why the snapshot counts as unsealed or to the first
+# differing path (encoded as in after.tsv).
+# Usage: backup_preflight <canonical-root> <snapshot-path>
+# shellcheck disable=SC2034
+backup_preflight() {
+    local root="$1" snapshot="$2"
+    local record="$snapshot/after.tsv" stored="" current
+    BACKUP_PREFLIGHT_STATUS="unsealed"
+    BACKUP_PREFLIGHT_DETAIL="has no post-operation record"
+    [[ -f "$record" && ! -L "$record" ]] || return 0
+
+    IFS= read -r -d '' stored < "$record" || true
+    stored="${stored%$'\n'}"
+    local header_re=$'^post-state-v2\t[0-9a-f]{64}$'
+    BACKUP_PREFLIGHT_DETAIL="has a malformed post-operation record"
+    [[ "$stored" == *$'\n'* ]] || return 0
+    [[ "${stored%%$'\n'*}" =~ $header_re ]] || return 0
+
+    if [[ -z "$(_manifest_hash_cmd)" ]]; then
+        BACKUP_PREFLIGHT_DETAIL="cannot be checked without a SHA-256 tool (sha256sum or shasum)"
+        return 0
     fi
-)
+    if ! current=$(_backup_witness_print "$root" "$snapshot/targets.tsv" check 2>/dev/null); then
+        BACKUP_PREFLIGHT_DETAIL="cannot be checked because its targets could not be inspected"
+        return 0
+    fi
+    if [[ "${stored%%$'\n'*}" != "${current%%$'\n'*}" ]]; then
+        BACKUP_PREFLIGHT_DETAIL="has a post-operation record that does not match its target list"
+        return 0
+    fi
+    if [[ "$stored" == "$current" ]]; then
+        BACKUP_PREFLIGHT_STATUS="clean"
+        BACKUP_PREFLIGHT_DETAIL=""
+        return 0
+    fi
+    _backup_witness_first_difference_r "${stored#*$'\n'}" "${current#*$'\n'}" || return 0
+    BACKUP_PREFLIGHT_STATUS="conflict"
+    BACKUP_PREFLIGHT_DETAIL="$REPLY"
+}

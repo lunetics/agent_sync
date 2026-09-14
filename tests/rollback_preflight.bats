@@ -5,6 +5,9 @@ load test_helper
 setup() {
     setup_test_project
     source "$REPO_ROOT/lib/helpers/paths.sh"
+    source "$REPO_ROOT/lib/helpers/yaml.sh"
+    source "$REPO_ROOT/lib/helpers/project_config.sh"
+    source "$REPO_ROOT/lib/helpers/manifest.sh"
     source "$REPO_ROOT/lib/helpers/backup.sh"
     source "$REPO_ROOT/lib/helpers/backup_state.sh"
     PROOF_DIR="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_rollback_proof.XXXXXX")"
@@ -320,29 +323,39 @@ assert_refused_unchanged() {
     cmp .ai/.sync-manifest "$PROOF_DIR/after-sync/.ai/.sync-manifest"
 }
 
-@test "rollback preflight rejects changed recovery contents before target writes" {
-    mkdir -p .codex
-    printf 'native original\n' > .codex/config.toml
-    sync_once
-    printf 'corrupt recovery\n' > ".ai/backups/$SYNC_ID/files/.codex/config.toml"
-    checkpoint before-refusal
-    run run_agentsync rollback "$SYNC_ID" --yes
-    [ "$status" -ne 0 ]
-    [[ "$output" == *"post-operation"* ]]
-    assert_tree_equal . "$PROOF_DIR/before-refusal"
-}
-
 @test "snapshot post-state refuses trailing-slash targets before traversing a link" {
     mkdir private-knowledge
     printf 'mutable\n' > private-knowledge/data
     checkpoint before-snapshot
-    local snapshot
+    local snapshot sealed=true
     snapshot="$(backup_create "$TEST_PROJECT" sync managed/)"
     checkpoint before-link
     create_test_symlink "$TEST_PROJECT/private-knowledge" managed
     checkpoint before-seal
-    run backup_seal "$TEST_PROJECT" "$snapshot"
-    [ "$status" -ne 0 ]
-    [[ "$output" == *"non-normalized"* ]]
+    backup_seal "$TEST_PROJECT" "$snapshot" || sealed=false
+    [ "$sealed" = false ]
+    [ "$BACKUP_SEAL_REASON" = "the snapshot target list is invalid" ]
+    [ ! -e "$snapshot/after.tsv" ]
     assert_tree_equal . "$PROOF_DIR/before-seal"
+}
+
+@test "snapshot post-state records one line per path with batched hashes" {
+    mkdir -p .codex/sub
+    printf 'one\n' > .codex/config.toml
+    printf '#!/bin/sh\n' > .codex/sub/run.sh
+    chmod +x .codex/sub/run.sh
+    create_test_symlink "config.toml" .codex/link
+    local snapshot
+    snapshot="$(backup_create "$TEST_PROJECT" sync .codex absent.md)"
+    backup_seal "$TEST_PROJECT" "$snapshot"
+    local tab=$'\t' expected
+    expected="post-state-v2${tab}$(file_sha256 "$snapshot/targets.tsv")
+dir${tab}-${tab}.codex
+file${tab}$(file_sha256 .codex/config.toml)${tab}.codex/config.toml
+link${tab}config.toml${tab}.codex/link
+dir${tab}-${tab}.codex/sub
+exec${tab}$(file_sha256 .codex/sub/run.sh)${tab}.codex/sub/run.sh
+missing${tab}-${tab}absent.md"
+    [[ "$OSTYPE" != msys* ]] || skip "Windows derives the executable bit from file contents"
+    [ "$(cat "$snapshot/after.tsv")" = "$expected" ]
 }

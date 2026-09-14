@@ -325,3 +325,17 @@ Primary sources checked 2026-09-14:
 All new metadata keys, modes, profiles, commands and matching rules in this RFC
 are design proposals. None of the example client labels is a new compatibility
 certification. Existing runtime settings and distributed skill packages are unchanged.
+
+## 13. Baseline verification
+
+On 2026-09-14, the exact 0.36.0 source archive passed all **817 Bats tests,
+zero failures and zero skips**, in an isolated non-root Linux Docker container
+with no host mounts or network. Test files ran with four workers; Bats 1.14.0
+and Zsh 5.9 were available. The full CI ShellCheck command passed with 0.11.0.
+An earlier serial run was interrupted to switch to the complete parallel run;
+the totals above come exclusively from that completed run.
+
+The RFC's frontmatter example was parsed separately and its metadata values
+checked as strings. This validates the example, not the proposed card parser.
+No card feature, native-client execution test, macOS/Windows rerun, or host
+installation is claimed by this baseline. The only branch changes are this RFC.

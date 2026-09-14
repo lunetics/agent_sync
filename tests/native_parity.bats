@@ -602,3 +602,28 @@ assert_tree_parity() {
     AGENTSYNC_CONFIG_PATH=config/a.yaml assert_tree_parity disable kimi
     AGENTSYNC_CONFIG_PATH=missing.yaml assert_tree_parity enable claude
 }
+
+# ── customize / show / diff ──────────────────────────────────────────────────
+
+@test "parity: customize scaffolds tools and payloads like Bash" {
+    enable_tools cursor
+    assert_tree_parity customize
+    assert_tree_parity customize claude
+    assert_tree_parity customize cursor --full
+    assert_tree_parity customize claude nope
+    assert_tree_parity customize nope mcp
+    assert_tree_parity customize nope --full
+    assert_tree_parity customize a b c
+    assert_tree_parity customize --bogus
+    assert_tree_parity customize --help
+    assert_tree_parity customize cursor hooks
+    assert_tree_parity customize cursor hooks --yes
+    mkdir -p .ai/src/mcp
+    printf '{"marker":"USER"}\n' > .ai/src/mcp/claude.json
+    assert_tree_parity customize claude mcp
+    _run_engine 0 customize claude >/dev/null
+    assert_tree_parity customize claude
+    printf 'tools:\n  enabled: [cursor]\nsource:\n  tools: "%s/outside"\n' "$BATS_TEST_TMPDIR" > .ai/agent_sync.yaml
+    mkdir -p "$BATS_TEST_TMPDIR/outside"
+    assert_tree_parity customize codex
+}

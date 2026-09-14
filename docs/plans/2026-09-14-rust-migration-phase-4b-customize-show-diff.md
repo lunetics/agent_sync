@@ -320,7 +320,7 @@ git commit -m "feat(native): resolve payload sources for the customize commands"
   - `pub const VALID_RESOURCES: [&str; 4]` and `pub(crate) fn unknown_resource(style: &Style, resource: &str, err: &mut dyn Write) -> Result<u8, Error>` in `src/cli/customize.rs`, reused by `show` and `diff`
   - `pub fn customize(args: &[String], discover: &dyn Fn() -> Result<Project, Error>, style: &Style, stdin_tty: bool, ask: &mut dyn FnMut(&str) -> String, out: &mut dyn Write, err: &mut dyn Write) -> Result<u8, Error>`
 
-- [ ] **Step 1: Parity fixture, Bash side**
+- [x] **Step 1: Parity fixture, Bash side**
 
 Append to `tests/native_parity.bats`:
 
@@ -354,7 +354,7 @@ Append to `tests/native_parity.bats`:
 Run: `bats --tap -f 'customize scaffolds' tests/native_parity.bats`
 Expected: `ok` (both sides still run Bash).
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Create `src/cli/customize.rs` with only this tests module and add `pub mod customize;` to `src/cli/mod.rs`:
 
@@ -472,7 +472,7 @@ mod tests {
 Run: `cargo test --lib cli::customize 2>&1 | grep -E '^error' | sort | uniq -c`
 Expected: `cannot find function 'customize'` and unresolved `Project` and `Style`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Above the tests module:
 
@@ -809,7 +809,7 @@ In `src/main.rs`, extend the raw dispatch: add `"customize"` to the matched comm
 
 turning the `if command == "enable"` expression into a `match command`, and adding `use std::io::IsTerminal;` to the imports. In `bin/agentsync.sh:280` append `customize` to `_NATIVE_COMMANDS`.
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -4
@@ -820,7 +820,7 @@ bats --tap -f 'customize scaffolds' tests/native_parity.bats
 
 Expected: `196 passed`, `0`, `11`, `1`; `0`; `ok`.
 
-- [ ] **Step 5: Prove the fixture bites, lint, commit**
+- [x] **Step 5: Prove the fixture bites, lint, commit**
 
 Change `"Created {resource} override:"` to `"Made {resource} override:"`, rebuild, rerun the fixture: `not ok` with that diff; revert and rebuild.
 
@@ -1737,4 +1737,11 @@ The plan is closed when every box is ticked, `customize.bats` is green under `AG
 - Verified: Task 0 at `bda3a9b`: `customize`, `simplify`, `doctor`, `source_overrides`, `resource_resolver`, `enable`, `native_parity` all `bash=0`. Task 1: `cargo test` 194 lib, 11 cli, 1 interrupt; fmt and clippy exit 0; release build; `AGENTSYNC_NATIVE=1 bats tests/enable.bats` 15 `ok`, 0 `not ok`.
 - Plan amended: none.
 - Next: Task 2 Step 1 (its module, tests, and `main` dispatch are written and pass `cargo test` at 196).
+- Blocker: none.
+
+### 2026-09-14 — Task 2 done
+- Commits: "feat(native): port customize".
+- Verified: `cargo test` 196 lib; fmt and clippy exit 0; the fixture `ok` on the Bash side and again with `customize` native; `AGENTSYNC_NATIVE=1 bats tests/customize.bats` 13 `ok`, 0 `not ok`. Mutation: `Made {resource} override:` failed the fixture with that diff; reverted, rebuilt.
+- Plan amended: the unused `Source` import was dropped, as Step 3 anticipated.
+- Next: Task 3 Step 1.
 - Blocker: none.

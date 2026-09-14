@@ -8,9 +8,6 @@
 # Depends on: paths.sh (_path_parent_r, _canon_dir_r), yaml.sh
 # (parse_yaml_value_r), project_config.sh (project_config_path_r).
 
-# shellcheck source=backup_state.sh
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/backup_state.sh"
-
 BACKUP_PREPARED_TARGETS=()
 BACKUP_LOADED_STATES=()
 BACKUP_LOADED_RELS=()

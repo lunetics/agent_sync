@@ -7,6 +7,7 @@ setup() {
     setup_test_project
     source "$REPO_ROOT/lib/helpers/paths.sh"
     source "$REPO_ROOT/lib/helpers/backup.sh"
+    source "$REPO_ROOT/lib/helpers/backup_state.sh"
     BACKUP_OUTSIDE=""
 }
 

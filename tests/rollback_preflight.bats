@@ -6,6 +6,7 @@ setup() {
     setup_test_project
     source "$REPO_ROOT/lib/helpers/paths.sh"
     source "$REPO_ROOT/lib/helpers/backup.sh"
+    source "$REPO_ROOT/lib/helpers/backup_state.sh"
     PROOF_DIR="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_rollback_proof.XXXXXX")"
     run_agentsync init --tools claude,codex --yes --no-sync >/dev/null
     checkpoint initialized

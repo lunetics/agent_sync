@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Post-operation witnesses for guarded CLI rollback. Sourced by backup.sh.
+# Post-operation witnesses for guarded CLI rollback. Depends on: backup.sh.
 # Trees are serialized in byte order with NUL-delimited names. Links are leaves:
 # hash their link text, never stat/read/traverse their mutable destination.
 

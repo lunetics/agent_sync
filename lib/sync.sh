@@ -38,6 +38,8 @@ source "$SCRIPT_DIR/helpers/filters.sh"
 source "$SCRIPT_DIR/helpers/file_ops.sh"
 # shellcheck source=helpers/backup.sh
 source "$SCRIPT_DIR/helpers/backup.sh"
+# shellcheck source=helpers/backup_state.sh
+source "$SCRIPT_DIR/helpers/backup_state.sh"
 # shellcheck source=helpers/rule_operations.sh
 source "$SCRIPT_DIR/helpers/rule_operations.sh"
 # shellcheck source=helpers/format_conversion.sh

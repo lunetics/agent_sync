@@ -9,6 +9,7 @@ setup() {
     source "$REPO_ROOT/lib/helpers/yaml.sh"
     source "$REPO_ROOT/lib/helpers/project_config.sh"
     source "$REPO_ROOT/lib/helpers/backup.sh"
+    source "$REPO_ROOT/lib/helpers/backup_state.sh"
     RETENTION_EVIDENCE="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_retention_evidence.XXXXXX")"
 }
 

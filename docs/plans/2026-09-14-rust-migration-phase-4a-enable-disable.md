@@ -215,7 +215,7 @@ git commit -m "fix(enable): keep disable inside tools.enabled and read [a, b]"
   - `pub fn list_append(file: &Path, key_path: &str, value: &str) -> Result<(), Error>`
   - `pub fn list_remove(file: &Path, key_path: &str, value: &str) -> Result<(), Error>`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `src/yaml_edit.rs` with the tests module only, and register the module:
 
@@ -344,12 +344,12 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run the tests, confirm they fail**
+- [x] **Step 2: Run the tests, confirm they fail**
 
 Run: `cargo test --lib yaml_edit 2>&1 | grep -E '^error' | sort | uniq -c`
 Expected: `cannot find function` errors for the seven functions.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Above the tests module:
 
@@ -626,12 +626,12 @@ pub fn list_remove(file: &Path, key_path: &str, value: &str) -> Result<(), Error
 }
 ```
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 Run: `cargo test 2>&1 | grep 'test result' | head -3`
 Expected: `190 passed` and `11 passed`.
 
-- [ ] **Step 5: Lint and commit**
+- [x] **Step 5: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings
@@ -654,7 +654,7 @@ git commit -m "feat(native): port the list and scalar editors of yaml_edit.sh"
   - `payload::override_path(project: &Project, tool: &Tool, resource: &str) -> Option<PathBuf>` — `<tools dir>/<slug>/<resource>.<ext of the shipped payload>`
   - `edit_paths::block(project: &Project, tool: &Tool, style: &Style) -> String` — `print_tool_edit_paths_block`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `src/edit_paths.rs` with the tests module only:
 
@@ -698,12 +698,12 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run it, confirm it fails**
+- [x] **Step 2: Run it, confirm it fails**
 
 Run: `cargo test --lib edit_paths 2>&1 | grep -E '^error' | sort | uniq -c`
 Expected: `cannot find function 'block'` and unresolved `Project`, `Tool`, `Style`, `Path`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 In `src/payload.rs`, after `legacy_override_path`:
 
@@ -809,12 +809,12 @@ pub fn block(project: &Project, tool: &Tool, style: &Style) -> String {
 }
 ```
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 Run: `cargo test 2>&1 | grep 'test result' | head -3`
 Expected: `191 passed` and `11 passed`.
 
-- [ ] **Step 5: Lint and commit**
+- [x] **Step 5: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings
@@ -837,7 +837,7 @@ git commit -m "feat(native): port the edit-path block of edit_paths.sh"
   - `pub fn enable(args: &[String], discover: &dyn Fn() -> Result<Project, Error>, style: &Style, interactive: bool, confirm: &mut dyn FnMut(&str) -> bool, out: &mut dyn Write, err: &mut dyn Write) -> Result<u8, Error>`
   - `pub fn disable(args: &[String], discover: &dyn Fn() -> Result<Project, Error>, style: &Style, out: &mut dyn Write, err: &mut dyn Write) -> Result<u8, Error>`
 
-- [ ] **Step 1: Write the parity fixtures and read the Bash side**
+- [x] **Step 1: Write the parity fixtures and read the Bash side**
 
 Append to `tests/native_parity.bats`:
 
@@ -891,7 +891,7 @@ Append to `tests/native_parity.bats`:
 Run: `AGENTSYNC_NATIVE=0 bats --tap tests/enable.bats | grep -c '^not ok'` and `bats --tap -f 'enable|disable' tests/native_parity.bats`
 Expected: `0`; three `ok` lines (the binary does not answer `enable` yet, so both sides run Bash).
 
-- [ ] **Step 2: Write the failing unit tests**
+- [x] **Step 2: Write the failing unit tests**
 
 Create `src/cli/enable.rs` with the tests module only and add `pub mod enable;` to `src/cli/mod.rs`:
 
@@ -997,7 +997,7 @@ Before running, confirm the display names in the expected strings with `grep -m1
 Run: `cargo test --lib cli::enable 2>&1 | grep -E '^error' | sort | uniq -c`
 Expected: `cannot find function 'enable'` and `'disable'`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Above the tests module in `src/cli/enable.rs`:
 
@@ -1347,7 +1347,7 @@ In `src/main.rs`, at the top of `run`, after the `--version` check and before `C
 
 In `bin/agentsync.sh:280`: `_NATIVE_COMMANDS=" version --version -v list ls check sync rollback enable disable "`.
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -3
@@ -1358,11 +1358,11 @@ bats --tap -f 'enable|disable' tests/native_parity.bats
 
 Expected: `193 passed` and `11 passed`; `0`; three `ok` lines.
 
-- [ ] **Step 5: Prove the fixtures bite**
+- [x] **Step 5: Prove the fixtures bite**
 
 Change `"Run {} to apply cleanup."` to `"Run {} to clean up."` in `src/cli/enable.rs`, rebuild, rerun `bats --tap -f 'disable edits' tests/native_parity.bats`: `not ok` with that diff; revert and rebuild.
 
-- [ ] **Step 6: Lint and commit**
+- [x] **Step 6: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings
@@ -1450,4 +1450,11 @@ The plan is closed when every box is ticked, `enable.bats` is green under `AGENT
 - Verified: Task 0 at `64910f7`: `enable`, `customize`, `config_safety`, `list`, `shared`, `profiles`, `sync_options`, `native_parity` all `bash=0`. Task 1: the two new cases `not ok` before the fix, `enable.bats` 0 failures after; ShellCheck exit 0; `remove_reference.sh` against the committed function prints the same six outputs as against the candidate.
 - Plan amended: `cargo test --lib` died of `SIGHUP` in 4 of 15 runs: the trap test raised a real signal, which set the flag of a parallel `rollback` or `sync` test's `Interrupt`, and that test re-raised it. The test moved to `tests/interrupt.rs`, its own process; 15 of 15 runs passed after. Unit counts drop by one and integration counts rise to 12: Task 2 expects `190` and `12`, Task 3 `191` and `12`, Tasks 4 and 5 `193` and `12`. This is the unexplained failure recorded in the Phase 3b family 3 receipt.
 - Next: Task 2 Step 5 (Tasks 2–4 are written and pass `cargo test`; they commit one at a time).
+- Blocker: none.
+
+### 2026-09-14 — Tasks 2, 3, and 4 done
+- Commits: `2e66f85` "feat(payload): add override_path and register edit modules" holds Tasks 2 and 3 (`src/yaml_edit.rs`, `src/edit_paths.rs`, `src/payload.rs`, `src/lib.rs`); it was not made by this run but by another session on the same checkout (`mobile-25` was active), 7 seconds after `de7137c`, with the working-tree files unchanged, and it is left as is. Then "feat(native): port enable and disable".
+- Verified: Task 2 `cargo test` 190 lib, 11 cli, 1 interrupt; Task 3 190 lib after the move (`edit_paths` test included); Task 4 192 lib, 11 cli, 1 interrupt; fmt and clippy exit 0. `AGENTSYNC_NATIVE=1 bats tests/enable.bats` 15 `ok`, 0 `not ok`; `bats -f 'enable|disable' tests/native_parity.bats` 7 `ok`. Mutation: `Run {} to clean up.` failed `parity: disable edits block and inline lists and legacy flags like Bash` with that diff; reverted, rebuilt.
+- Plan amended: counts are one lower than written (the interrupt test left the lib binary): Tasks 4 and 5 expect `192` lib tests plus `11` and `1` integration.
+- Next: Task 5 Step 1.
 - Blocker: none.

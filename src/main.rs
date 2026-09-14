@@ -33,6 +33,28 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
     ) {
         return print_version();
     }
+    // `cmd_enable` reads a leading `--` as the start of tool slugs; clap would consume it.
+    if let Some(command @ ("enable" | "disable")) = args.first().and_then(|a| a.to_str()) {
+        let rest: Vec<String> = args[1..]
+            .iter()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        let style = Style::for_stdout();
+        let (mut out, mut err) = (std::io::stdout(), std::io::stderr());
+        return if command == "enable" {
+            cli::enable::enable(
+                &rest,
+                &Project::discover,
+                &style,
+                prompts::is_tty(),
+                &mut |question: &str| prompts::confirm(question, true),
+                &mut out,
+                &mut err,
+            )
+        } else {
+            cli::enable::disable(&rest, &Project::discover, &style, &mut out, &mut err)
+        };
+    }
     let cli = Cli::parse_from(std::iter::once(OsString::from("agentsync")).chain(args));
     match cli.command {
         Command::Version => print_version(),

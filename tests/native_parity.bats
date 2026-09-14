@@ -557,3 +557,48 @@ assert_tree_parity() {
     _assert_same_trees "$left" "$right"
     [ "$(cat "$right/CLAUDE.md")" = "before-sync" ]
 }
+
+# ── enable / disable ─────────────────────────────────────────────────────────
+
+@test "parity: enable scaffolds, reports, and refuses like Bash" {
+    assert_tree_parity enable claude windsurf
+    assert_tree_parity enable
+    assert_tree_parity enable --bogus claude
+    assert_tree_parity enable --help
+    assert_tree_parity enable claude bogus_tool --no-scaffold
+    assert_tree_parity enable -- claude
+    mkdir -p .ai/src/settings
+    printf '{"legacy": true}\n' > .ai/src/settings/claude.json
+    printf '{"mcpServers":{}}\n' > .ai/src/mcp.json
+    assert_tree_parity enable claude cursor --scaffold
+    _run_engine 0 enable claude >/dev/null
+    assert_tree_parity enable claude cursor
+}
+
+@test "parity: disable edits block and inline lists and legacy flags like Bash" {
+    _run_engine 0 enable claude cursor >/dev/null
+    mkdir -p .ai/src/tools
+    printf 'enabled: true\n' > .ai/src/tools/kimi.yaml
+    assert_tree_parity disable claude kimi bogus_tool
+    assert_tree_parity disable
+    assert_tree_parity disable zed
+    printf 'tools:\n  enabled: [claude, cursor]\n' > .ai/agent_sync.yaml
+    assert_tree_parity disable cursor
+    printf 'format: 2\ntools:\n  other: x\n' > .ai/agent_sync.yaml
+    assert_tree_parity enable claude
+    rm .ai/agent_sync.yaml
+    assert_tree_parity disable claude
+    assert_tree_parity enable claude claude
+}
+
+@test "parity: enable and disable with an explicit config and outside source.tools" {
+    local outside="$BATS_TEST_TMPDIR/outside"
+    mkdir -p "$outside" config
+    printf 'enabled: true\n' > "$outside/kimi.yaml"
+    printf 'tools:\n  enabled: [claude]\nsource:\n  tools: "%s"\n' "$outside" > config/a.yaml
+    AGENTSYNC_CONFIG_PATH=config/a.yaml assert_tree_parity enable cursor --scaffold
+    AGENTSYNC_CONFIG_PATH=config/a.yaml assert_tree_parity enable cursor claude
+    AGENTSYNC_CONFIG_PATH=config/a.yaml assert_tree_parity disable claude
+    AGENTSYNC_CONFIG_PATH=config/a.yaml assert_tree_parity disable kimi
+    AGENTSYNC_CONFIG_PATH=missing.yaml assert_tree_parity enable claude
+}

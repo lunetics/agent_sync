@@ -49,7 +49,7 @@ lib/sync.sh                      → src/render.rs (stages) + src/cli/sync.rs (t
 bin/agentsync.sh workspace fan-out → src/cli/workspace.rs  Phase 3, ported
 lib/helpers/backup.sh (rollback) → src/cli/rollback.rs     Phase 3, ported; preflight, --force, sealed safety snapshot
 lib/helpers/enable.sh            → src/cli/enable.rs       Phase 4a, ported
-lib/helpers/customize.sh         → src/cli/{customize,show,diff}.rs
+lib/helpers/customize.sh         → src/cli/{customize,show,diff}.rs   Phase 4b, ported; diff -u spawned for payload hunks
 lib/helpers/simplify.sh          → src/cli/simplify.rs
 lib/helpers/resolve_cmd.sh       → src/cli/resolve.rs
 lib/helpers/profile.sh           → src/cli/profile.rs

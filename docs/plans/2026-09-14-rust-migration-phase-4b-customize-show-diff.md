@@ -1662,7 +1662,7 @@ git commit -m "feat(native): port diff"
 **Files:**
 - Modify: `docs/specs/2026-09-12-rust-migration-design.md`, `.ai/src/skills/native-port/references/module-map.md`, `.ai/.sync-manifest`
 
-- [ ] **Step 1: Spec**
+- [x] **Step 1: Spec**
 
 Replace the Phase 4 slice note written by 4a with:
 
@@ -1690,11 +1690,11 @@ Append to "Accepted deviations":
   `/<agentsync>/lib/templates/...` where Bash printed the install directory.
 ```
 
-- [ ] **Step 2: Module map and outputs**
+- [x] **Step 2: Module map and outputs**
 
 Set the `lib/helpers/customize.sh` row to `→ src/cli/{customize,show,diff}.rs   Phase 4b, ported; diff -u spawned for payload hunks`. Regenerate outputs with `AGENTSYNC_NATIVE=0 AGENTSYNC_HOME="$PWD" bash bin/agentsync.sh sync --force`.
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -4
@@ -1710,7 +1710,7 @@ done
 
 Expected: `199 passed`, `0`, `11`, `1`; lint exit 0; every line `bash=0 native=0`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/specs/2026-09-12-rust-migration-design.md .ai/src/skills/native-port/references/module-map.md .ai/.sync-manifest docs/plans/2026-09-14-rust-migration-phase-4b-customize-show-diff.md
@@ -1759,3 +1759,44 @@ The plan is closed when every box is ticked, `customize.bats` is green under `AG
 - Plan amended: bats runs that reach `diff`'s payload branch run outside the agent sandbox from here on; the stdin read is an environment restriction, not a platform one.
 - Next: Task 5 Step 1.
 - Blocker: none.
+
+### 2026-09-15 — Task 5 done, plan closed
+- Commits: "docs(native): map the phase 4b modules, quirks, and deviation", carrying the receipt below.
+- Verified: see the receipt.
+- Plan amended: none.
+- Next: Phase 4c's plan (`simplify` and `resolve` with `snapshot`).
+- Blocker: none.
+
+## Completion receipt
+
+### Decisions the review took
+
+All four as recommended, on 2026-09-14, under `/decide` and the maintainer's instruction to continue.
+
+### Global Constraints
+
+| Constraint | Satisfied by |
+|---|---|
+| `customize` writes only under the override directory and moves only a legacy payload; `show` and `diff` write nothing | `src/cli/customize.rs` (`customize_tool`, `customize_payload`); the three parity fixtures compare whole trees |
+| No Bash change | `git diff --stat bda3a9b..HEAD -- lib` is empty; ShellCheck exit 0 |
+| Byte-for-byte parity | `tests/native_parity.bats`: `parity: customize scaffolds tools and payloads like Bash`, `parity: show prints effective tools and payload sources like Bash`, `parity: diff reports overrides and payload hunks like Bash` |
+| `unsafe_code = "forbid"`, fmt and clippy clean, no new dependency; `main.rs` alone reads environment and terminal | `Cargo.toml` unchanged; `stdin().is_terminal()` and the prompt reader live in `src/main.rs` |
+| Disk-touching unit tests are `#[cfg(unix)]`; no unit test spawns `diff` | the three command test modules; `diff`'s unit test covers only the identical and no-override branches |
+| Expected values from Bash | `customize_reference.out`, template paths read as `/<agentsync>/lib/templates` |
+| Conventional Commits, at most 72 characters, no trailers | `bda3a9b` … the close commit |
+
+### Fresh verification, 2026-09-15, macOS arm64, outside the agent sandbox
+
+- `cargo test`: 199 passed (lib), 11 passed (cli), 1 passed (interrupt).
+- `cargo clippy --all-targets -- -D warnings`: exit 0. `cargo fmt --all --check`: exit 0.
+- `shellcheck -x -S warning -e SC1091 bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh`: exit 0.
+- bats, one file at a time, `AGENTSYNC_NATIVE=0` / `=1` failures: `customize` 0/0, `simplify` 0/0, `doctor` 0/0, `source_overrides` 0/0, `resource_resolver` 0/0, `enable` 0/0, `init` 0/0, `native_parity` 0/0.
+- Mutations: `Made {resource} override:`, `★ user override (legacy)`, and `--label yours` each failed their fixture with that diff; reverted, rebuilt.
+
+### Skipped, deferred, open
+
+- **The hooks prompt** (`Create this override? [y/N]`) was not exercised on a terminal; bats runs without one.
+- **`diff` inside a sandbox that denies reading stdin** prints no hunks where Bash, which passes both files by path, still does. Seen only in the agent sandbox; Phase 5 can pass the template through a temporary file if a supported platform shows it.
+- **Linux and Windows** `diff` output is not verified here; both engines spawn the same tool, so CI covers parity.
+- **Full-suite runs** stay off on this machine; the files listed are those that run these commands.
+- **Not pushed.**

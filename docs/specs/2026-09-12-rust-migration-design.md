@@ -273,9 +273,9 @@ Grouped by the module they share, each group its own plan:
 
 - `yaml_edit` family: `enable`, `disable`, `customize`, `simplify`, `show`,
   `diff`, `resolve`, `profile`, `upgrade-config`.
-  Planned in three slices: 4a `enable` and `disable` with `yaml_edit` and
-  `edit_paths`; 4b `customize`, `show`, `diff`, `simplify`, `resolve` with
-  `snapshot`; 4c `profile` and `upgrade-config`.
+  Planned in four slices: 4a `enable` and `disable` with `yaml_edit` and
+  `edit_paths`; 4b `customize`, `show`, and `diff`; 4c `simplify` and
+  `resolve` with `snapshot`; 4d `profile` and `upgrade-config`.
 - `template_manifest` family: `init`, `refresh`, `dedupe`, `migrate`, `adopt`.
 - Standalone: `doctor` (keeps its tri-state exit code), `add`, `export`,
   `import`, `generate`, `shell-init`, `setup-hooks`.
@@ -399,6 +399,12 @@ cleanup has a list:
     block at the end of the file.
 17. `disable` lists every argument that is not enabled afterwards, unknown slugs
     and repeated ones included.
+18. `diff <slug>` prints "No user overrides" and exits 0 when no tool has an
+    override, whatever the slug.
+19. `show <slug> <resource>` labels an override `base` when its extension
+    differs from the shipped template's.
+20. `diff` selects the project config before it validates the resource;
+    `customize` and `show` validate first.
 
 ## Accepted deviations
 
@@ -452,6 +458,8 @@ Appended one line at a time as they are found, with the phase:
   is set; Bash's `[[ -x ]]` asked whether the current user may execute it.
 - Phase 3b: a backup skips sockets and device files under a target, which
   `tar` and `cp -pPR` recreated or reported; a FIFO is recreated with `mkfifo`.
+- Phase 4b: `customize`, `show`, and `diff` name shipped templates as
+  `/<agentsync>/lib/templates/...` where Bash printed the install directory.
 
 ## Risks
 

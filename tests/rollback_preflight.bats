@@ -440,9 +440,9 @@ missing${tab}-${tab}absent.md"
     local snapshot tab=$'\t'
     snapshot="$(backup_create "$TEST_PROJECT" sync .codex)"
     backup_seal "$TEST_PROJECT" "$snapshot"
-    grep -qxF -- "file${tab}$(file_sha256 '.codex/back\slash')${tab}.codex/back\\slash" "$snapshot/after.tsv"
+    grep -qxF -- "file${tab}$(file_sha256 /dev/stdin < '.codex/back\slash')${tab}.codex/back\\slash" "$snapshot/after.tsv"
     grep -qxF -- "file${tab}$(printf 'newline\n' | file_sha256 /dev/stdin)${tab}.codex/new%0Aline" "$snapshot/after.tsv"
-    grep -qxF -- "file${tab}$(file_sha256 '.codex/100%')${tab}.codex/100%25" "$snapshot/after.tsv"
+    grep -qxF -- "file${tab}$(file_sha256 /dev/stdin < '.codex/100%')${tab}.codex/100%25" "$snapshot/after.tsv"
 }
 
 @test "an unreadable file is the reported conflict, not the files hashed after it" {

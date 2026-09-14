@@ -58,11 +58,10 @@ _backup_witness_stream_digest_r() {
     fi
     line="$_WITNESS_PENDING"
     listed="${line:66}"
-    # GNU tools prefix a line with "\" and double every backslash in its name.
+    # GNU tools prefix a line with "\" and escape backslash, LF, and CR in its name.
     if [[ "$line" == \\* ]]; then
         line="${line#\\}"
-        listed="${line:66}"
-        listed="${listed//\\\\/\\}"
+        printf -v listed '%b' "${line:66}"
     fi
     [[ "${line:64:2}" == "  " || "${line:64:2}" == " *" ]] || return 0
     [[ "$listed" == "$abs" ]] || return 0

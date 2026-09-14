@@ -61,6 +61,23 @@ pub fn legacy_override_path(project: &Project, tool: &Tool, resource: &str) -> O
     )
 }
 
+/// `_payload_override_path`: the canonical write path under the tool override
+/// directory, with the shipped payload's extension.
+pub fn override_path(project: &Project, tool: &Tool, resource: &str) -> Option<PathBuf> {
+    let ext = tool
+        .base_payload(resource)?
+        .path()
+        .extension()?
+        .to_str()?
+        .to_string();
+    Some(
+        project
+            .user_tools_dir()
+            .join(&tool.slug)
+            .join(format!("{resource}.{ext}")),
+    )
+}
+
 /// `resolve_payload_source`: per-tool override → declared `targets.<res>.source`
 /// → legacy flat layout → shared `.ai/src/mcp.json` (mcp only) → shipped base.
 pub fn resolve_source(s: &mut Session, tool: &Tool, resource: &str) -> Option<String> {

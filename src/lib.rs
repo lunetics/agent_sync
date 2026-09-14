@@ -5,6 +5,7 @@ pub mod backup;
 pub mod catalog;
 pub mod cli;
 pub mod convert;
+pub mod edit_paths;
 pub mod error;
 pub mod file_ops;
 pub mod filters;
@@ -30,6 +31,7 @@ pub mod tool;
 pub mod version;
 pub mod witness;
 pub mod workspace;
+pub mod yaml_edit;
 pub mod yaml_subset;
 
 pub use error::Error;

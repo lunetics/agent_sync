@@ -278,7 +278,7 @@ Expected: both lint commands exit 0.
   - `pub fn mismatch_error(pinned: &str, engine: &str, committed: bool) -> String`
   - `pub fn hint(pinned: &str, engine: &str) -> [String; 2]`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `src/version.rs`:
 
@@ -345,12 +345,12 @@ mod tests {
 
 In `src/lib.rs`, add `pub mod version;` in alphabetical position.
 
-- [ ] **Step 2: Run the tests, confirm they fail**
+- [x] **Step 2: Run the tests, confirm they fail**
 
 Run: `cargo test version:: 2>&1 | tail -5`
 Expected: compile errors for `mode`, `Mode`, `mismatch_error`, and `hint`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Insert above `#[cfg(test)]` in `src/version.rs`:
 
@@ -403,12 +403,12 @@ pub fn hint(pinned: &str, engine: &str) -> [String; 2] {
 }
 ```
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 Run: `cargo test version:: 2>&1 | grep 'test result'`
 Expected: `test result: ok. 5 passed` on the unit line. If `a_scalar_before_the_mapping_answers_first_like_bash_does` fails, `yaml_subset::value` diverges from `parse_yaml_value`: confirm with `bash -c 'source lib/helpers/yaml.sh; printf "version_pin: warn\nversion_pin:\n  mode: strict\n" > /tmp/v.yaml; parse_yaml_value /tmp/v.yaml version_pin.mode'` (prints an empty line) and fix the reader, not the test.
 
-- [ ] **Step 5: Lint and commit**
+- [x] **Step 5: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings

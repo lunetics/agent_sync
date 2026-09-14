@@ -27,6 +27,7 @@ pub mod staging;
 pub mod style;
 pub mod text;
 pub mod tool;
+pub mod version;
 pub mod workspace;
 pub mod yaml_subset;
 

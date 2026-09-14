@@ -2410,12 +2410,12 @@ git commit -m "feat(native): honour --dry-run and keep untracked outputs in ever
 - Consumes: `Log` (Task 1).
 - Produces: `staging::write_beside(dest: &Path, bytes: &[u8]) -> Result<(), Error>` — `tmp_sibling` + `mv`: the staging file is created `0600` and takes an existing destination's mode. `manifest::REL` (`".ai/.sync-manifest"`); `Manifest::load(root: &str) -> Result<Option<Manifest>, Error>` (`None` makes the run a baseline); `Manifest::parse(bytes: &[u8]) -> Manifest` (`IFS=$'\t' read -r rel hash`); `Manifest::paths(&self) -> BTreeSet<String>`; `Manifest::drift(&self, root: &str) -> Vec<String>` (manifest order; a missing file is not drift); `manifest::sha256_hex(bytes: &[u8]) -> String`; `manifest::write(root: &str, previous: Option<&Manifest>, touched: &BTreeSet<String>, log: &mut Log) -> Result<(), Error>` with the `Removed …` and `Initialized …` lines.
 
-- [ ] **Step 1: Add the digest crate**
+- [x] **Step 1: Add the digest crate**
 
 Run: `cargo add sha2@0.11 --no-default-features`
 Expected: `Cargo.toml` gains `sha2 = { version = "0.11", default-features = false }` between `include_dir` and `thiserror`.
 
-- [ ] **Step 2: Create `src/staging.rs`**
+- [x] **Step 2: Create `src/staging.rs`**
 
 ```rust
 //! `tmp_sibling` + `mv` from `lib/helpers/tmp.sh`: a file is replaced by
@@ -2501,7 +2501,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 3: Create `src/manifest.rs`**
+- [x] **Step 3: Create `src/manifest.rs`**
 
 ```rust
 //! `.ai/.sync-manifest` as `lib/helpers/manifest.sh` reads and writes it: one
@@ -2728,7 +2728,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 4: Declare the modules in `src/lib.rs`**
+- [x] **Step 4: Declare the modules in `src/lib.rs`**
 
 ```rust
 //! AgentSync native engine. `main.rs` is the only place that talks to the
@@ -2766,7 +2766,7 @@ pub fn engine_version() -> &'static str {
 }
 ```
 
-- [ ] **Step 5: Run the gates, confirm green**
+- [x] **Step 5: Run the gates, confirm green**
 
 ```bash
 cargo test 2>&1 | grep 'test result'
@@ -2776,7 +2776,7 @@ cargo clippy --all-targets -- -D warnings
 
 Expected: `126 passed` (unit) and `7 passed` (integration); fmt and clippy exit 0.
 
-- [ ] **Step 6: Cross-check the digests and the line reader against Bash**
+- [x] **Step 6: Cross-check the digests and the line reader against Bash**
 
 ```bash
 printf 'hello\n' | shasum -a 256
@@ -2789,7 +2789,7 @@ manifest_load; for i in "${!MANIFEST_KEYS[@]}"; do printf "[%s]=[%s]\n" "${MANIF
 
 Expected: `5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03  -` and `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  -`; then `[a.md]=[h1]$`, `[b.md]=[h2]$`, `[e.md]=[h\te]$`, `[last]=[h9]$` — the entries `lines_are_read_the_way_bash_read_splits_them_on_tabs` asserts.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add Cargo.toml Cargo.lock src/staging.rs src/manifest.rs src/lib.rs docs/plans/2026-09-14-rust-migration-phase-3-native-sync.md

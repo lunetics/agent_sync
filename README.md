@@ -617,7 +617,11 @@ available, the prompt is still printed to stdout.
 
 ## Path Overrides
 
-Create `agent_sync.yaml` in the project root to override source paths:
+Create `agent_sync.yaml` in the project root to override source paths. Relative
+values are resolved from the project root; absolute values may point at a
+separately maintained source tree. `source.tools` controls both the per-tool
+YAML files and their payload directories (`<source.tools>/<tool>/settings.json`,
+`hooks.json`, or `mcp.json`), so those files stay on the same source side:
 
 ```yaml
 outputs: committed # or local — see "Where generated files live"
@@ -628,6 +632,25 @@ source:
   skills: ".ai/src/skills"
   tools: ".ai/src/tools"
 ```
+
+For a user-wide source tree, keep outputs in the project (or use the tool
+configuration's supported project-relative destinations) and point only the
+sources outward:
+
+```yaml
+source:
+  agents: "/home/me/agentic/.ai/AGENTS.md"
+  rules: "/home/me/agentic/.ai/rules"
+  skills: "/home/me/agentic/.ai/skills"
+  tools: "/home/me/agentic/.ai/tools"
+```
+
+`AGENTSYNC_CONFIG_PATH` selects an alternate configuration file. Its
+`source.*` values still use the project-root-relative convention above. The
+`sync` and `check` commands register explicitly configured source roots as
+read-only inputs; destination paths remain confined to the project root, and
+an isolated `check` keeps the original source context while generating only in
+its temporary workspace.
 
 ## Migrating Existing Configurations
 

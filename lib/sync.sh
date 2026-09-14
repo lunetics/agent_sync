@@ -867,6 +867,15 @@ _resolve_sources() {
     [[ -n "$override_commands" ]] && SOURCE_COMMANDS="$override_commands"
     [[ -n "$override_subagents" ]] && SOURCE_SUBAGENTS="$override_subagents"
 
+    # shellcheck disable=SC2034  # consumed by paths.sh's source allowlist
+    CONFIGURED_SOURCE_ROOTS=()
+    register_configured_source_root "$SOURCE_AGENTS"
+    register_configured_source_root "$SOURCE_RULES"
+    register_configured_source_root "$SOURCE_SKILLS"
+    register_configured_source_root "$SOURCE_TOOLS"
+    register_configured_source_root "$SOURCE_COMMANDS"
+    register_configured_source_root "$SOURCE_SUBAGENTS"
+
     local source_agents_abs
     source_agents_abs=$(resolve_source_path "$SOURCE_AGENTS" "source.agents")
     if [[ ! -f "$source_agents_abs" ]]; then
@@ -893,11 +902,14 @@ _sync_is_stale() {
     [[ -d "$REPO_ROOT/.ai/profiles" ]] && roots+=("$REPO_ROOT/.ai/profiles")
     [[ -n "$PROJECT_CONFIG_PATH" && -f "$PROJECT_CONFIG_PATH" ]] && roots+=("$PROJECT_CONFIG_PATH")
 
-    # Honor source.* overrides that point outside .ai/src.
+    # Honor source.* overrides that point outside .ai/src. Relative paths use
+    # the same source base as the resolver (normally REPO_ROOT; check may keep
+    # the original project root while generating in a temporary workspace).
+    local source_base="${AGENTSYNC_SOURCE_BASE_ROOT:-$REPO_ROOT}"
     local rel abs
-    for rel in "$SOURCE_AGENTS" "$SOURCE_RULES" "$SOURCE_SKILLS" "$SOURCE_COMMANDS" "$SOURCE_SUBAGENTS"; do
+    for rel in "$SOURCE_AGENTS" "$SOURCE_RULES" "$SOURCE_SKILLS" "$SOURCE_TOOLS" "$SOURCE_COMMANDS" "$SOURCE_SUBAGENTS"; do
         [[ -n "$rel" ]] || continue
-        if [[ "$rel" == /* ]]; then abs="$rel"; else abs="$REPO_ROOT/$rel"; fi
+        if [[ "$rel" == /* ]]; then abs="$rel"; else abs="$source_base/$rel"; fi
         [[ "$abs" == "$src" || "$abs" == "$src"/* ]] && continue
         [[ -e "$abs" ]] && roots+=("$abs")
     done

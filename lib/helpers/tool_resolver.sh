@@ -24,6 +24,53 @@ fi
 
 # ── Base/User tool directories ────────────────────────────────────────────────
 
+# Source paths in agent_sync.yaml are relative to the project root. The check
+# command may run sync in a temporary output root while retaining read-only
+# access to the original project sources; it supplies this base explicitly.
+tool_resolver_source_base_dir() {
+    echo "${AGENTSYNC_SOURCE_BASE_ROOT:-$REPO_ROOT}"
+}
+
+# Resolve the configured source.tools directory. This is deliberately shared by
+# YAML lookup and payload lookup so a tool catalog and its settings/hooks/MCP
+# payloads can never silently come from different roots.
+tool_resolver_configured_tools_dir() {
+    local configured="${SOURCE_TOOLS:-}"
+    if [[ -z "$configured" ]] && [[ -n "${PROJECT_CONFIG_PATH:-}" ]] && [[ -f "$PROJECT_CONFIG_PATH" ]]; then
+        configured=$(parse_yaml_value "$PROJECT_CONFIG_PATH" "source.tools")
+    fi
+    configured="${configured:-.ai/src/tools}"
+    if [[ "$configured" == /* ]]; then
+        echo "$configured"
+    else
+        echo "$(tool_resolver_source_base_dir)/$configured"
+    fi
+}
+
+# Select the project configuration for every read-only consumer. An explicit
+# AGENTSYNC_CONFIG_PATH wins, including when the file lives outside the project;
+# a missing explicit file is reported and then the normal fallback is used.
+tool_resolver_select_project_config() {
+    PROJECT_CONFIG_PATH=""
+    local configured="${AGENTSYNC_CONFIG_PATH:-}"
+    if [[ -n "$configured" ]]; then
+        [[ "$configured" == /* ]] || configured="$REPO_ROOT/$configured"
+        if [[ -f "$configured" ]]; then
+            PROJECT_CONFIG_PATH="$configured"
+            export PROJECT_CONFIG_PATH
+            return 0
+        fi
+        echo "⚠  AGENTSYNC_CONFIG_PATH is set but file not found: $configured" >&2
+    fi
+
+    if [[ -f "$REPO_ROOT/.ai/agent_sync.yaml" ]]; then
+        PROJECT_CONFIG_PATH="$REPO_ROOT/.ai/agent_sync.yaml"
+    elif [[ -f "$REPO_ROOT/agent_sync.yaml" ]]; then
+        PROJECT_CONFIG_PATH="$REPO_ROOT/agent_sync.yaml"
+    fi
+    export PROJECT_CONFIG_PATH
+}
+
 # Path to base tool catalog (install-dir).
 tool_resolver_base_dir() {
     echo "$DEFAULT_REPO_ROOT/lib/templates/tools"
@@ -31,7 +78,7 @@ tool_resolver_base_dir() {
 
 # Path to user override directory in current project.
 tool_resolver_user_dir() {
-    echo "$REPO_ROOT/.ai/src/tools"
+    tool_resolver_configured_tools_dir
 }
 
 # Base YAML path for a tool (may or may not exist).
@@ -69,13 +116,15 @@ get_tool_value_r() {
     local key_path="$2"
 
     REPLY=""
-    local user_file="$REPO_ROOT/.ai/src/tools/${tool_name}.yaml"
+    local user_file
+    user_file="$(tool_resolver_user_dir)/${tool_name}.yaml"
     if [[ -f "$user_file" ]]; then
         parse_yaml_value_r "$user_file" "$key_path"
         [[ -n "$REPLY" ]] && return 0
     fi
 
-    local base_file="$DEFAULT_REPO_ROOT/lib/templates/tools/${tool_name}.yaml"
+    local base_file
+    base_file="$(tool_resolver_base_file "$tool_name")"
     if [[ -f "$base_file" ]]; then
         parse_yaml_value_r "$base_file" "$key_path"
         return 0
@@ -238,7 +287,7 @@ _find_base_payload() {
 # Per-tool override directory: .ai/src/tools/<tool>/ (0.11+ canonical layout).
 _payload_override_dir() {
     local tool_name="$1"
-    echo "$REPO_ROOT/.ai/src/tools/${tool_name}"
+    echo "$(tool_resolver_user_dir)/${tool_name}"
 }
 
 # Canonical write-path for a payload override (0.11+ layout).

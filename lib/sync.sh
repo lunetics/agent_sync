@@ -798,6 +798,24 @@ _refuse_configless_cleanup_or_exit() {
     exit 1
 }
 
+# Refuse a source symlink that escapes the project before overlays copy it.
+_refuse_escaping_source_links_or_exit() {
+    local -a roots=()
+    local entry
+    for entry in "$REPO_ROOT/.ai"/* "$REPO_ROOT/.ai"/.[!.]*; do
+        [[ -e "$entry" || -L "$entry" ]] || continue
+        [[ "$entry" == "$REPO_ROOT/.ai/backups" ]] && continue
+        roots+=("$entry")
+    done
+    for entry in "$SOURCE_AGENTS" "$SOURCE_RULES" "$SOURCE_SKILLS" "$SOURCE_COMMANDS" "$SOURCE_SUBAGENTS"; do
+        [[ -n "$entry" ]] || continue
+        source_abs_path_r "$entry"
+        roots+=("$REPLY")
+    done
+    roots+=("$TOOL_RESOLVER_USER_DIR")
+    refuse_escaping_source_links "${roots[@]}" || exit 1
+}
+
 _check_version_pin_or_exit() {
     [[ -n "$PROJECT_CONFIG_PATH" ]] || return 0
     local pinned engine
@@ -1306,6 +1324,7 @@ main() {
     fi
 
     _refuse_configless_cleanup_or_exit
+    _refuse_escaping_source_links_or_exit
     _check_version_pin_or_exit
     _print_banner
 

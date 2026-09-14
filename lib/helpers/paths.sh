@@ -323,6 +323,69 @@ resolve_dest_path() {
     echo "$REPLY"
 }
 
+# Set REPLY to the canonical path a symlink finally points at, following chains
+# and resolving relative targets from the link's physical directory. Returns 1
+# for a chain longer than 40 links or an unreadable link.
+_source_link_target_r() {
+    local path="$1" target hops=0
+    while [[ -L "$path" ]]; do
+        [[ $hops -lt 40 ]] || return 1
+        hops=$((hops + 1))
+        target=$(readlink "$path") || return 1
+        if [[ "$target" != /* ]]; then
+            _path_parent_r "$path"
+            _canon_dir_r "$REPLY" || return 1
+            target="$REPLY/$target"
+        fi
+        path="$target"
+    done
+    canonicalize_with_existing_ancestor_r "$path"
+}
+
+# Return 1 after log_error when a symlink at or below any <root> resolves
+# outside the safe source roots and AGENTSYNC_EXTERNAL_SOURCE_ROOTS does not
+# list its target. Copying follows links, so a committed link must never reach
+# a file outside what the project or the user's environment trusts. Directory
+# links that stay safe are scanned in turn.
+refuse_escaping_source_links() {
+    local -a pending=("$@")
+    local visited="|" index=0 root link target
+    while [[ $index -lt ${#pending[@]} ]]; do
+        root="${pending[index]}"
+        index=$((index + 1))
+        [[ -n "$root" ]] || continue
+        if [[ $index -gt 256 ]]; then
+            log_error "Too many nested symlinks under the source directories to check them safely"
+            return 1
+        fi
+
+        local -a links=()
+        if [[ -L "$root" ]]; then
+            links=("$root")
+        elif [[ -d "$root" ]]; then
+            while IFS= read -r -d '' link; do
+                links+=("$link")
+            done < <(find "$root" -type l -print0 2>/dev/null)
+        fi
+
+        for link in "${links[@]+"${links[@]}"}"; do
+            if ! _source_link_target_r "$link"; then
+                log_error "Cannot resolve source symlink: ${link#"$REPO_ROOT/"}"
+                return 1
+            fi
+            target="$REPLY"
+            if ! is_path_safe_source "$target" && ! _external_source_trusted "$target"; then
+                log_error "Source symlink ${link#"$REPO_ROOT/"} resolves outside the project: $target; add that directory (or a parent) to AGENTSYNC_EXTERNAL_SOURCE_ROOTS to read it"
+                return 1
+            fi
+            if [[ -d "$target" && "$visited" != *"|$target|"* ]]; then
+                visited+="$target|"
+                pending+=("$target")
+            fi
+        done
+    done
+}
+
 is_path_safe_source() {
     local candidate_path="$1"
     if [[ "$candidate_path" == "$REPO_ROOT_CANONICAL" || "$candidate_path" == "$REPO_ROOT_CANONICAL/"* ]]; then

@@ -665,8 +665,14 @@ Sources outside the project follow these rules:
   selected project config may point outside the project, as an absolute path
   or a `../` path. Nothing else widens where sources are read from: the
   install-dir defaults, the auto-detected `.ai/src/` and `.ai/` layouts, and any
-  value written under the project keep the project boundary, so a committed
-  symlink such as `.ai/src/rules -> /elsewhere` is refused.
+  value written under the project keep the project boundary.
+- **Symlinks follow the same rule.** Before reading anything, `sync` and
+  `check` resolve every symlink under `.ai/` and the configured sources,
+  following chains and links to directories. One whose target is outside the
+  project and not under `AGENTSYNC_EXTERNAL_SOURCE_ROOTS` — a committed
+  `.ai/src/rules/notes.md -> ~/secrets.md`, say — stops the run before
+  writing, naming the link. A link to a shared tree you maintain works once
+  that tree is listed in the variable.
 - **Refused roots.** A value that resolves to `/`, your home directory, the
   project root, or a directory containing the project root is rejected before
   anything is written; `doctor` reports it for every key except `tools`.

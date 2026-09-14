@@ -244,7 +244,7 @@ run_external_sync() {
     run run_agentsync sync
 
     [ "$status" -eq 1 ]
-    printf '%s' "$output" | grep -qF -- "targets.rules.source for Claude Code resolves outside safe source roots"
+    printf '%s' "$output" | grep -qF -- "Source symlink .ai/src/rules resolves outside the project"
     [ ! -e ".claude/rules/outside.md" ]
 }
 
@@ -258,7 +258,7 @@ run_external_sync() {
     run run_agentsync sync
 
     [ "$status" -eq 1 ]
-    printf '%s' "$output" | grep -qF -- "targets.rules.source for Claude Code resolves outside safe source roots"
+    printf '%s' "$output" | grep -qF -- "Source symlink .ai/src/rules resolves outside the project"
     [ ! -e ".claude/rules/outside.md" ]
 }
 
@@ -413,4 +413,73 @@ run_external_sync() {
     [ -f "$EXTERNAL_TOOLS_ROOT/tools/claude-hub.yaml" ]
     [ -f "$EXTERNAL_TOOLS_ROOT/tools/claude-hub/settings.json" ]
     grep -q '^  hub:' "$EXTERNAL_CONFIG"
+}
+
+@test "source symlinks: a rule file linking outside the project is refused before any write" {
+    write_project_sources
+    make_outside_rules
+    create_test_symlink "$OUTSIDE_ROOT/rules/outside.md" "$TEST_PROJECT/.ai/src/rules/leak.md"
+    write_rules_config
+
+    run run_agentsync sync
+
+    [ "$status" -eq 1 ]
+    printf '%s' "$output" | grep -qF -- "Source symlink .ai/src/rules/leak.md resolves outside the project"
+    [ ! -e ".claude" ]
+    [ ! -e "CLAUDE.md" ]
+}
+
+@test "source symlinks: an AGENTS.md linking outside the project is refused" {
+    write_project_sources
+    make_outside_rules
+    mv "$TEST_PROJECT/.ai/src/AGENTS.md" "$TEST_PROJECT/AGENTS.local.md"
+    create_test_symlink "$OUTSIDE_ROOT/rules/outside.md" "$TEST_PROJECT/.ai/src/AGENTS.md"
+    write_rules_config
+
+    run run_agentsync sync
+
+    [ "$status" -eq 1 ]
+    printf '%s' "$output" | grep -qF -- "Source symlink .ai/src/AGENTS.md resolves outside the project"
+    [ ! -e "CLAUDE.md" ]
+}
+
+@test "source symlinks: a link to a safe directory is followed and its own links are checked" {
+    write_project_sources
+    make_outside_rules
+    mkdir -p "$TEST_PROJECT/vendor/skills/vendored"
+    printf '%s\n' '---' 'name: vendored' 'description: vendored skill' '---' > "$TEST_PROJECT/vendor/skills/vendored/SKILL.md"
+    create_test_symlink "$OUTSIDE_ROOT/rules/outside.md" "$TEST_PROJECT/vendor/skills/vendored/leak.md"
+    create_test_symlink "$TEST_PROJECT/vendor/skills/vendored" "$TEST_PROJECT/.ai/src/skills/vendored"
+    write_rules_config
+
+    run run_agentsync sync
+
+    [ "$status" -eq 1 ]
+    printf '%s' "$output" | grep -qF -- "vendor/skills/vendored/leak.md resolves outside the project"
+    [ ! -e ".claude" ]
+}
+
+@test "source symlinks: links that stay inside the project keep syncing" {
+    write_project_sources
+    mkdir -p "$TEST_PROJECT/docs"
+    printf '%s\n' '# Shared Rule' > "$TEST_PROJECT/docs/shared.md"
+    create_test_symlink "$TEST_PROJECT/docs/shared.md" "$TEST_PROJECT/.ai/src/rules/shared.md"
+    write_rules_config
+
+    run run_agentsync sync
+
+    [ "$status" -eq 0 ]
+    [ "$(cat .claude/rules/shared.md)" = "# Shared Rule" ]
+}
+
+@test "source symlinks: a trusted outside target is read" {
+    write_project_sources
+    make_outside_rules
+    create_test_symlink "$OUTSIDE_ROOT/rules/outside.md" "$TEST_PROJECT/.ai/src/rules/outside.md"
+    write_rules_config
+
+    AGENTSYNC_EXTERNAL_SOURCE_ROOTS="$OUTSIDE_ROOT" run run_agentsync sync
+
+    [ "$status" -eq 0 ]
+    [ "$(cat .claude/rules/outside.md)" = "# Outside Rule" ]
 }

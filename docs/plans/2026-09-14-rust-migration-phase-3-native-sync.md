@@ -27,6 +27,8 @@
 
 Implementation waits for these. Each has a recommendation, and the tasks are written against it.
 
+Taken on 2026-09-14: all four as recommended. The dependencies were screened against RustSec first — `sha2` has one advisory, RUSTSEC-2021-0100, affecting 0.9.7 only; `signal-hook` and `signal-hook-registry` have none.
+
 1. **Task 0c changes Bash behaviour.** Today a skill directory removed from `.ai/src/` is never pruned from the outputs: `sync_may_prune` looks the directory's path up in a manifest that records only files, so every later sync prints `Kept .claude/skills/<name> (not from .ai/src/ …)`. Rules, which are files, are pruned, and `tests/drift.bats` asserts that. **Recommended:** fix it in Bash first — a directory may be pruned when the manifest records a file below it — so the reference the port mirrors is the intended one. Alternative: reproduce it as known quirk 12 and move the workspace quirk to 13.
 2. **Two dependencies.** `sha2` 0.11 (with `digest`, `block-buffer`, `crypto-common`, `hybrid-array`, `typenum`, `cpufeatures`, `cfg-if`, `libc`) replaces `sha256sum`/`shasum`; `signal-hook` 0.4 (with `signal-hook-registry`, `errno`, `libc`) replaces the `trap` handlers, since `unsafe_code = "forbid"` rules out calling `sigaction` directly. The release binary grows from 1.03 MB to 1.28 MB. **Recommended:** both. Alternatives: a hand-written SHA-256 in `src/manifest.rs` (about 80 lines, verified by the same parity fixtures); or no signal handling, in which case a `Ctrl-C` mid-sync leaves a partial write that `agentsync rollback` must undo by hand.
 3. **The post-sync trust gate.** Bash enables hooks from `AGENTSYNC_ALLOW_POST_SYNC=true` or from `post_sync.allow: true` in the install directory's `lib/config.yaml`. The binary embeds `lib/config.yaml` and never reads the install directory at runtime (`native-engine.md`). **Recommended:** read the embedded value (`false`) and keep the environment variable; record the deviation; settle where a user-level config lives in Phase 5, when the install directory goes away. Alternative: the dispatcher passes the engine root and the binary reads `<engine>/lib/config.yaml` until Phase 5.
@@ -74,7 +76,7 @@ Out of this phase, as the spec orders: every other command stays Bash, including
 - Consumes: branch `feat/native-engine-phase-1` with Phase 2 closed; `cargo` on `PATH` (or `~/.cargo/bin/cargo`).
 - Produces: a recorded green baseline to count against.
 
-- [ ] **Step 1: Confirm the branch and the toolchain**
+- [x] **Step 1: Confirm the branch and the toolchain**
 
 ```bash
 git branch --show-current
@@ -85,7 +87,7 @@ bats --version
 
 Expected: `feat/native-engine-phase-1`; empty status; `cargo 1.85` or newer; `Bats 1.5` or newer (the parity helpers use `$BATS_TEST_TMPDIR`).
 
-- [ ] **Step 2: Record the baseline**
+- [x] **Step 2: Record the baseline**
 
 ```bash
 cargo test 2>&1 | grep 'test result'
@@ -109,7 +111,7 @@ Expected: `112 passed` (unit) and `7 passed` (integration); the TAP plan is `1..
 - Consumes: nothing new.
 - Produces: the first-sync warning counts the distinct paths it lists. Found while writing the `sync` fixtures: with `cursor` and `codex` enabled and a hand-written `AGENTS.md`, Bash prints `regenerating 4 path(s) that already exist:` above a single line, `AGENTS.md`, because `${#existing[@]}` counts one entry per tool that writes the path before `sort -u` removes the duplicates.
 
-- [ ] **Step 1: Write the failing test in `tests/baseline.bats`, before `@test "baseline: an empty generated directory is not reported"`**
+- [x] **Step 1: Write the failing test in `tests/baseline.bats`, before `@test "baseline: an empty generated directory is not reported"`**
 
 ```bash
 @test "baseline: a path several tools write is counted once" {
@@ -122,12 +124,12 @@ Expected: `112 passed` (unit) and `7 passed` (integration); the TAP plan is `1..
 
 ```
 
-- [ ] **Step 2: Run it, confirm it fails**
+- [x] **Step 2: Run it, confirm it fails**
 
 Run: `bats tests/baseline.bats -f 'counted once'`
 Expected: `not ok 1 baseline: a path several tools write is counted once`, failing at the `regenerating 1 path(s)` assertion.
 
-- [ ] **Step 3: Count after deduplication in `lib/sync.sh`**
+- [x] **Step 3: Count after deduplication in `lib/sync.sh`**
 
 Replace:
 
@@ -156,7 +158,7 @@ with:
     done
 ```
 
-- [ ] **Step 4: Run the file and ShellCheck, confirm green**
+- [x] **Step 4: Run the file and ShellCheck, confirm green**
 
 ```bash
 bats tests/baseline.bats
@@ -165,7 +167,7 @@ shellcheck -x -S warning -e SC1091 lib/sync.sh
 
 Expected: `1..11`, 11 ok; ShellCheck exits 0.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/sync.sh tests/baseline.bats docs/plans/2026-09-14-rust-migration-phase-3-native-sync.md

@@ -10,7 +10,8 @@ use crate::rules::{self, Conversion, RuleOptions};
 use crate::session::Session;
 use crate::tool::Tool;
 use crate::{
-    Error, catalog, engine_version, file_ops, opencode_json, paths, payload, profiles, yaml_subset,
+    Error, catalog, engine_version, file_ops, opencode_json, paths, payload, profiles,
+    project_config, version, yaml_subset,
 };
 
 pub const TARGET_KEYS: [&str; 9] = [
@@ -64,6 +65,7 @@ pub struct Run {
     cleanup: String,
     pub update_gitignore: bool,
     pub outputs: &'static str,
+    pub version_pin: version::Mode,
     skip_post_sync: bool,
     allow_post_sync: bool,
     pub sources: Sources,
@@ -107,6 +109,7 @@ fn io(s: &mut Session, error: Error) -> Stop {
 /// `shared:`, which `lib/check.sh` merged into the workspace beforehand.
 pub fn render(s: &mut Session, env: &Env) -> Step {
     let mut run = prepare(s, env, Selection::default())?;
+    refuse_configless_cleanup(s, &run)?;
     check_version_pin(s, &run)?;
     banner(s);
     setup_overlays(s, &mut run, false)?;
@@ -124,29 +127,17 @@ pub fn prepare(s: &mut Session, env: &Env, selection: Selection) -> Result<Run, 
 /// `resolve_project_config_path` and `_load_run_config`.
 fn load_run_config(s: &mut Session, env: &Env, selection: Selection) -> Result<Run, Stop> {
     let root = s.paths.root.clone();
-    let mut config_path = None;
-    if let Some(raw) = env.config_path.as_deref().filter(|p| !p.is_empty()) {
-        let path = if raw.starts_with('/') {
-            raw.to_string()
-        } else {
-            format!("{root}/{raw}")
-        };
-        if s.ws.is_file(&path) {
-            config_path = Some(path);
-        } else {
-            s.log.warning(&format!(
-                "AGENTSYNC_CONFIG_PATH is set but file not found: {path}"
-            ));
+    let chosen = project_config::select(&root, env.config_path.as_deref(), &|path: &str| {
+        s.ws.is_file(path)
+    });
+    let config_path = match chosen {
+        project_config::Selection::Found(path) => Some(path),
+        project_config::Selection::None => None,
+        project_config::Selection::Missing(path) => {
+            s.log.error(&project_config::missing_message(&path));
+            return Err(Stop(1));
         }
-    }
-    if config_path.is_none() {
-        config_path = [
-            format!("{root}/.ai/agent_sync.yaml"),
-            format!("{root}/agent_sync.yaml"),
-        ]
-        .into_iter()
-        .find(|path| s.ws.is_file(path));
-    }
+    };
     let config = match &config_path {
         Some(path) => {
             let bytes = s.ws.read(path).map_err(|e| io(s, e))?;
@@ -166,7 +157,21 @@ fn load_run_config(s: &mut Session, env: &Env, selection: Selection) -> Result<R
     let mut cleanup = "true".to_string();
     let mut update_gitignore = true;
     let mut outputs = "local";
+    let mut version_pin = version::Mode::Warn;
     if let (Some(text), Some(path)) = (&config, &config_path) {
+        version_pin = match version::mode(text) {
+            Ok(mode) => mode,
+            Err(value) => {
+                let shown = path
+                    .strip_prefix(&format!("{root}/"))
+                    .unwrap_or(path)
+                    .to_string();
+                s.log.error(&format!(
+                    "Unknown version_pin.mode '{value}' in {shown} — expected 'warn' or 'strict'"
+                ));
+                return Err(Stop(1));
+            }
+        };
         let configured = yaml_subset::value(text, "defaults.cleanup");
         if !configured.is_empty() {
             cleanup = configured;
@@ -204,6 +209,7 @@ fn load_run_config(s: &mut Session, env: &Env, selection: Selection) -> Result<R
         cleanup,
         update_gitignore,
         outputs,
+        version_pin,
         skip_post_sync,
         allow_post_sync,
         sources: Sources::default(),
@@ -296,6 +302,24 @@ fn resolve_sources(s: &mut Session, run: &mut Run) -> Step {
     Ok(())
 }
 
+/// `_refuse_configless_cleanup_or_exit`: without a project config, a write run
+/// whose tools are all disabled would only remove every tool's outputs.
+pub fn refuse_configless_cleanup(s: &mut Session, run: &Run) -> Step {
+    if run.config.is_some() || s.dry_run {
+        return Ok(());
+    }
+    let legacy_enabled = user_tool_slugs(s)
+        .iter()
+        .any(|slug| load_tool(s, slug).user_value("enabled") == "true");
+    if legacy_enabled {
+        return Ok(());
+    }
+    s.log.error(
+        "No project configuration found and no tool is enabled; refusing a sync that would remove every tool's outputs. Run 'agentsync enable <tool>' to create .ai/agent_sync.yaml, or set AGENTSYNC_CONFIG_PATH.",
+    );
+    Err(Stop(1))
+}
+
 /// `_check_version_pin_or_exit`.
 pub fn check_version_pin(s: &mut Session, run: &Run) -> Step {
     let Some(config) = &run.config else {
@@ -306,16 +330,11 @@ pub fn check_version_pin(s: &mut Session, run: &Run) -> Step {
     if pinned.is_empty() || pinned == engine {
         return Ok(());
     }
-    let hint = [
-        format!("  • Match the pin:  agentsync update {pinned}"),
-        format!(
-            "  • Or move it:     agentsync upgrade-config   (re-pins to {engine}; re-sync and commit the outputs)"
-        ),
-    ];
-    if run.outputs == "committed" {
-        s.log.error(&format!(
-            "This project pins agentsync {pinned} but you are running {engine} — committed outputs must come from one version everywhere."
-        ));
+    let hint = version::hint(&pinned, engine);
+    let committed = run.outputs == "committed";
+    if committed || run.version_pin == version::Mode::Strict {
+        s.log
+            .error(&version::mismatch_error(&pinned, engine, committed));
         for line in hint {
             s.log.err(line);
         }
@@ -376,25 +395,31 @@ pub fn build_catalog(s: &mut Session, run: &mut Run) {
 
 /// `list_all_tools`, plus the enabled and profile-tool sets `warm_*_cache` build.
 fn load_tools(s: &mut Session, run: &mut Run) {
-    let tools_dir = format!("{}/.ai/src/tools", s.paths.root);
     let mut all: BTreeSet<String> = catalog::base_tools().into_iter().collect();
     if let Some(text) = &run.config {
         run.enabled.extend(yaml_subset::list(text, "tools.enabled"));
         run.profile_tools.extend(profiles::all_tools(text));
     }
-    for name in s.ws.glob(&tools_dir) {
-        let Some(stem) = name.strip_suffix(".yaml") else {
-            continue;
-        };
-        if stem.starts_with('_') || !s.ws.is_file(&format!("{tools_dir}/{name}")) {
-            continue;
+    for slug in user_tool_slugs(s) {
+        if load_tool(s, &slug).user_value("enabled") == "true" {
+            run.enabled.insert(slug.clone());
         }
-        if load_tool(s, stem).user_value("enabled") == "true" {
-            run.enabled.insert(stem.to_string());
-        }
-        all.insert(stem.to_string());
+        all.insert(slug);
     }
     run.tools = all.into_iter().collect();
+}
+
+/// The `.ai/src/tools/<slug>.yaml` overrides, `_`-prefixed templates skipped.
+fn user_tool_slugs(s: &Session) -> Vec<String> {
+    let tools_dir = format!("{}/.ai/src/tools", s.paths.root);
+    s.ws.glob(&tools_dir)
+        .into_iter()
+        .filter_map(|name| {
+            let stem = name.strip_suffix(".yaml")?;
+            let listed = !stem.starts_with('_') && s.ws.is_file(&format!("{tools_dir}/{name}"));
+            listed.then(|| stem.to_string())
+        })
+        .collect()
 }
 
 /// The layered tool with its `.ai/src/tools/<slug>.yaml` read from the workspace.
@@ -1274,5 +1299,81 @@ mod tests {
         assert!(s.ws.is_file("/proj/.claude-hub/rules/core.md"));
         assert!(!s.ws.exists("/proj/.claude/rules/hub.md"));
         assert!(!s.ws.exists("/<agentsync-overlay>/profile"));
+    }
+
+    fn with_config(path: &str) -> Env {
+        Env {
+            config_path: Some(path.to_string()),
+            ..Env::default()
+        }
+    }
+
+    #[test]
+    fn a_missing_explicit_config_stops_without_falling_back() {
+        let mut s = project();
+        file(
+            &mut s,
+            "/proj/.ai/agent_sync.yaml",
+            "tools:\n  enabled: [claude]\n",
+        );
+        assert_eq!(render(&mut s, &with_config("missing.yaml")), Err(Stop(1)));
+        assert_eq!(
+            s.log.tail(5),
+            ["[ERROR] AGENTSYNC_CONFIG_PATH is set but file not found: /proj/missing.yaml"]
+        );
+    }
+
+    #[test]
+    fn without_a_config_a_run_with_no_enabled_tool_is_refused() {
+        let mut s = project();
+        assert_eq!(render(&mut s, &Env::default()), Err(Stop(1)));
+        assert_eq!(
+            s.log.tail(5),
+            [
+                "[ERROR] No project configuration found and no tool is enabled; refusing a sync that would remove every tool's outputs. Run 'agentsync enable <tool>' to create .ai/agent_sync.yaml, or set AGENTSYNC_CONFIG_PATH."
+            ]
+        );
+    }
+
+    #[test]
+    fn without_a_config_a_tool_enabled_in_its_own_yaml_still_renders() {
+        let mut s = project();
+        file(&mut s, "/proj/.ai/src/tools/claude.yaml", "enabled: true\n");
+        assert_eq!(render(&mut s, &Env::default()), Ok(()));
+        assert_eq!(text_of(&s, "/proj/CLAUDE.md"), "# Agents\n");
+    }
+
+    #[test]
+    fn a_strict_pin_stops_local_outputs_and_an_unknown_mode_stops_first() {
+        let mut s = project();
+        file(
+            &mut s,
+            "/proj/.ai/agent_sync.yaml",
+            "outputs: local\nagentsync_version: \"0.0.1\"\nversion_pin:\n  mode: strict\n",
+        );
+        assert_eq!(render(&mut s, &Env::default()), Err(Stop(1)));
+        let engine = engine_version();
+        assert_eq!(
+            s.log.tail(3),
+            [
+                format!("[ERROR] This project pins agentsync 0.0.1 but you are running {engine} — version_pin.mode 'strict' requires local outputs to use the pinned version.").as_str(),
+                "  • Match the pin:  agentsync update 0.0.1",
+                format!("  • Or move it:     agentsync upgrade-config   (re-pins to {engine}; re-sync and commit the outputs)").as_str(),
+            ]
+        );
+
+        let mut s = project();
+        file(
+            &mut s,
+            "/proj/.ai/agent_sync.yaml",
+            "version_pin:\n  mode: refuse\noutputs: shared\n",
+        );
+        assert_eq!(render(&mut s, &Env::default()), Err(Stop(1)));
+        assert_eq!(
+            s.log.tail(5),
+            [
+                "[ERROR] Unknown version_pin.mode 'refuse' in .ai/agent_sync.yaml — expected 'warn' or 'strict'"
+            ]
+        );
     }
 }

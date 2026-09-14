@@ -431,7 +431,7 @@ git commit -m "feat(native): read version_pin.mode like version.sh"
   - `pub fn refuse_configless_cleanup(s: &mut Session, run: &Run) -> Step`
   - `render(s, env)` now runs `prepare`, `refuse_configless_cleanup`, `check_version_pin`, then the stages it ran before.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append inside `mod tests` in `src/render.rs`:
 
@@ -509,12 +509,12 @@ The last test's second config also sets `outputs: shared`: Bash reports the pin 
 
 The existing tests `claude_renders_agents_rules_commands_payloads_and_the_engine_skill` and others write a config before rendering; `a_project_without_agents_md_stops_with_status_one` renders without one and still expects the `Source agents file not found` lines, which `prepare` prints before the refusal is reached.
 
-- [ ] **Step 2: Run the tests, confirm they fail**
+- [x] **Step 2: Run the tests, confirm they fail**
 
 Run: `cargo test render::tests 2>&1 | grep -E '^test |test result'`
-Expected: the four new tests fail (`a_missing_explicit_config_stops_without_falling_back` sees a `[WARNING]` line and a continued render; the refusal and pin tests see `Ok(())`), every other `render::tests` test passes.
+Expected: three new tests fail (`a_missing_explicit_config_stops_without_falling_back` sees a `[WARNING]` line and a continued render; the refusal and pin tests see `Ok(())`); `without_a_config_a_tool_enabled_in_its_own_yaml_still_renders` already passes and guards the refusal's exception; every other `render::tests` test passes.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 In `src/render.rs`, extend the `use crate::{…}` list with `project_config` and `version`.
 
@@ -528,10 +528,10 @@ Replace the selection at the top of `load_run_config` (from `let root = s.paths.
 
 ```rust
     let root = s.paths.root.clone();
-    let selection = project_config::select(&root, env.config_path.as_deref(), &|path: &str| {
+    let chosen = project_config::select(&root, env.config_path.as_deref(), &|path: &str| {
         s.ws.is_file(path)
     });
-    let config_path = match selection {
+    let config_path = match chosen {
         project_config::Selection::Found(path) => Some(path),
         project_config::Selection::None => None,
         project_config::Selection::Missing(path) => {
@@ -660,7 +660,7 @@ In `src/cli/sync.rs`, inside `sync`, insert between the `--if-stale` early retur
     render::refuse_configless_cleanup(s, &run)?;
 ```
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo test 2>&1 | grep 'test result'
@@ -674,13 +674,12 @@ Expected: `161 passed` (unit: 147 + 5 + 5 + 4) and `11 passed` (integration); in
 
 ```text
 not ok 4 check hands a relative explicit config outside .ai to its isolated sync
-not ok 6 check rejects an invalid explicit config path instead of using the local config
 not ok 7 read-only commands reject an invalid explicit config path instead of using the local config
 ```
 
-in `version_pin.bats` exactly `not ok 8 version pin: local strict mode also fails check` and `not ok 10 version pin: check rejects an unknown mode`; and `0` in `sync.bats`.
+`0` in `version_pin.bats`; and `0` in `sync.bats`. The `check` cases in both files pass here only loosely: the native `check` now prints the right `[ERROR]` inside its `Sync script failed during check` tail and exits 1, which their `*"…"*` matches accept. The byte-exact `❌ …` before the banner is Task 4's, and Task 6's parity fixtures hold it.
 
-- [ ] **Step 5: Lint and commit**
+- [x] **Step 5: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings

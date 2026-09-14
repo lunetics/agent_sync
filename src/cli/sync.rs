@@ -211,6 +211,7 @@ fn sync(s: &mut Session, args: &Args, env: &Env, tx: &mut Transaction) -> Result
     if args.if_stale && !is_stale(&s.paths.root, &run) {
         return Ok(());
     }
+    render::refuse_configless_cleanup(s, &run)?;
     render::check_version_pin(s, &run)?;
     render::banner(s);
     render::setup_overlays(s, &mut run, true)?;

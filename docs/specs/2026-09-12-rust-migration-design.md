@@ -434,6 +434,13 @@ Appended one line at a time as they are found, with the phase:
   as the default umask does, whatever the process umask.
 - Phase 3: on a terminal a log message prints as written; Bash's `echo -e` also
   expanded backslash escapes inside it.
+- Phase 3b: the native engine hashes `after.tsv` in-process, so a missing or
+  failing `sha256sum` or `shasum` neither fails a seal nor leaves a rollback
+  unchecked.
+- Phase 3b: `after.tsv` records a regular file as `exec` when any execute bit
+  is set; Bash's `[[ -x ]]` asked whether the current user may execute it.
+- Phase 3b: a backup skips sockets and device files under a target, which
+  `tar` and `cp -pPR` recreated or reported; a FIFO is recreated with `mkfifo`.
 
 ## Risks
 

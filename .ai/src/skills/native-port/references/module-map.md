@@ -35,6 +35,7 @@ lib/helpers/opencode.sh          → src/opencode_json.rs    awk composer, exit 
 lib/helpers/shared.sh            → src/overlay.rs          shared, base-src, and profile overlays; shared and base-src mirror the resolved sources; shared parent merge for check
 lib/helpers/gitignore.sh         → src/gitignore.rs        managed block between START/END markers
 lib/helpers/backup.sh            → src/backup.rs           same on-disk layout; create, restore, latest, list, prune; backup.retention (configure, Retention), validated before sync and rollback write
+lib/helpers/backup_state.sh      → src/witness.rs          after.tsv post-state-v2: print, seal, preflight, first difference
 lib/helpers/yaml_edit.sh         → src/yaml_edit.rs        line-oriented, comment-preserving, atomic write
 lib/helpers/template_manifest.sh → src/template_manifest.rs
 lib/helpers/snapshot.sh          → src/snapshot.rs         install-dir catalog snapshot for update/resolve
@@ -46,7 +47,7 @@ lib/helpers/list.sh              → src/cli/list.rs         Phase 1
 lib/check.sh                     → src/cli/check.rs        render + compare, no tar; Phase 2, ported
 lib/sync.sh                      → src/render.rs (stages) + src/cli/sync.rs (transaction); Phase 3, ported
 bin/agentsync.sh workspace fan-out → src/cli/workspace.rs  Phase 3, ported
-lib/helpers/backup.sh (rollback) → src/cli/rollback.rs     Phase 3, ported
+lib/helpers/backup.sh (rollback) → src/cli/rollback.rs     Phase 3, ported; preflight, --force, sealed safety snapshot
 lib/helpers/enable.sh            → src/cli/enable.rs       Phase 4, yaml_edit family
 lib/helpers/customize.sh         → src/cli/{customize,show,diff}.rs
 lib/helpers/simplify.sh          → src/cli/simplify.rs

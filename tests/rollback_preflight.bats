@@ -497,6 +497,7 @@ missing${tab}-${tab}absent.md"
 }
 
 @test "a seal that cannot hash warns and keeps the completed sync" {
+    [[ "$AGENTSYNC_NATIVE" != 1 ]] || skip "the native engine hashes in-process"
     local shims="$PROOF_DIR/shims" tool
     mkdir -p "$shims"
     for tool in sha256sum shasum; do
@@ -514,6 +515,7 @@ missing${tab}-${tab}absent.md"
 }
 
 @test "the seal stages its record where stale-staging sweeps reclaim it" {
+    [[ "$AGENTSYNC_NATIVE" != 1 ]] || skip "the native engine hashes in-process"
     local shims="$PROOF_DIR/shims" real tool
     real="$(command -v sha256sum || command -v shasum)"
     tool="${real##*/}"

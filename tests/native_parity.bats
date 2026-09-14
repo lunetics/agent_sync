@@ -526,6 +526,20 @@ assert_tree_parity() {
     assert_tree_parity rollback --help
 }
 
+@test "parity: rollback conflicts, --force, and unsealed snapshots" {
+    enable_tools claude
+    _bash_sync
+    printf 'edited\n' >> CLAUDE.md
+    assert_tree_parity rollback --yes
+    assert_tree_parity rollback --dry-run
+    assert_tree_parity rollback --dry-run --force
+    assert_tree_parity rollback --force --yes
+    rm ".ai/backups/$(cat .ai/backups/.latest)/after.tsv"
+    assert_tree_parity rollback --yes
+    printf 'post-state-v2\tbad\n' > ".ai/backups/$(cat .ai/backups/.latest)/after.tsv"
+    assert_tree_parity rollback --yes
+}
+
 @test "parity: a backup the native sync writes is restored by the Bash rollback" {
     enable_tools claude cursor
     printf 'before-sync\n' > CLAUDE.md
@@ -536,6 +550,8 @@ assert_tree_parity() {
     (cd "$right" && _run_engine 1 sync >/dev/null 2>&1)
     [ "$(cat "$right/.ai/backups/$(cat "$right/.ai/backups/.latest")/targets.tsv")" = \
       "$(cat "$left/.ai/backups/$(cat "$left/.ai/backups/.latest")/targets.tsv")" ]
+    cmp "$right/.ai/backups/$(cat "$right/.ai/backups/.latest")/after.tsv" \
+        "$left/.ai/backups/$(cat "$left/.ai/backups/.latest")/after.tsv"
     (cd "$left" && _run_engine 0 rollback --yes >/dev/null 2>&1)
     (cd "$right" && _run_engine 0 rollback --yes >/dev/null 2>&1)
     _assert_same_trees "$left" "$right"

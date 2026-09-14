@@ -989,7 +989,7 @@ git commit -m "feat(native): refuse a rollback over changed targets and add --fo
 **Files:**
 - Modify: `tests/rollback_preflight.bats` (two native skips), `tests/native_parity.bats`, `docs/specs/2026-09-12-rust-migration-design.md` (Accepted deviations), `.ai/src/skills/native-port/references/module-map.md`, `.ai/.sync-manifest`
 
-- [ ] **Step 1: Gate the hash-tool cases**
+- [x] **Step 1: Gate the hash-tool cases**
 
 At the top of `@test "a seal that cannot hash warns and keeps the completed sync"` and `@test "the seal stages its record where stale-staging sweeps reclaim it"` in `tests/rollback_preflight.bats`:
 
@@ -1007,7 +1007,7 @@ Append to "Accepted deviations" in the design spec:
   is set; Bash's `[[ -x ]]` asked whether the current user may execute it.
 ```
 
-- [ ] **Step 2: Write the fixtures**
+- [x] **Step 2: Write the fixtures**
 
 After `parity: rollback plans, restores, and refuses like Bash`:
 
@@ -1034,7 +1034,7 @@ In `parity: a backup the native sync writes is restored by the Bash rollback`, a
         "$left/.ai/backups/$(cat "$left/.ai/backups/.latest")/after.tsv"
 ```
 
-- [ ] **Step 3: Run them and prove they bite**
+- [x] **Step 3: Run them and prove they bite**
 
 ```bash
 cargo build --release
@@ -1043,7 +1043,7 @@ bats --tap -f 'rollback' tests/native_parity.bats
 
 Expected: every case `ok`. Then change `"; no files were changed."` to `"; nothing was changed."` in `src/cli/rollback.rs`, rebuild, rerun `-f 'rollback conflicts'`: `not ok` with that diff; revert and rebuild.
 
-- [ ] **Step 4: Module map and outputs**
+- [x] **Step 4: Module map and outputs**
 
 In `.ai/src/skills/native-port/references/module-map.md`, add after the `lib/helpers/backup.sh` row:
 
@@ -1053,7 +1053,7 @@ lib/helpers/backup_state.sh      → src/witness.rs          after.tsv post-stat
 
 and extend the `lib/helpers/backup.sh (rollback)` row with `; preflight, --force, sealed safety snapshot`. Regenerate outputs with `AGENTSYNC_NATIVE=0 AGENTSYNC_HOME="$PWD" bash bin/agentsync.sh sync --force`.
 
-- [ ] **Step 5: Verify the family and Phase 3b**
+- [x] **Step 5: Verify the family and Phase 3b**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -3
@@ -1069,7 +1069,7 @@ done
 
 Expected: `185 passed` and `11 passed`; lint exit 0; every line `bash=0 native=0`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add tests/rollback_preflight.bats tests/native_parity.bats docs/specs/2026-09-12-rust-migration-design.md .ai/src/skills/native-port/references/module-map.md .ai/.sync-manifest docs/plans/2026-09-14-rust-migration-phase-3b-rollback-witness.md
@@ -1110,4 +1110,11 @@ The family is closed when every box is ticked, `rollback_preflight.bats` is gree
 - Verified: `cargo test` 185 and 11; fmt and clippy exit 0. Native bats: `rollback_preflight` 2 failures (29 and 30, the hash-tool shims Task 4 gates), `rollback`, `backup`, `backup_retention`, `baseline` 0.
 - Plan amended: none.
 - Next: Task 4 Step 1 (the spec deviations, the parity fixture, and the module map rows are written; Task 1b adds a third deviation line for sockets and devices).
+- Blocker: none.
+
+### 2026-09-14 — Task 4 done, family and Phase 3b closed
+- Commits: "test(native): diff Bash against the native rollback witness", and the receipt below.
+- Verified: see the receipt.
+- Plan amended: a third accepted deviation for sockets and device files under a target, from Task 1b.
+- Next: Phase 4's first plan, the `yaml_edit` family, following `.ai/src/commands/native-phase-plan.md`.
 - Blocker: none.

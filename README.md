@@ -645,12 +645,33 @@ source:
   tools: "/home/me/agentic/.ai/tools"
 ```
 
-`AGENTSYNC_CONFIG_PATH` selects an alternate configuration file. Its
-`source.*` values still use the project-root-relative convention above. The
-`sync` and `check` commands register explicitly configured source roots as
-read-only inputs; destination paths remain confined to the project root, and
-an isolated `check` keeps the original source context while generating only in
-its temporary workspace.
+Sources outside the project follow these rules:
+
+- **Explicit values only.** A `source.agents`, `source.rules`, `source.skills`,
+  `source.commands`, `source.subagents`, or `source.tools` value written in the
+  selected project config may point outside the project, as an absolute path
+  or a `../` path. Nothing else widens where sources are read from: the
+  install-dir defaults, the auto-detected `.ai/src/` and `.ai/` layouts, and any
+  value written under the project keep the project boundary, so a committed
+  symlink such as `.ai/src/rules -> /elsewhere` is refused.
+- **Refused roots.** A value that resolves to `/`, your home directory, the
+  project root, or a directory containing the project root is rejected before
+  anything is written, and `doctor` reports it.
+- **Relative to the project root.** Relative values resolve from the project
+  root, including when `AGENTSYNC_CONFIG_PATH` selects a config file stored
+  elsewhere and inside `check`'s temporary workspace.
+- **Read-only.** Outside sources are only read. Destinations stay confined to
+  the project root, and `check` reads the sources in place while generating
+  only in its temporary workspace.
+- **No writes into an outside tool catalog.** When `source.tools` resolves
+  outside the project, `customize`, `profile add`/`remove`, `adopt`,
+  `simplify --apply`, `enable --scaffold`, and a `disable` that would flip a
+  legacy `enabled: true` exit with an error before writing; plain `enable`
+  skips payload scaffolding. Edit that catalog where it lives.
+
+`AGENTSYNC_CONFIG_PATH` selects an alternate configuration file. Every command
+that reads the project config fails when it names a missing file instead of
+falling back to `.ai/agent_sync.yaml`.
 
 ## Migrating Existing Configurations
 

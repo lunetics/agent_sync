@@ -7598,7 +7598,7 @@ git commit -m "feat(native): restore the pre-sync state when a signal interrupts
 - Consumes: `backup` (Task 5), `interrupt` (Task 8).
 - Produces: `prompts::is_tty() -> bool` and `prompts::confirm(question: &str, default_yes: bool) -> bool` (question on stderr, answer from `/dev/tty` or `CONIN$`, the default off a terminal); `cli::rollback::USAGE`; `cli::rollback::Env { backup_limit, backup_max_age }`; `cli::rollback::run(supplied_root: &str, args: &[String], env: &Env, confirm: &mut dyn FnMut(&str) -> bool, out: &mut dyn Write, err: &mut dyn Write) -> u8` (`cmd_rollback` with its safety snapshot and recovery); `Command::Rollback { args: Vec<String> }`. `supplied_root` is `AGENTSYNC_REPO_ROOT`, else the logical working directory, as `${AGENTSYNC_REPO_ROOT:-$(pwd)}` reads.
 
-- [ ] **Step 1: Create `src/prompts.rs`**
+- [x] **Step 1: Create `src/prompts.rs`**
 
 ```rust
 //! `lib/helpers/prompts.sh`: questions go to stderr and answers come from the
@@ -7660,7 +7660,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Create `src/cli/rollback.rs`**
+- [x] **Step 2: Create `src/cli/rollback.rs`**
 
 ```rust
 //! `agentsync rollback`: `cmd_rollback` of `lib/helpers/backup.sh`. A safety
@@ -7986,7 +7986,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 3: Declare the modules in `src/lib.rs`**
+- [x] **Step 3: Declare the modules in `src/lib.rs`**
 
 ```rust
 //! AgentSync native engine. `main.rs` is the only place that talks to the
@@ -8028,7 +8028,7 @@ pub fn engine_version() -> &'static str {
 }
 ```
 
-- [ ] **Step 4: Add the command to `src/cli/mod.rs`**
+- [x] **Step 4: Add the command to `src/cli/mod.rs`**
 
 ```rust
 pub mod check;
@@ -8082,7 +8082,7 @@ pub enum Command {
 }
 ```
 
-- [ ] **Step 5: Route it in `src/main.rs`**
+- [x] **Step 5: Route it in `src/main.rs`**
 
 ```rust
 use std::ffi::OsString;
@@ -8265,7 +8265,7 @@ fn guard_engine_version() -> Result<(), Error> {
 }
 ```
 
-- [ ] **Step 6: Delegate `rollback` in `bin/agentsync.sh`**
+- [x] **Step 6: Delegate `rollback` in `bin/agentsync.sh`**
 
 Replace:
 
@@ -8279,7 +8279,7 @@ with:
 _NATIVE_COMMANDS=" version --version -v list ls check sync rollback "
 ```
 
-- [ ] **Step 7: Run the gates and the rollback suites, confirm green**
+- [x] **Step 7: Run the gates and the rollback suites, confirm green**
 
 ```bash
 cargo test 2>&1 | grep 'test result'
@@ -8293,7 +8293,7 @@ shellcheck -x -S warning -e SC1091 bin/agentsync.sh
 
 Expected: `147 passed` (unit) and `11 passed` (integration); fmt and clippy exit 0; `1..33` (6 + 11 + 8 + 8) with `0` failures — `rollback requires confirmation outside a TTY unless --yes is passed` exits 130 through `prompts::confirm`'s default; ShellCheck exits 0.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/prompts.rs src/cli/rollback.rs src/lib.rs src/cli/mod.rs src/main.rs bin/agentsync.sh docs/plans/2026-09-14-rust-migration-phase-3-native-sync.md

@@ -18,6 +18,7 @@ pub mod paths;
 pub mod payload;
 pub mod profiles;
 pub mod project;
+pub mod prompts;
 pub mod render;
 pub mod rules;
 pub mod session;

@@ -8,7 +8,7 @@ use agentsync::log::{Sink, Stream};
 use agentsync::project::Project;
 use agentsync::render::Env;
 use agentsync::style::Style;
-use agentsync::{Error, engine_version, paths};
+use agentsync::{Error, engine_version, paths, prompts};
 use clap::Parser;
 
 fn main() -> ExitCode {
@@ -63,6 +63,28 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
                 &Style::for_stdout(),
                 log_colors(),
                 &streams,
+            ))
+        }
+        Command::Rollback { args } => {
+            let supplied_root = match var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty()) {
+                Some(root) => root,
+                None => {
+                    let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
+                    paths::logical_root(None, &cwd, var("PWD").as_deref())
+                }
+            };
+            let env = cli::rollback::Env {
+                backup_limit: var("AGENTSYNC_BACKUP_LIMIT"),
+                backup_max_age: var("AGENTSYNC_BACKUP_MAX_AGE_DAYS"),
+            };
+            let mut confirm = |question: &str| prompts::confirm(question, false);
+            Ok(cli::rollback::run(
+                &supplied_root,
+                &args,
+                &env,
+                &mut confirm,
+                &mut std::io::stdout(),
+                &mut std::io::stderr(),
             ))
         }
         Command::Sync { args } => {

@@ -1,5 +1,6 @@
 pub mod check;
 pub mod list;
+pub mod rollback;
 pub mod sync;
 pub mod workspace;
 
@@ -36,6 +37,12 @@ pub enum Command {
     /// own options, messages and usage included, so they pass through as text.
     #[command(disable_help_flag = true)]
     Sync {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Restore targets from a backup; parses its own options like `cmd_rollback`.
+    #[command(disable_help_flag = true)]
+    Rollback {
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
     },

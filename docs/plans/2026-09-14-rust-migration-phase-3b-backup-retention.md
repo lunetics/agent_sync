@@ -189,7 +189,7 @@ git commit -m "feat(native): tell an empty YAML value from a missing key"
   - `pub fn create(supplied_root: &str, operation: &str, targets: &[String], retention: Retention) -> Result<String, Error>`
   - `pub fn prune(supplied_root: &str, limit: Option<&str>, max_age: Option<&str>, retention: Retention) -> Result<(), Error>`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append inside `mod tests` in `src/backup.rs`:
 
@@ -258,12 +258,12 @@ Append inside `mod tests` in `src/backup.rs`:
     }
 ```
 
-- [ ] **Step 2: Run the tests, confirm they fail**
+- [x] **Step 2: Run the tests, confirm they fail**
 
 Run: `cargo test backup::tests 2>&1 | grep -E '^error\[' | sort | uniq -c`
 Expected: errors for the missing `configure` and `Retention`, and for `create_at`/`prune_at` taking four arguments.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 In `src/backup.rs`, extend the `use crate::{…}` line with `yaml_subset`, then add after `fn refuse`:
 
@@ -392,12 +392,12 @@ replacing the old defaults, digit checks, and parses at the top of `prune_at`.
 
 Existing callers pass `Retention::Bounded` for now: every `create(`, `create_at(`, and `prune_at(` call in `src/backup.rs`'s tests gains `, Retention::Bounded` as the last argument; `src/cli/sync.rs` becomes `backup::create(&root, "sync", &targets, backup::Retention::Bounded)` and its `backup::prune(` call gains `backup::Retention::Bounded`; `src/cli/rollback.rs` likewise for `backup::create(&root, "rollback", &current, …)`, its `backup::prune(`, and the test's `backup::create(&root, "sync", &targets, …)`.
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 Run: `cargo test 2>&1 | grep 'test result' | head -3`
 Expected: `169 passed` and `11 passed`.
 
-- [ ] **Step 5: Lint and commit**
+- [x] **Step 5: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings

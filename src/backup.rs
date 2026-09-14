@@ -8,7 +8,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use crate::{Error, paths};
+use crate::{Error, paths, yaml_subset};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Target {
@@ -18,6 +18,66 @@ pub struct Target {
 
 fn refuse(message: impl Into<String>) -> Error {
     Error::Backup(message.into())
+}
+
+/// `backup.retention`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Retention {
+    #[default]
+    Bounded,
+    Preserve,
+}
+
+/// `backup_configure` once the project config is selected: the retention
+/// policy in `config` (`(path, text)`, when there is one), then the bounds.
+pub fn configure(
+    config: Option<(&str, &str)>,
+    limit: Option<&str>,
+    max_age: Option<&str>,
+) -> Result<Retention, Error> {
+    let mut retention = Retention::Bounded;
+    if let Some((path, text)) = config {
+        if !yaml_subset::value(text, "backup").is_empty() {
+            return Err(refuse(format!(
+                "backup must be a mapping with backup.retention: bounded or preserve in {path}"
+            )));
+        }
+        if let Some(value) = yaml_subset::found(text, "backup.retention") {
+            retention = match value.as_str() {
+                "bounded" => Retention::Bounded,
+                "preserve" => Retention::Preserve,
+                other => {
+                    let shown = if other.is_empty() { "<empty>" } else { other };
+                    return Err(refuse(format!(
+                        "Invalid backup.retention '{shown}' in {path}; expected bounded or preserve"
+                    )));
+                }
+            };
+        }
+    }
+    validate_limits(limit, max_age)?;
+    Ok(retention)
+}
+
+/// `_backup_validate_limits` with `:-10` and `:-30` applied; the parsed bounds.
+fn validate_limits(limit: Option<&str>, max_age: Option<&str>) -> Result<(u64, u64), Error> {
+    let limit = limit.filter(|v| !v.is_empty()).unwrap_or("10");
+    let max_age = max_age.filter(|v| !v.is_empty()).unwrap_or("30");
+    let digits = |v: &str| v.bytes().all(|b| b.is_ascii_digit());
+    if !digits(limit) {
+        return Err(refuse(format!(
+            "Backup limit must be a non-negative integer: {limit}"
+        )));
+    }
+    if !digits(max_age) {
+        return Err(refuse(format!(
+            "Backup max age must be a non-negative integer: {max_age}"
+        )));
+    }
+    Ok((
+        limit.parse().unwrap_or(u64::MAX),
+        max_age.parse().unwrap_or(u64::MAX),
+    ))
 }
 
 /// `_backup_canonical_root`.
@@ -215,7 +275,10 @@ fn create_unique(dir: &str, prefix: &str, directory: bool) -> Result<PathBuf, Er
 
 /// `_backup_sweep_stale_staging`: staging older than a day, left by a run that
 /// died before its `mv`.
-fn sweep_stale_staging(store: &str, now: SystemTime) {
+fn sweep_stale_staging(store: &str, now: SystemTime, retention: Retention) {
+    if retention == Retention::Preserve {
+        return;
+    }
     let Ok(entries) = std::fs::read_dir(store) else {
         return;
     };
@@ -278,8 +341,19 @@ fn copy_preserving(src: &Path, dst: &Path) -> std::io::Result<()> {
 }
 
 /// `backup_create`: the snapshot's path.
-pub fn create(supplied_root: &str, operation: &str, targets: &[String]) -> Result<String, Error> {
-    create_at(supplied_root, operation, targets, SystemTime::now())
+pub fn create(
+    supplied_root: &str,
+    operation: &str,
+    targets: &[String],
+    retention: Retention,
+) -> Result<String, Error> {
+    create_at(
+        supplied_root,
+        operation,
+        targets,
+        SystemTime::now(),
+        retention,
+    )
 }
 
 fn create_at(
@@ -287,6 +361,7 @@ fn create_at(
     operation: &str,
     targets: &[String],
     now: SystemTime,
+    retention: Retention,
 ) -> Result<String, Error> {
     let valid_operation = operation
         .chars()
@@ -306,7 +381,7 @@ fn create_at(
     std::fs::create_dir_all(&store).map_err(|e| Error::io(&store, e))?;
     let store = validate_store(&canonical)?;
     write_store_file(&store, ".gitignore", b"*\n")?;
-    sweep_stale_staging(&store, now);
+    sweep_stale_staging(&store, now, retention);
 
     let stage = create_unique(
         &store,
@@ -579,8 +654,14 @@ pub fn list(supplied_root: &str) -> Result<Vec<(String, String, String)>, Error>
 
 /// `backup_prune`: a snapshot survives when it is among the newest `limit` and
 /// at most `max_age` whole UTC days old; 0 disables a bound; the latest stays.
-pub fn prune(supplied_root: &str, limit: Option<&str>, max_age: Option<&str>) -> Result<(), Error> {
-    prune_at(supplied_root, limit, max_age, SystemTime::now())
+/// Under `preserve` the bounds are still validated and nothing is removed.
+pub fn prune(
+    supplied_root: &str,
+    limit: Option<&str>,
+    max_age: Option<&str>,
+    retention: Retention,
+) -> Result<(), Error> {
+    prune_at(supplied_root, limit, max_age, SystemTime::now(), retention)
 }
 
 fn prune_at(
@@ -588,22 +669,12 @@ fn prune_at(
     limit: Option<&str>,
     max_age: Option<&str>,
     now: SystemTime,
+    retention: Retention,
 ) -> Result<(), Error> {
-    let limit = limit.filter(|v| !v.is_empty()).unwrap_or("10");
-    let max_age = max_age.filter(|v| !v.is_empty()).unwrap_or("30");
-    let digits = |v: &str| v.bytes().all(|b| b.is_ascii_digit());
-    if !digits(limit) {
-        return Err(refuse(format!(
-            "Backup limit must be a non-negative integer: {limit}"
-        )));
+    let (limit, max_age) = validate_limits(limit, max_age)?;
+    if retention == Retention::Preserve {
+        return Ok(());
     }
-    if !digits(max_age) {
-        return Err(refuse(format!(
-            "Backup max age must be a non-negative integer: {max_age}"
-        )));
-    }
-    let limit: u64 = limit.parse().unwrap_or(u64::MAX);
-    let max_age: u64 = max_age.parse().unwrap_or(u64::MAX);
 
     let canonical = canonical_root(supplied_root)?;
     let store = validate_store(&canonical)?;
@@ -781,6 +852,7 @@ mod tests {
                 p.abs(".claude/rules"),
             ],
             at(1_789_323_442),
+            Retention::Bounded,
         )
         .unwrap();
         let id = format!("20260913T181722Z-sync-{}", std::process::id());
@@ -816,6 +888,7 @@ mod tests {
                 p.abs(".amazonq/rules"),
                 p.abs(".amazonq/rules"),
             ],
+            Retention::Bounded,
         )
         .unwrap();
         assert_eq!(
@@ -828,7 +901,11 @@ mod tests {
     #[test]
     fn the_root_the_store_and_outside_paths_are_refused() {
         let p = Project::new();
-        let refused = |target: String| create(&p.root, "sync", &[target]).unwrap_err().to_string();
+        let refused = |target: String| {
+            create(&p.root, "sync", &[target], Retention::Bounded)
+                .unwrap_err()
+                .to_string()
+        };
         assert_eq!(
             refused(p.root.clone()),
             "Refusing to back up the repository root"
@@ -867,7 +944,13 @@ mod tests {
             .set_modified(old)
             .unwrap();
 
-        let snapshot = create(&p.root, "sync", &[p.abs("CLAUDE.md"), p.abs(".claude")]).unwrap();
+        let snapshot = create(
+            &p.root,
+            "sync",
+            &[p.abs("CLAUDE.md"), p.abs(".claude")],
+            Retention::Bounded,
+        )
+        .unwrap();
         std::fs::remove_file(p.path("CLAUDE.md")).unwrap();
         std::fs::remove_dir_all(p.path(".claude")).unwrap();
         restore(&p.root, &snapshot).unwrap();
@@ -888,7 +971,7 @@ mod tests {
         std::os::unix::fs::symlink(outside.path(), p.path(".ai")).unwrap();
         p.write("AGENTS.md", "source\n");
         assert_eq!(
-            create(&p.root, "sync", &[p.abs("AGENTS.md")])
+            create(&p.root, "sync", &[p.abs("AGENTS.md")], Retention::Bounded)
                 .unwrap_err()
                 .to_string(),
             "AgentSync state directory cannot be a symlink: .ai"
@@ -897,7 +980,7 @@ mod tests {
 
         let p = Project::new();
         p.write("AGENTS.md", "source\n");
-        create(&p.root, "init", &[p.abs("AGENTS.md")]).unwrap();
+        create(&p.root, "init", &[p.abs("AGENTS.md")], Retention::Bounded).unwrap();
         let forged = tempfile::tempdir().unwrap();
         std::fs::create_dir(forged.path().join("files")).unwrap();
         std::fs::write(forged.path().join("targets.tsv"), "present\tAGENTS.md\n").unwrap();
@@ -915,7 +998,7 @@ mod tests {
     fn metadata_updates_replace_symlinks_instead_of_following_them() {
         let p = Project::new();
         p.write("AGENTS.md", "source\n");
-        create(&p.root, "init", &[p.abs("AGENTS.md")]).unwrap();
+        create(&p.root, "init", &[p.abs("AGENTS.md")], Retention::Bounded).unwrap();
         let outside = tempfile::tempdir().unwrap();
         std::fs::write(outside.path().join("ignore"), "outside-ignore\n").unwrap();
         std::fs::remove_file(p.path(".ai/backups/.gitignore")).unwrap();
@@ -924,7 +1007,7 @@ mod tests {
             p.path(".ai/backups/.gitignore"),
         )
         .unwrap();
-        create(&p.root, "sync", &[p.abs("AGENTS.md")]).unwrap();
+        create(&p.root, "sync", &[p.abs("AGENTS.md")], Retention::Bounded).unwrap();
         assert_eq!(
             std::fs::read_to_string(outside.path().join("ignore")).unwrap(),
             "outside-ignore\n"
@@ -939,25 +1022,46 @@ mod tests {
         p.fake_snapshot("20200101T000000Z-sync-1");
         p.fake_snapshot("not-a-timestamp");
         let now = at(1_789_323_442);
-        let first = create_at(&p.root, "init", &[p.abs("AGENTS.md")], now).unwrap();
-        let second = create_at(&p.root, "sync", &[p.abs("AGENTS.md")], now).unwrap();
-        let newest = create_at(&p.root, "sync", &[p.abs("AGENTS.md")], now).unwrap();
+        let first = create_at(
+            &p.root,
+            "init",
+            &[p.abs("AGENTS.md")],
+            now,
+            Retention::Bounded,
+        )
+        .unwrap();
+        let second = create_at(
+            &p.root,
+            "sync",
+            &[p.abs("AGENTS.md")],
+            now,
+            Retention::Bounded,
+        )
+        .unwrap();
+        let newest = create_at(
+            &p.root,
+            "sync",
+            &[p.abs("AGENTS.md")],
+            now,
+            Retention::Bounded,
+        )
+        .unwrap();
         assert!(newest.ends_with(&format!("-sync-{}-2", std::process::id())));
 
-        prune_at(&p.root, Some("10"), Some("0"), now).unwrap();
+        prune_at(&p.root, Some("10"), Some("0"), now, Retention::Bounded).unwrap();
         assert!(p.path(".ai/backups/20200101T000000Z-sync-1").exists());
-        prune_at(&p.root, None, None, now).unwrap();
+        prune_at(&p.root, None, None, now, Retention::Bounded).unwrap();
         assert!(!p.path(".ai/backups/20200101T000000Z-sync-1").exists());
         assert!(p.path(".ai/backups/not-a-timestamp").exists());
 
-        prune_at(&p.root, Some("2"), Some("30"), now).unwrap();
+        prune_at(&p.root, Some("2"), Some("30"), now, Retention::Bounded).unwrap();
         assert!(!Path::new(&first).exists());
         assert!(!Path::new(&second).exists());
         assert!(p.path(".ai/backups/not-a-timestamp").exists());
         assert_eq!(latest(&p.root).unwrap(), Some(newest));
 
         assert_eq!(
-            prune_at(&p.root, Some("x"), None, now)
+            prune_at(&p.root, Some("x"), None, now, Retention::Bounded)
                 .unwrap_err()
                 .to_string(),
             "Backup limit must be a non-negative integer: x"
@@ -970,7 +1074,7 @@ mod tests {
         p.fake_snapshot("20200101T000000Z-sync-1");
         p.write(".ai/backups/.latest", "20200101T000000Z-sync-1\n");
         let now = at(1_789_323_442);
-        prune_at(&p.root, Some("10"), Some("1"), now).unwrap();
+        prune_at(&p.root, Some("10"), Some("1"), now, Retention::Bounded).unwrap();
         assert_eq!(
             latest(&p.root).unwrap(),
             Some(p.abs(".ai/backups/20200101T000000Z-sync-1"))
@@ -991,7 +1095,14 @@ mod tests {
             .unwrap()
             .set_modified(old)
             .unwrap();
-        create_at(&p.root, "sync", &[p.abs("AGENTS.md")], now).unwrap();
+        create_at(
+            &p.root,
+            "sync",
+            &[p.abs("AGENTS.md")],
+            now,
+            Retention::Bounded,
+        )
+        .unwrap();
         assert!(!p.path(".ai/backups/.tmp.sync.abandoned").exists());
         assert!(!p.path(".ai/backups/.latest.tmp.stale").exists());
         assert!(p.path(".ai/backups/.tmp.sync.inflight").exists());
@@ -1008,5 +1119,97 @@ mod tests {
         );
         assert_eq!(rows[1].1, "sync");
         assert_eq!(rows[1].2, "20260913T181722Z");
+    }
+
+    #[test]
+    fn configure_reads_the_policy_and_the_bounds_like_backup_configure() {
+        let path = "/p/.ai/agent_sync.yaml";
+        let with = |text: &str| configure(Some((path, text)), None, None);
+        assert_eq!(configure(None, None, None).unwrap(), Retention::Bounded);
+        assert_eq!(
+            with("tools:\n  enabled: [claude]\n").unwrap(),
+            Retention::Bounded
+        );
+        assert_eq!(
+            with("backup:\n  retention: preserve\n").unwrap(),
+            Retention::Preserve
+        );
+        assert_eq!(
+            with("backup:\n  retention: bounded\n").unwrap(),
+            Retention::Bounded
+        );
+        assert_eq!(
+            with("backup:\n  retention: \"preserve\" # keep\n").unwrap(),
+            Retention::Preserve
+        );
+        assert_eq!(with("backup:\n  other: 1\n").unwrap(), Retention::Bounded);
+        let refused = |text: &str| with(text).unwrap_err().to_string();
+        assert_eq!(
+            refused("backup:\n  retention: typo\n"),
+            "Invalid backup.retention 'typo' in /p/.ai/agent_sync.yaml; expected bounded or preserve"
+        );
+        for empty in [
+            "backup:\n  retention:\n",
+            "backup:\n  retention: \"\"\n",
+            "backup:\n  retention: # nothing\n",
+        ] {
+            assert_eq!(
+                refused(empty),
+                "Invalid backup.retention '<empty>' in /p/.ai/agent_sync.yaml; expected bounded or preserve"
+            );
+        }
+        assert_eq!(
+            refused("backup: preserve\n"),
+            "backup must be a mapping with backup.retention: bounded or preserve in /p/.ai/agent_sync.yaml"
+        );
+        let bounds = |limit: &str, age: &str| {
+            configure(None, Some(limit), Some(age)).map_err(|e| e.to_string())
+        };
+        assert_eq!(
+            bounds("typo", "").unwrap_err(),
+            "Backup limit must be a non-negative integer: typo"
+        );
+        assert_eq!(
+            bounds("", "-1").unwrap_err(),
+            "Backup max age must be a non-negative integer: -1"
+        );
+        assert_eq!(
+            bounds("x", "y").unwrap_err(),
+            "Backup limit must be a non-negative integer: x"
+        );
+        assert_eq!(bounds("0", "0").unwrap(), Retention::Bounded);
+    }
+
+    #[test]
+    fn preserve_keeps_old_snapshots_and_stale_staging() {
+        let p = Project::new();
+        p.write("AGENTS.md", "source\n");
+        p.fake_snapshot("20200101T000000Z-sync-1");
+        p.fake_snapshot("20200102T000000Z-sync-2");
+        p.write(".ai/backups/.latest", "20200102T000000Z-sync-2\n");
+        std::fs::create_dir_all(p.path(".ai/backups/.tmp.sync.abandoned/files")).unwrap();
+        std::fs::File::open(p.path(".ai/backups/.tmp.sync.abandoned"))
+            .unwrap()
+            .set_modified(at(1_577_836_800))
+            .unwrap();
+        let now = at(1_789_323_442);
+        create_at(
+            &p.root,
+            "sync",
+            &[p.abs("AGENTS.md")],
+            now,
+            Retention::Preserve,
+        )
+        .unwrap();
+        assert!(p.path(".ai/backups/.tmp.sync.abandoned").exists());
+        prune_at(&p.root, Some("1"), Some("1"), now, Retention::Preserve).unwrap();
+        assert!(p.path(".ai/backups/20200101T000000Z-sync-1").exists());
+        assert!(p.path(".ai/backups/20200102T000000Z-sync-2").exists());
+        assert_eq!(
+            prune_at(&p.root, Some("x"), None, now, Retention::Preserve)
+                .unwrap_err()
+                .to_string(),
+            "Backup limit must be a non-negative integer: x"
+        );
     }
 }

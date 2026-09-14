@@ -136,7 +136,7 @@ pub fn run(
         .iter()
         .map(|target| format!("{root}/{}", target.rel))
         .collect();
-    let safety = match backup::create(&root, "rollback", &current) {
+    let safety = match backup::create(&root, "rollback", &current, backup::Retention::Bounded) {
         Ok(safety) => safety,
         Err(e) => {
             fail(err, e);
@@ -185,6 +185,7 @@ pub fn run(
         &root,
         env.backup_limit.as_deref(),
         env.backup_max_age.as_deref(),
+        backup::Retention::Bounded,
     ) {
         fail(err, e);
         let _ = writeln!(err, "Warning: Could not prune old AgentSync backups.");
@@ -236,7 +237,7 @@ mod tests {
     fn a_rollback_restores_the_latest_backup_and_leaves_an_undo_backup() {
         let (dir, root) = project();
         let targets = [format!("{root}/CLAUDE.md"), format!("{root}/.claude/rules")];
-        let snapshot = backup::create(&root, "sync", &targets).unwrap();
+        let snapshot = backup::create(&root, "sync", &targets, backup::Retention::Bounded).unwrap();
         let id = paths::leaf(&snapshot);
         std::fs::write(dir.path().join("CLAUDE.md"), "after\n").unwrap();
         std::fs::create_dir_all(dir.path().join(".claude/rules")).unwrap();

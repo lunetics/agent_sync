@@ -189,6 +189,7 @@ fn prune(s: &mut Session, env: &Env) {
         &root,
         env.backup_limit.as_deref(),
         env.backup_max_age.as_deref(),
+        backup::Retention::Bounded,
     ) {
         report_backup_error(&mut s.log, &e);
         s.log.warning("Could not prune old AgentSync backups.");
@@ -407,7 +408,7 @@ fn start_transaction(
     }
     targets.push(format!("{root}/{}", manifest::REL));
     s.interrupt = Some(Interrupt::arm());
-    match backup::create(&root, "sync", &targets) {
+    match backup::create(&root, "sync", &targets, backup::Retention::Bounded) {
         Ok(path) => {
             tx.backup = Some(path);
             tx.active = true;

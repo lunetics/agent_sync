@@ -17,7 +17,7 @@ register_configured_source_root() {
 
     local abs_path="$raw_path"
     if [[ "$abs_path" != /* ]]; then
-        abs_path="${AGENTSYNC_SOURCE_BASE_ROOT:-$REPO_ROOT}/$abs_path"
+        abs_path="${AGENTSYNC_INTERNAL_SOURCE_BASE_ROOT:-$REPO_ROOT}/$abs_path"
     fi
 
     local canonical_path=""
@@ -292,7 +292,7 @@ resolve_source_path_r() {
 
     # First try resolving relative to the configured source base (normally the
     # user project; check may point it at the original project read-only).
-    local source_base="${AGENTSYNC_SOURCE_BASE_ROOT:-$REPO_ROOT}"
+    local source_base="${AGENTSYNC_INTERNAL_SOURCE_BASE_ROOT:-$REPO_ROOT}"
     normalize_absolute_path_r "$raw_path"
     if [[ "$raw_path" != /* ]]; then
         normalize_absolute_path_r "$source_base/$raw_path"

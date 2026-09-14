@@ -28,7 +28,7 @@ fi
 # command may run sync in a temporary output root while retaining read-only
 # access to the original project sources; it supplies this base explicitly.
 tool_resolver_source_base_dir() {
-    echo "${AGENTSYNC_SOURCE_BASE_ROOT:-$REPO_ROOT}"
+    echo "${AGENTSYNC_INTERNAL_SOURCE_BASE_ROOT:-$REPO_ROOT}"
 }
 
 # Resolve the configured source.tools directory. This is deliberately shared by

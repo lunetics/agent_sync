@@ -160,7 +160,7 @@ if ! AGENTSYNC_REPO_ROOT="$TEMP_ROOT" \
      AGENTSYNC_SKIP_POST_SYNC=true \
      AGENTSYNC_INTERNAL_SKIP_BACKUP=true \
      AGENTSYNC_CONFIG_PATH="$CHECK_CONFIG_PATH" \
-     AGENTSYNC_SOURCE_BASE_ROOT="$CHECK_SOURCE_BASE_ROOT" \
+     AGENTSYNC_INTERNAL_SOURCE_BASE_ROOT="$CHECK_SOURCE_BASE_ROOT" \
      "$SCRIPT_DIR/sync.sh" --force >"$SYNC_LOG" 2>&1; then
     echo "❌ Sync script failed during check"
     echo "Sync output (last 40 lines):"

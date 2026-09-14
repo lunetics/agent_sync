@@ -905,7 +905,7 @@ _sync_is_stale() {
     # Honor source.* overrides that point outside .ai/src. Relative paths use
     # the same source base as the resolver (normally REPO_ROOT; check may keep
     # the original project root while generating in a temporary workspace).
-    local source_base="${AGENTSYNC_SOURCE_BASE_ROOT:-$REPO_ROOT}"
+    local source_base="${AGENTSYNC_INTERNAL_SOURCE_BASE_ROOT:-$REPO_ROOT}"
     local rel abs
     for rel in "$SOURCE_AGENTS" "$SOURCE_RULES" "$SOURCE_SKILLS" "$SOURCE_TOOLS" "$SOURCE_COMMANDS" "$SOURCE_SUBAGENTS"; do
         [[ -n "$rel" ]] || continue

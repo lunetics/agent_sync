@@ -296,7 +296,7 @@ main() {
     esac
 
     case "$command" in
-        init)          _need prompts yaml logging tool_resolver template_manifest paths filters file_ops manifest tmp project_config backup adopt format init; shift; cmd_init "$@" ;;
+        init)          _need prompts yaml logging tool_resolver template_manifest paths filters file_ops manifest tmp project_config backup backup_state adopt format init; shift; cmd_init "$@" ;;
         sync)
             shift
             # --workspace fan-out: run sync in every .ai/ below cwd before
@@ -317,7 +317,7 @@ main() {
                 cmd_engine "sync.sh" "$@"
             fi
             ;;
-        rollback)      _need prompts paths yaml project_config backup; shift; cmd_rollback "$@" ;;
+        rollback)      _need prompts paths yaml project_config manifest backup backup_state; shift; cmd_rollback "$@" ;;
         check)         shift; cmd_engine "check.sh" "$@" ;;
         setup-hooks)   shift; cmd_engine "setup_hooks.sh" "$@" ;;
         shell-init)    _need logging shell_init;                      shift; cmd_shell_init "$@" ;;

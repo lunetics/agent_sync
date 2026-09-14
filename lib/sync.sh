@@ -38,6 +38,8 @@ source "$SCRIPT_DIR/helpers/filters.sh"
 source "$SCRIPT_DIR/helpers/file_ops.sh"
 # shellcheck source=helpers/backup.sh
 source "$SCRIPT_DIR/helpers/backup.sh"
+# shellcheck source=helpers/backup_state.sh
+source "$SCRIPT_DIR/helpers/backup_state.sh"
 # shellcheck source=helpers/rule_operations.sh
 source "$SCRIPT_DIR/helpers/rule_operations.sh"
 # shellcheck source=helpers/format_conversion.sh
@@ -1150,6 +1152,8 @@ _sync_cleanup() {
     if [[ "$SYNC_TRANSACTION_ACTIVE" == "true" ]] && [[ $status -ne 0 ]]; then
         log_warning "Sync failed; restoring pre-sync state..."
         if backup_restore "$REPO_ROOT" "$SYNC_BACKUP_PATH"; then
+            backup_seal "$REPO_ROOT" "$SYNC_BACKUP_PATH" || \
+                log_warning "Could not record the restored state ($BACKUP_SEAL_REASON); rolling back backup $(basename "$SYNC_BACKUP_PATH") cannot detect later changes."
             log_info "Restored pre-sync state from $(display_path "$SYNC_BACKUP_PATH")"
             # A run of failing syncs would otherwise accumulate snapshots
             # forever, because prune only runs on the success path. Skipped when
@@ -1336,6 +1340,9 @@ main() {
         log_warning "Could not prune old AgentSync backups."
     fi
     SYNC_TRANSACTION_ACTIVE="false"
+    if [[ -n "$SYNC_BACKUP_PATH" ]] && ! backup_seal "$REPO_ROOT" "$SYNC_BACKUP_PATH"; then
+        log_warning "Could not record the post-sync state ($BACKUP_SEAL_REASON); rolling back backup $(basename "$SYNC_BACKUP_PATH") cannot detect later changes."
+    fi
 }
 
 main "$@"

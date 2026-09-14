@@ -205,6 +205,8 @@ _init_cleanup() {
     if [[ "$INIT_TRANSACTION_ACTIVE" == "true" ]] && [[ $status -ne 0 ]]; then
         echo "$(_yellow "Warning"): Init failed; restoring pre-init state..." >&2
         if backup_restore "$REPO_ROOT" "$INIT_BACKUP_PATH"; then
+            backup_seal "$REPO_ROOT" "$INIT_BACKUP_PATH" || \
+                echo "$(_yellow "Warning"): Could not record the restored state ($BACKUP_SEAL_REASON); rolling back backup $(basename "$INIT_BACKUP_PATH") cannot detect later changes." >&2
             echo "Restored pre-init state from ${INIT_BACKUP_PATH#"$REPO_ROOT"/}" >&2
             if ! backup_prune "$REPO_ROOT"; then
                 echo "$(_yellow "Warning"): Could not prune old AgentSync backups." >&2
@@ -1148,6 +1150,9 @@ HELP
     # The handler stays armed: INIT_TRANSACTION_ACTIVE gates the restore, and
     # leaving it in place keeps the run directory's cleanup owner defined.
     INIT_TRANSACTION_ACTIVE="false"
+    if ! backup_seal "$target_dir" "$INIT_BACKUP_PATH"; then
+        echo "$(_yellow "Warning"): Could not record the post-init state ($BACKUP_SEAL_REASON); rolling back backup $(basename "$INIT_BACKUP_PATH") cannot detect later changes." >&2
+    fi
 
     # First sync, so `init` leaves a project whose outputs already exist —
     # committed mode has nothing to commit until they do. Its own transaction

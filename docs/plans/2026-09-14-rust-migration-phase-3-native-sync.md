@@ -8675,3 +8675,95 @@ Before reporting Phase 3 done, append the completion receipt from `verification.
 - Plan amended: the decisions are recorded as taken, with the RustSec screening. Task 8's `cargo add` had written `signal-hook = { version = "0.4.4", … }`; the requirement is `"0.4"`, as the step states, with `Cargo.lock` unchanged. Task 11 replaced the module-map rows in place, with the `(trap INT TERM HUP)` row in Tier 0 and the workspace row among the commands, and also added `sha2` and `signal-hook` to the dependency line of `native-engine.md`, which decision 2 made stale.
 - Next: close the phase — append `## Completion receipt` per the `## Completion` section, with the 13-tool fixture golden run and `sync` timings from `scripts/perf/bench.sh`.
 - Blocker: none. `git checkout` in this checkout triggers a post-checkout hook from outside the project ("Running AI Config Sync (dart wrapper)…") that exits 255 for want of a `pubspec.yaml`; the checkout itself completes. Task 11's `sync` ran outside the agent sandbox, which denies writes under `.claude/`.
+
+### 2026-09-14 — phase closed
+- Commits: `docs(native): close phase 3`
+- Verified: everything in the completion receipt below; the Rust gates, ShellCheck, the golden run, the timings, and the terminal check are fresh after `2bad2a2`; the two-mode suite ran at `d42a56a`, after which only the module map, the engine rule, and the manifest changed.
+- Plan amended: none.
+- Next: Phase 4 — the remaining commands, one plan per command family named in the spec, starting with the `yaml_edit` family. Its plan is written from `.ai/src/commands/native-phase-plan.md` and stops for review. The branch is not pushed; pushing, and so the `native` CI job, is the user's call.
+- Blocker: none.
+
+---
+
+## Completion receipt
+
+Phase 3 closed 2026-09-14. Every checkbox above is ticked; `version`, `--version`,
+`-v`, `list`, `ls`, `check`, `sync` (with `--workspace`), and `rollback` are served
+by the Rust binary when one is built.
+
+### Decisions the review took
+
+All four as recommended (`/decide`, 2026-09-14): Task 0c prunes a generated skill
+directory; `sha2` 0.11 and `signal-hook` 0.4 are added with default features off
+after a RustSec screening (`sha2`'s only advisory, RUSTSEC-2021-0100, affects
+0.9.7; `signal-hook` and `signal-hook-registry` have none); post-sync hooks are
+enabled by `AGENTSYNC_ALLOW_POST_SYNC` and the embedded config only; the eight
+deviations are recorded in the spec.
+
+### Global Constraints
+
+| Constraint | Satisfied by | Evidence |
+| --- | --- | --- |
+| `sync` writes only tool dests, the manifest, `.gitignore`, and backups; `rollback` only snapshot targets and backups; `check` nothing | `src/workspace.rs`, `src/cli/sync.rs`, `src/cli/rollback.rs`, `src/cli/check.rs` | disk writes go through `Workspace::on_disk` below resolved dests, `manifest::write`, `gitignore::update`, and `backup`; `check` keeps `Workspace::new`; parity trees compare every path outside `.git` and the store |
+| No binary ships; without one every command runs in Bash | `bin/agentsync.sh:280-330` | `install.sh` untouched; `AGENTSYNC_NATIVE_BIN=/nonexistent bats tests/native_parity.bats` → 34 skipped |
+| Bash stays 3.2-compatible and ShellCheck-clean | `lib/sync.sh`, `lib/helpers/{file_ops,manifest,gitignore}.sh`, `bin/agentsync.sh` | the fixes use `local -a`, `for`, `[[ ]]`, `LC_ALL=C sort -u` only; ShellCheck exit 0 |
+| Byte parity off a terminal; `logging.sh` escapes on one | `tests/native_parity.bats` (10 new fixtures), `src/log.rs` | 34 ok; under `script(1)` the two engines' lines differ only in masked run paths and deviation 1's engine path |
+| On-disk formats byte-identical; each engine restores the other's backups | `src/manifest.rs`, `src/backup.rs`, `src/gitignore.rs` | golden run: identical trees including `.ai/.sync-manifest`; `parity: a backup the native sync writes is restored by the Bash rollback`; `parity: rollback plans, restores, and refuses like Bash` restores a Bash backup natively |
+| fmt, clippy, `unsafe_code = "forbid"`, no YAML or JSON crate, only the two ratified crates | `Cargo.toml` | dependencies: clap, include_dir, sha2, signal-hook, thiserror; `native-engine.md` lists them |
+| Disk-touching unit tests are `#[cfg(unix)]` | `backup.rs`, `manifest.rs`, `gitignore.rs`, `staging.rs`, `interrupt.rs`, `cli/rollback.rs`, `paths.rs`, `workspace.rs`, `overlay.rs`, `tests/cli.rs` | the rest run on an in-memory `Workspace`; not run on Windows here, see below |
+| `VERSION` is the only version source | `src/lib.rs`, `src/render.rs` | the pin gate compares with `engine_version()`; `parity: sync with profiles, shared inheritance, and a version pin` ok |
+| Phase 1 and 2 deviations still hold | `docs/specs/2026-09-12-rust-migration-design.md` | unchanged lines |
+| Eight Phase 3 deviations ratified and recorded | same file, "Accepted deviations" | engine and overlay roots in step lines; embedded post-sync gate; Rust I/O error text; `sync` survives a closed stdout; signals at the next step; symlinks copied as files; `chmod +x` without umask; no `echo -e` expansion |
+| Quirk 12 recorded and reproduced | same file, "Known quirks"; `src/cli/workspace.rs` | `last_failure` holds the last failing status; `parity: sync from inside .ai, into a symlinked dest, and across a workspace` ok |
+| Conventional Commits, no attribution trailers | the 16 commits since `0217ec4` | `fix(sync)` ×3, `feat(native)` ×9, `test(native)`, `docs(native)` ×3 |
+
+### Fresh verification, 2026-09-14, macOS arm64, rustc 1.98.1
+
+| Command | Result |
+| --- | --- |
+| `cargo test` | 147 unit + 11 integration passed, 0 failed |
+| `cargo clippy --all-targets -- -D warnings` | exit 0 |
+| `cargo fmt --all --check` | exit 0 |
+| `shellcheck -x -S warning -e SC1091` over `bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh` | exit 0 |
+| `shellcheck lib/templates/guard/claude.sh` | exit 0 |
+| `bats --jobs 4 tests/ --tap` (at `d42a56a`) | `1..776`, 0 not ok |
+| `AGENTSYNC_NATIVE=1 bats --jobs 4 tests/ --tap` (at `d42a56a`) | `1..776`, 0 not ok |
+
+776 = 762 baseline + 1 `baseline` (Task 0b) + 2 `drift` (Task 0c) + 1 `gitignore` (Task 0d) + 10 parity.
+
+### Golden outputs and timings
+
+`scripts/perf/make-fixture.sh` with defaults twice (389 source files, 13 tools), a
+Bash `sync` in one copy and a native `sync` in the other: `diff -r -x .git -x
+backups` finds no difference across 3465 managed outputs, and a native `check`
+exits 0 in both copies. `bash scripts/perf/bench.sh --runs 3`, best and median
+seconds:
+
+| Command | Bash | Native |
+| --- | --- | --- |
+| `list` | 0.82 / 0.86 | 0.02 / 0.03 |
+| `check` | 100.13 / 116.80 | 0.25 / 0.26 |
+| `sync` | 60.83 / 61.25 | 2.94 / 3.99 |
+| `sync --if-stale` | 0.24 / 0.27 | 0.07 / 0.08 |
+| `list`, binary without the Bash entry point | — | 0.00 / 0.01 |
+
+`sync` falls from 61 s to about 3 s, the native figure including a full backup of
+the 3465 outputs on every run and the Bash dispatcher's startup. The Bash column
+ran slower than Phase 2's session (`check` 100 s against 67 s on the same
+fixture), so the machine was loaded; the ratio is the finding.
+
+### Skipped, deferred, open
+
+- **The `native` CI job has never run.** The branch is local; the job now runs the
+  whole suite natively with GNU parallel and a 40-minute timeout.
+- **`cargo test` on Windows is unverified here**, and `interrupt.rs` compiles its
+  Windows branch (`SIGINT`, `SIGTERM`) only there.
+- **Signals are tested for `sync` only.** `rollback`'s trap is armed around the
+  restore and falls back to the safety snapshot, but no test interrupts it.
+- **Symlinks inside synced trees** are copied as files (deviation 6); a
+  `Content::Link` in the workspace would keep them as links if a user needs it.
+- **The post-sync trust gate** still needs a user-level home in Phase 5 (deviation 2).
+- **`git checkout` runs a foreign post-checkout hook** in this checkout (a Dart
+  wrapper from another project's hook setup) that fails for want of a
+  `pubspec.yaml`; it does not affect the repository, but it is noise worth
+  removing from the local hook configuration.

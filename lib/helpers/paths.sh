@@ -348,7 +348,11 @@ resolve_source_path_r() {
         canonical_path_target="$REPLY"
     fi
 
-    if [[ -n "$canonical_path_target" ]] && [[ -e "$canonical_path_target" ]] && is_path_safe_source "$canonical_path_target"; then
+    if [[ -n "$canonical_path_target" ]] && [[ -e "$canonical_path_target" ]]; then
+        if ! is_path_safe_source "$canonical_path_target"; then
+            log_error "$label resolves outside safe source roots: $raw_path -> $canonical_path_target"
+            return 1
+        fi
         REPLY="$abs_path_target"
         return 0
     fi

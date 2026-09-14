@@ -128,6 +128,20 @@ EOF
     [ ! -d "$child/.claude/skills/parent-skill" ]
 }
 
+@test "shared: child skills survive alongside the engine base skills" {
+    local pair child
+    pair=$(_shared_make_pair)   # inherits: rules
+    child="${pair##* }"
+    mkdir -p "$child/.ai/src/skills/child-skill"
+    printf '%s\n' '---' 'name: child-skill' 'description: child fixture skill' '---' \
+        > "$child/.ai/src/skills/child-skill/SKILL.md"
+
+    run bash -c "cd '$child' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' sync"
+    [ "$status" -eq 0 ]
+    [ -f "$child/.claude/skills/child-skill/SKILL.md" ]
+    [ -f "$child/.claude/skills/agentsync/SKILL.md" ]
+}
+
 @test "shared: missing parent path warns and skips overlay" {
     setup_test_project
     run_agentsync init --no-detect --yes >/dev/null

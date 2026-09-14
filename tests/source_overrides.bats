@@ -50,6 +50,7 @@ write_external_fixture() {
     local tools_dir="$tools_path"
     [[ "$tools_dir" == /* ]] || tools_dir="$TEST_PROJECT/$tools_dir"
 
+    write_project_sources
     mkdir -p "$TEST_PROJECT/config" \
         "$TEST_PROJECT/sources/rules" \
         "$TEST_PROJECT/sources/skills/external-skill" \
@@ -243,6 +244,33 @@ run_external_sync() {
     [ "$status" -eq 1 ]
     printf '%s' "$output" | grep -qF -- "targets.rules.source for Claude Code resolves outside safe source roots"
     [ ! -e ".claude/rules/outside.md" ]
+}
+
+@test "source containment: explicit absolute source.rules outside the project syncs and checks" {
+    write_project_sources
+    make_outside_rules
+    write_rules_config "$OUTSIDE_ROOT/rules"
+
+    run run_agentsync sync
+    [ "$status" -eq 0 ]
+    [ -f ".claude/rules/outside.md" ]
+    [ ! -e ".claude/rules/project.md" ]
+
+    run run_agentsync check
+    [ "$status" -eq 0 ]
+}
+
+@test "source containment: explicit ../ source.rules resolves from the project root" {
+    write_project_sources
+    make_outside_rules
+    write_rules_config "../$(basename "$OUTSIDE_ROOT")/rules"
+
+    run run_agentsync sync
+    [ "$status" -eq 0 ]
+    [ -f ".claude/rules/outside.md" ]
+
+    run run_agentsync check
+    [ "$status" -eq 0 ]
 }
 
 @test "source containment: explicit source root at / is refused" {

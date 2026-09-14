@@ -35,8 +35,8 @@ tool_resolver_source_base_dir() {
 # YAML lookup and payload lookup so a tool catalog and its settings/hooks/MCP
 # payloads can never silently come from different roots.
 tool_resolver_configured_tools_dir() {
-    local configured="${SOURCE_TOOLS:-}"
-    if [[ -z "$configured" ]] && [[ -n "${PROJECT_CONFIG_PATH:-}" ]] && [[ -f "$PROJECT_CONFIG_PATH" ]]; then
+    local configured=""
+    if [[ -n "${PROJECT_CONFIG_PATH:-}" ]] && [[ -f "$PROJECT_CONFIG_PATH" ]]; then
         configured=$(parse_yaml_value "$PROJECT_CONFIG_PATH" "source.tools")
     fi
     configured="${configured:-.ai/src/tools}"

@@ -323,3 +323,19 @@ run_external_sync() {
     printf '%s' "$output" | grep -qF -- "source.rules must not be the filesystem root, the home directory, or the project root or its ancestor: .."
     [ ! -e ".claude" ]
 }
+
+@test "tool resolver ignores an auto-detected flat .ai/tools catalog like show does" {
+    write_project_sources
+    write_rules_config
+    mkdir -p .ai/tools
+    printf '%s\n' 'name: "Flat Claude"' > .ai/tools/claude.yaml
+
+    run run_agentsync sync
+    [ "$status" -eq 0 ]
+    printf '%s' "$output" | grep -qF -- "Claude Code complete"
+    [ -z "$(printf '%s' "$output" | grep -F -- "Flat Claude" || true)" ]
+
+    run run_agentsync show claude
+    [ "$status" -eq 0 ]
+    [ -z "$(printf '%s' "$output" | grep -F -- "Flat Claude" || true)" ]
+}

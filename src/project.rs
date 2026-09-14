@@ -10,6 +10,7 @@ use crate::{Error, paths, yaml_subset};
 pub struct Project {
     pub root: PathBuf,
     pub config_path: Option<PathBuf>,
+    tools_dir: PathBuf,
 }
 
 impl Project {
@@ -44,11 +45,30 @@ impl Project {
             Selection::None => None,
             Selection::Missing(path) => return Err(Error::ConfigPathNotFound(PathBuf::from(path))),
         };
-        Ok(Self { root, config_path })
+        let configured = match &config_path {
+            Some(path) => {
+                let text = std::fs::read(path).map_err(|e| Error::io(path, e))?;
+                yaml_subset::value(&String::from_utf8_lossy(&text), "source.tools")
+            }
+            None => String::new(),
+        };
+        let tools_dir = if configured.is_empty() {
+            root.join(".ai").join("src").join("tools")
+        } else if configured.starts_with('/') {
+            PathBuf::from(configured)
+        } else {
+            root.join(configured)
+        };
+        Ok(Self {
+            root,
+            config_path,
+            tools_dir,
+        })
     }
 
+    /// `TOOL_RESOLVER_USER_DIR`: `source.tools` when the config sets it.
     pub fn user_tools_dir(&self) -> PathBuf {
-        self.root.join(".ai").join("src").join("tools")
+        self.tools_dir.clone()
     }
 
     pub fn user_tool_file(&self, slug: &str) -> PathBuf {
@@ -192,6 +212,21 @@ mod tests {
         let set = project.enabled_tools().unwrap();
         let enabled: Vec<&str> = set.iter().map(String::as_str).collect();
         assert_eq!(enabled, ["claude", "cursor", "zed"]);
+    }
+
+    #[test]
+    fn source_tools_moves_the_override_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        write(
+            dir.path(),
+            ".ai/agent_sync.yaml",
+            "source:\n  tools: \"catalog\"\n",
+        );
+        write(dir.path(), "catalog/zed.yaml", "enabled: true\n");
+        write(dir.path(), ".ai/src/tools/kimi.yaml", "enabled: true\n");
+        let project = Project::at(dir.path()).unwrap();
+        assert_eq!(project.user_tools_dir(), dir.path().join("catalog"));
+        assert_eq!(project.legacy_enabled_tools().unwrap(), ["zed"]);
     }
 
     #[test]

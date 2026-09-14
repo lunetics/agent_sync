@@ -729,7 +729,7 @@ git commit -m "feat(native): build source overlays from the resolved sources"
 **Interfaces:**
 - Produces: `Project { pub root, pub config_path, tools_dir: PathBuf }`; `user_tools_dir()` returns the configured directory.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```rust
     #[test]
@@ -743,12 +743,12 @@ git commit -m "feat(native): build source overlays from the resolved sources"
     }
 ```
 
-- [ ] **Step 2: Run it, confirm it fails**
+- [x] **Step 2: Run it, confirm it fails**
 
 Run: `cargo test project::tests::source_tools 2>&1 | grep -E '^test |panicked'`
 Expected: `FAILED`, the directory being `.ai/src/tools`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Add `tools_dir: PathBuf` to `Project`; in `select`, after `config_path` is known:
 
@@ -772,7 +772,7 @@ Add `tools_dir: PathBuf` to `Project`; in `select`, after `config_path` is known
 
 and `user_tools_dir` returns `self.tools_dir.clone()`.
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -3
@@ -783,7 +783,7 @@ printf 'list native=%s\n' "$(AGENTSYNC_NATIVE=1 bats --tap tests/list.bats | gre
 
 Expected: `178 passed` and `11 passed`; `source_overrides native=0`; `list native=0`.
 
-- [ ] **Step 5: Lint and commit**
+- [x] **Step 5: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings
@@ -893,4 +893,11 @@ The family is closed when every box is ticked, `source_overrides.bats` is green 
 - Verified: `cargo test` 177 and 11 passed (three further runs identical; one earlier run printed only `error: test failed` with no failing test named, not reproduced); fmt and clippy exit 0. Native bats: `source_overrides`, `check`, `shared`, `base_skills`, `profiles`, `sync`, `config_safety` all 0.
 - Plan amended: after the overlays, `source_overrides` 3 and 5 still failed natively with `Source agents file not found: <project>/sources/AGENTS.md`: `check`'s workspace held only what `lib/check.sh` copied, while Bash's isolated sync read `source.*` from the project itself. `cli::check::seed_workspace` now seeds each configured source (nested `source.<key>`, the top-level key for all but `tools`) that lies inside the project and outside `.ai/`, with the test `sources_inside_the_project_but_outside_ai_are_read_from_the_project`. The shared-overlay unit test now passes resolved sources, which `setup_shared` mirrors instead of `.ai/src`. Later counts are one higher.
 - Next: Task 4 Step 1 (its test is already written in `src/project.rs`).
+- Blocker: none.
+
+### 2026-09-14 — Task 4 done
+- Commits: "feat(native): read tool overrides from source.tools in list".
+- Verified: `cargo test` 178 and 11 passed; fmt and clippy exit 0. Native bats: `list` 0, `source_overrides` 0.
+- Plan amended: the test also writes a `.ai/src/tools/kimi.yaml` that must no longer count once `source.tools` moves the directory.
+- Next: Task 5 Step 2 (the fixture is written in `tests/native_parity.bats`).
 - Blocker: none.

@@ -2808,7 +2808,7 @@ git commit -m "feat(native): load, check, and write the sync manifest"
 - Consumes: `staging::write_beside` (Task 3); Task 0d's byte order.
 - Produces: `gitignore::has_managed_block(path: &Path) -> bool`; `gitignore::update(path: &Path, paths: &[String], log: &mut Log) -> Result<(), Error>` — replaces the block when both markers are present, otherwise appends a fresh one after a blank line, warning when only one marker is.
 
-- [ ] **Step 1: Create `src/gitignore.rs`**
+- [x] **Step 1: Create `src/gitignore.rs`**
 
 ```rust
 //! The managed `.gitignore` block of `lib/helpers/gitignore.sh`.
@@ -2962,7 +2962,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Declare the module in `src/lib.rs`**
+- [x] **Step 2: Declare the module in `src/lib.rs`**
 
 ```rust
 //! AgentSync native engine. `main.rs` is the only place that talks to the
@@ -3001,7 +3001,7 @@ pub fn engine_version() -> &'static str {
 }
 ```
 
-- [ ] **Step 3: Run the gates, confirm green**
+- [x] **Step 3: Run the gates, confirm green**
 
 ```bash
 cargo test 2>&1 | grep 'test result'
@@ -3011,7 +3011,7 @@ cargo clippy --all-targets -- -D warnings
 
 Expected: `129 passed` (unit) and `7 passed` (integration); fmt and clippy exit 0.
 
-- [ ] **Step 4: Cross-check the three cases against `update_gitignore`**
+- [x] **Step 4: Cross-check the three cases against `update_gitignore`**
 
 ```bash
 bash -c 'set -euo pipefail
@@ -3025,7 +3025,7 @@ tmp_cleanup; rm -rf "$d"'
 
 Expected: the file contents and log lines the three `gitignore.rs` tests assert — the first file opens with an empty line and lists `.claude/`, `.cursor/`, `B/`, `_x/`, `b/`; the second keeps `node_modules/` above and `dist/` below an emptied block and logs `Updated .gitignore block`; the third logs the inconsistent-markers warning before `Added generated block to .gitignore`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/gitignore.rs src/lib.rs docs/plans/2026-09-14-rust-migration-phase-3-native-sync.md

@@ -7,6 +7,7 @@ pub mod convert;
 pub mod error;
 pub mod file_ops;
 pub mod filters;
+pub mod gitignore;
 pub mod log;
 pub mod manifest;
 pub mod opencode_json;

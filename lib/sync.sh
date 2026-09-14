@@ -28,6 +28,8 @@ source "$SCRIPT_DIR/helpers/tmp.sh"
 source "$SCRIPT_DIR/helpers/yaml.sh"
 # shellcheck source=helpers/version.sh
 source "$SCRIPT_DIR/helpers/version.sh"
+# shellcheck source=helpers/project_config.sh
+source "$SCRIPT_DIR/helpers/project_config.sh"
 # shellcheck source=helpers/paths.sh
 source "$SCRIPT_DIR/helpers/paths.sh"
 # shellcheck source=helpers/filters.sh
@@ -36,6 +38,8 @@ source "$SCRIPT_DIR/helpers/filters.sh"
 source "$SCRIPT_DIR/helpers/file_ops.sh"
 # shellcheck source=helpers/backup.sh
 source "$SCRIPT_DIR/helpers/backup.sh"
+# shellcheck source=helpers/backup_state.sh
+source "$SCRIPT_DIR/helpers/backup_state.sh"
 # shellcheck source=helpers/rule_operations.sh
 source "$SCRIPT_DIR/helpers/rule_operations.sh"
 # shellcheck source=helpers/format_conversion.sh
@@ -99,6 +103,7 @@ SOURCE_SUBAGENTS=""
 # shellcheck disable=SC2034
 DEFAULT_ENABLED="false"
 DEFAULT_CLEANUP="true"
+VERSION_PIN_MODE="warn"
 UPDATE_GITIGNORE="true"
 # committed: outputs and the manifest stay visible to git; local: both ignored.
 OUTPUTS_MODE="local"
@@ -154,30 +159,11 @@ EOF
 
 # Resolve project config path
 resolve_project_config_path() {
-    local config_env="${AGENTSYNC_CONFIG_PATH:-}"
-    if [[ -n "$config_env" ]]; then
-        local env_path="$config_env"
-        if [[ "$env_path" != /* ]]; then
-            env_path="$REPO_ROOT/$env_path"
-        fi
-
-        if [[ -f "$env_path" ]]; then
-            PROJECT_CONFIG_PATH="$env_path"
-            return 0
-        fi
-        log_warning "AGENTSYNC_CONFIG_PATH is set but file not found: $env_path"
+    if ! project_config_path_r "$REPO_ROOT"; then
+        log_error "AGENTSYNC_CONFIG_PATH is set but file not found: $REPLY"
+        exit 1
     fi
-
-    local project_config="$REPO_ROOT/.ai/agent_sync.yaml"
-    if [[ -f "$project_config" ]]; then
-        PROJECT_CONFIG_PATH="$project_config"
-        return 0
-    fi
-
-    local legacy_config="$REPO_ROOT/agent_sync.yaml"
-    if [[ -f "$legacy_config" ]]; then
-        PROJECT_CONFIG_PATH="$legacy_config"
-    fi
+    PROJECT_CONFIG_PATH="$REPLY"
 }
 
 # Resolve source path from project config (supports both root keys and source.* keys)
@@ -755,7 +741,15 @@ _load_run_config() {
     fi
 
     resolve_project_config_path
+    if [[ "${AGENTSYNC_INTERNAL_SKIP_BACKUP:-false}" != "true" ]]; then
+        backup_configure "$REPO_ROOT" || exit 1
+    fi
     [[ -n "$PROJECT_CONFIG_PATH" ]] || return 0
+
+    if ! VERSION_PIN_MODE=$(version_pin_mode "$PROJECT_CONFIG_PATH"); then
+        log_error "Unknown version_pin.mode '$VERSION_PIN_MODE' in ${PROJECT_CONFIG_PATH#"$REPO_ROOT/"} — expected 'warn' or 'strict'"
+        exit 1
+    fi
 
     local cfg_default_enabled cfg_default_cleanup cfg_skip_post_sync
     cfg_default_enabled=$(parse_yaml_value "$PROJECT_CONFIG_PATH" "defaults.enabled")
@@ -795,6 +789,33 @@ _load_run_config() {
     esac
 }
 
+# Without a project config, a write run whose tools are all disabled would only
+# clean up every tool's outputs, as after agent_sync.yaml is deleted by mistake.
+_refuse_configless_cleanup_or_exit() {
+    [[ -z "$PROJECT_CONFIG_PATH" && "$DRY_RUN" != "true" ]] || return 0
+    [[ -z "$(list_enabled_tools)" ]] || return 0
+    log_error "No project configuration found and no tool is enabled; refusing a sync that would remove every tool's outputs. Run 'agentsync enable <tool>' to create .ai/agent_sync.yaml, or set AGENTSYNC_CONFIG_PATH."
+    exit 1
+}
+
+# Refuse a source symlink that escapes the project before overlays copy it.
+_refuse_escaping_source_links_or_exit() {
+    local -a roots=()
+    local entry
+    for entry in "$REPO_ROOT/.ai"/* "$REPO_ROOT/.ai"/.[!.]*; do
+        [[ -e "$entry" || -L "$entry" ]] || continue
+        [[ "$entry" == "$REPO_ROOT/.ai/backups" ]] && continue
+        roots+=("$entry")
+    done
+    for entry in "$SOURCE_AGENTS" "$SOURCE_RULES" "$SOURCE_SKILLS" "$SOURCE_COMMANDS" "$SOURCE_SUBAGENTS"; do
+        [[ -n "$entry" ]] || continue
+        source_abs_path_r "$entry"
+        roots+=("$REPLY")
+    done
+    roots+=("$TOOL_RESOLVER_USER_DIR")
+    refuse_escaping_source_links "${roots[@]}" || exit 1
+}
+
 _check_version_pin_or_exit() {
     [[ -n "$PROJECT_CONFIG_PATH" ]] || return 0
     local pinned engine
@@ -803,8 +824,8 @@ _check_version_pin_or_exit() {
     engine=$(engine_version "$SCRIPT_DIR")
     [[ "$pinned" != "$engine" ]] || return 0
 
-    if [[ "$OUTPUTS_MODE" == "committed" ]]; then
-        log_error "This project pins agentsync $pinned but you are running $engine — committed outputs must come from one version everywhere."
+    if [[ "$OUTPUTS_MODE" == "committed" || "$VERSION_PIN_MODE" == "strict" ]]; then
+        log_error "$(version_pin_mismatch_error "$pinned" "$engine" "$OUTPUTS_MODE")"
         version_pin_mismatch_hint "$pinned" "$engine" >&2
         exit 1
     fi
@@ -866,6 +887,9 @@ _resolve_sources() {
     [[ -n "$override_commands" ]] && SOURCE_COMMANDS="$override_commands"
     [[ -n "$override_subagents" ]] && SOURCE_SUBAGENTS="$override_subagents"
 
+    register_explicit_source_roots "$PROJECT_CONFIG_PATH" || exit 1
+    tool_resolver_init_user_dir
+
     local source_agents_abs
     source_agents_abs=$(resolve_source_path "$SOURCE_AGENTS" "source.agents")
     if [[ ! -f "$source_agents_abs" ]]; then
@@ -892,11 +916,12 @@ _sync_is_stale() {
     [[ -d "$REPO_ROOT/.ai/profiles" ]] && roots+=("$REPO_ROOT/.ai/profiles")
     [[ -n "$PROJECT_CONFIG_PATH" && -f "$PROJECT_CONFIG_PATH" ]] && roots+=("$PROJECT_CONFIG_PATH")
 
-    # Honor source.* overrides that point outside .ai/src.
+    # Honor source.* overrides and source.tools that point outside .ai/src.
+    local source_base="${AGENTSYNC_INTERNAL_SOURCE_BASE_ROOT:-$REPO_ROOT}"
     local rel abs
-    for rel in "$SOURCE_AGENTS" "$SOURCE_RULES" "$SOURCE_SKILLS" "$SOURCE_COMMANDS" "$SOURCE_SUBAGENTS"; do
+    for rel in "$SOURCE_AGENTS" "$SOURCE_RULES" "$SOURCE_SKILLS" "$SOURCE_COMMANDS" "$SOURCE_SUBAGENTS" "$TOOL_RESOLVER_USER_DIR"; do
         [[ -n "$rel" ]] || continue
-        if [[ "$rel" == /* ]]; then abs="$rel"; else abs="$REPO_ROOT/$rel"; fi
+        if [[ "$rel" == /* ]]; then abs="$rel"; else abs="$source_base/$rel"; fi
         [[ "$abs" == "$src" || "$abs" == "$src"/* ]] && continue
         [[ -e "$abs" ]] && roots+=("$abs")
     done
@@ -1150,6 +1175,8 @@ _sync_cleanup() {
     if [[ "$SYNC_TRANSACTION_ACTIVE" == "true" ]] && [[ $status -ne 0 ]]; then
         log_warning "Sync failed; restoring pre-sync state..."
         if backup_restore "$REPO_ROOT" "$SYNC_BACKUP_PATH"; then
+            backup_seal "$REPO_ROOT" "$SYNC_BACKUP_PATH" || \
+                log_warning "Could not record the restored state ($BACKUP_SEAL_REASON); rolling back backup $(basename "$SYNC_BACKUP_PATH") cannot detect later changes."
             log_info "Restored pre-sync state from $(display_path "$SYNC_BACKUP_PATH")"
             # A run of failing syncs would otherwise accumulate snapshots
             # forever, because prune only runs on the success path. Skipped when
@@ -1301,6 +1328,8 @@ main() {
         return 0
     fi
 
+    _refuse_configless_cleanup_or_exit
+    _refuse_escaping_source_links_or_exit
     _check_version_pin_or_exit
     _print_banner
 
@@ -1335,6 +1364,9 @@ main() {
         log_warning "Could not prune old AgentSync backups."
     fi
     SYNC_TRANSACTION_ACTIVE="false"
+    if [[ -n "$SYNC_BACKUP_PATH" ]] && ! backup_seal "$REPO_ROOT" "$SYNC_BACKUP_PATH"; then
+        log_warning "Could not record the post-sync state ($BACKUP_SEAL_REASON); rolling back backup $(basename "$SYNC_BACKUP_PATH") cannot detect later changes."
+    fi
 }
 
 main "$@"

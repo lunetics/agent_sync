@@ -36,11 +36,14 @@ _yaml_normalize_scalar() {
 
 # REPLY-returning core of parse_yaml_value: identical semantics, but sets REPLY
 # instead of echoing — so hot-path callers can avoid a command-substitution fork.
+# YAML_VALUE_FOUND distinguishes an absent key from an explicitly empty value.
 # parse_yaml_value is a thin echo wrapper kept for the many `$(...)` call sites.
+# shellcheck disable=SC2034  # REPLY and YAML_VALUE_FOUND are outputs read by callers.
 parse_yaml_value_r() {
     local file="$1"
     local key_path="$2"
     REPLY=""
+    YAML_VALUE_FOUND=false
 
     if [[ ! -f "$file" ]]; then
         return 0
@@ -85,6 +88,7 @@ parse_yaml_value_r() {
                 if [[ $next_key_index -eq $depth ]]; then
                     # This is the final key
                     REPLY="$line_value"
+                    YAML_VALUE_FOUND=true
                     return 0
                 fi
                 in_section=true
@@ -104,6 +108,7 @@ parse_yaml_value_r() {
                 if [[ $next_key_index -eq $depth ]]; then
                     # Found the final key
                     REPLY="$line_value"
+                    YAML_VALUE_FOUND=true
                     return 0
                 fi
                 section_indent=$indent

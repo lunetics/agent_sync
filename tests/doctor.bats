@@ -62,6 +62,39 @@ YAML
 
 # ── Phase 5: security scan ─────────────────────────────────────────────────
 
+@test "doctor fails with exit 2 when the default AGENTS.md source is missing" {
+    run_agentsync init >/dev/null
+    rm -f .ai/src/AGENTS.md
+    _rm_rf_resilient "$TEST_PROJECT/.ai/src/rules"
+    run run_agentsync doctor
+    [ "$status" -eq 2 ]
+    printf '%s' "$output" | grep -qF -- ".ai/src/AGENTS.md missing (required)"
+    printf '%s' "$output" | grep -qF -- ".ai/src/rules not present (optional)"
+    printf '%s' "$output" | grep -qF -- "No AGENTS.md in .ai/src/ or .ai/ — sync will fail"
+}
+
+@test "doctor checks explicit external sources at their configured location" {
+    run_agentsync init >/dev/null
+    local outside
+    outside="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_doctor_src.XXXXXX")"
+    mkdir -p "$outside/rules"
+    printf '%s\n' 'format: 2' 'tools:' '  enabled: []' 'source:' "  agents: \"$outside/AGENTS.md\"" "  rules: \"$outside/rules\"" \
+        > .ai/agent_sync.yaml
+    export AGENTSYNC_EXTERNAL_SOURCE_ROOTS="$outside"
+
+    run run_agentsync doctor
+    local missing_status="$status" missing_output="$output"
+    printf '# External\n' > "$outside/AGENTS.md"
+    run run_agentsync doctor
+    _rm_rf_resilient "$outside"
+
+    [ "$missing_status" -eq 2 ]
+    printf '%s' "$missing_output" | grep -qF -- "$outside/AGENTS.md missing (required)"
+    [ "$status" -eq 0 ]
+    printf '%s' "$output" | grep -qF -- "✓ $outside/AGENTS.md"
+    printf '%s' "$output" | grep -qF -- "✓ $outside/rules"
+}
+
 @test "doctor catches planted GitHub PAT in mcp override" {
     run_agentsync init >/dev/null
     mkdir -p .ai/src/tools/claude

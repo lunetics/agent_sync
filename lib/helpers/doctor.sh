@@ -31,14 +31,38 @@ _doctor_prepare_context() {
     }
     DEFAULT_REPO_ROOT="$(cd "$system_dir/.." && pwd)"
 
-    PROJECT_CONFIG_PATH=""
-    if [[ -f "$project_dir/.ai/agent_sync.yaml" ]]; then
-        PROJECT_CONFIG_PATH="$project_dir/.ai/agent_sync.yaml"
-    elif [[ -f "$project_dir/agent_sync.yaml" ]]; then
-        PROJECT_CONFIG_PATH="$project_dir/agent_sync.yaml"
-    fi
+    tool_resolver_select_project_config 2
+    tool_resolver_init_user_dir
 
     export REPO_ROOT REPO_ROOT_CANONICAL DEFAULT_REPO_ROOT PROJECT_CONFIG_PATH
+}
+
+DOCTOR_SOURCE_RAW=""
+DOCTOR_SOURCE_ABS=""
+DOCTOR_SOURCE_REFUSED=false
+DOCTOR_SOURCE_UNTRUSTED=false
+
+# Returns 0 when the project config points source.<key> outside the project,
+# with the value in DOCTOR_SOURCE_RAW, its absolute path in DOCTOR_SOURCE_ABS,
+# DOCTOR_SOURCE_REFUSED=true when sync would refuse that root, and
+# DOCTOR_SOURCE_UNTRUSTED=true when AGENTSYNC_EXTERNAL_SOURCE_ROOTS does not list it.
+_doctor_external_source() {
+    local key="$1"
+    DOCTOR_SOURCE_RAW=""
+    DOCTOR_SOURCE_ABS=""
+    DOCTOR_SOURCE_REFUSED=false
+    DOCTOR_SOURCE_UNTRUSTED=false
+    [[ -n "$PROJECT_CONFIG_PATH" ]] || return 1
+    parse_yaml_value_r "$PROJECT_CONFIG_PATH" "source.$key"
+    [[ -n "$REPLY" ]] || return 1
+    local raw_path="$REPLY" root_status=0
+    explicit_source_root_r "$raw_path" || root_status=$?
+    [[ "$root_status" -ne 0 ]] || return 1
+    [[ "$root_status" -eq 2 ]] && DOCTOR_SOURCE_REFUSED=true
+    [[ "$root_status" -eq 3 ]] && DOCTOR_SOURCE_UNTRUSTED=true
+    DOCTOR_SOURCE_RAW="$raw_path"
+    source_abs_path_r "$raw_path"
+    DOCTOR_SOURCE_ABS="$REPLY"
 }
 
 DOCTOR_WARNINGS=0
@@ -200,13 +224,15 @@ _doctor_check_drift() {
 
 _doctor_scan_overrides() {
     local overrides_root="$REPO_ROOT/.ai/src"
+    local tools_root
+    tools_root=$(tool_resolver_user_dir)
     local hit_count=0 invalid_count=0
     local legacy_count=0
     local resource file tool_dir
 
     # New per-tool layout (0.11+).
-    if [[ -d "$overrides_root/tools" ]]; then
-        for tool_dir in "$overrides_root/tools"/*/; do
+    if [[ -d "$tools_root" ]]; then
+        for tool_dir in "$tools_root"/*/; do
             [[ -d "$tool_dir" ]] || continue
             for resource in mcp settings hooks; do
                 for file in "$tool_dir${resource}".*; do
@@ -599,7 +625,13 @@ cmd_doctor() {
         return 2
     fi
 
-    if [[ -f "$REPO_ROOT/.ai/src/AGENTS.md" ]] || [[ -f "$REPO_ROOT/.ai/AGENTS.md" ]]; then
+    local agents_found=false
+    if _doctor_external_source agents; then
+        [[ -f "$DOCTOR_SOURCE_ABS" ]] && agents_found=true
+    elif [[ -f "$REPO_ROOT/.ai/src/AGENTS.md" ]] || [[ -f "$REPO_ROOT/.ai/AGENTS.md" ]]; then
+        agents_found=true
+    fi
+    if [[ "$agents_found" == "true" ]]; then
         _doctor_ok "AGENTS.md source file found"
     else
         _doctor_fail "No AGENTS.md in .ai/src/ or .ai/ — sync will fail"
@@ -712,14 +744,34 @@ cmd_doctor() {
     # ── Section 4: source directories ────────────────────────────────────────
     _bold "  Source directories"; echo ""
     local missing=0
-    local src
+    local src source_key display source_abs
     for src in AGENTS.md rules skills commands agents; do
-        if [[ -e "$REPO_ROOT/.ai/src/$src" ]]; then
-            _doctor_ok ".ai/src/$src"
+        case "$src" in
+            AGENTS.md) source_key="agents" ;;
+            agents)    source_key="subagents" ;;
+            *)         source_key="$src" ;;
+        esac
+        if _doctor_external_source "$source_key"; then
+            display="$DOCTOR_SOURCE_RAW"
+            source_abs="$DOCTOR_SOURCE_ABS"
+            if [[ "$DOCTOR_SOURCE_REFUSED" == "true" ]]; then
+                _doctor_fail "source.$source_key must not be the filesystem root, the home directory, or the project root or its ancestor: $display"
+                continue
+            fi
+            if [[ "$DOCTOR_SOURCE_UNTRUSTED" == "true" ]]; then
+                _doctor_fail "source.$source_key points outside the project and AGENTSYNC_EXTERNAL_SOURCE_ROOTS does not list it: $display"
+                continue
+            fi
+        else
+            display=".ai/src/$src"
+            source_abs="$REPO_ROOT/.ai/src/$src"
+        fi
+        if [[ -e "$source_abs" ]]; then
+            _doctor_ok "$display"
         else
             case "$src" in
-                AGENTS.md) _doctor_fail ".ai/src/$src missing (required)"; missing=$((missing+1)) ;;
-                *)         _doctor_info ".ai/src/$src not present (optional)" ;;
+                AGENTS.md) _doctor_fail "$display missing (required)"; missing=$((missing+1)) ;;
+                *)         _doctor_info "$display not present (optional)" ;;
             esac
         fi
     done

@@ -5,7 +5,8 @@
 # records missing targets as well, so restore can remove paths created by a
 # failed or accidental operation. Snapshot directories are self-ignored by git.
 #
-# Depends on: paths.sh (_path_parent_r, _canon_dir_r).
+# Depends on: paths.sh (_path_parent_r, _canon_dir_r), yaml.sh
+# (parse_yaml_value_r), project_config.sh (project_config_path_r).
 
 BACKUP_PREPARED_TARGETS=()
 BACKUP_LOADED_STATES=()
@@ -14,9 +15,53 @@ BACKUP_LOADED_PATHS=()
 ROLLBACK_ROOT=""
 ROLLBACK_SAFETY_PATH=""
 ROLLBACK_TRANSACTION_ACTIVE="false"
+# Internal transaction policy, not an environment override. Each command loads
+# it before writing and keeps it even if rollback restores an older config.
+BACKUP_RETENTION_MODE="bounded"
 
 _backup_error() {
     echo "Error: $1" >&2
+}
+
+# Load the project policy before any target or backup-store mutation.
+backup_configure() {
+    local root="$1"
+    BACKUP_RETENTION_MODE="bounded"
+    if ! project_config_path_r "$root"; then
+        _backup_error "AGENTSYNC_CONFIG_PATH is set but file not found: $REPLY"
+        return 1
+    fi
+    local config="$REPLY"
+
+    if [[ -n "$config" ]]; then
+        parse_yaml_value_r "$config" "backup"
+        if [[ -n "$REPLY" ]]; then
+            _backup_error "backup must be a mapping with backup.retention: bounded or preserve in $config"
+            return 1
+        fi
+        parse_yaml_value_r "$config" "backup.retention"
+        if [[ "$YAML_VALUE_FOUND" == true ]]; then
+            case "$REPLY" in
+                bounded|preserve) BACKUP_RETENTION_MODE="$REPLY" ;;
+                *)
+                    _backup_error "Invalid backup.retention '${REPLY:-<empty>}' in $config; expected bounded or preserve"
+                    return 1
+                    ;;
+            esac
+        fi
+    fi
+    _backup_validate_limits "${AGENTSYNC_BACKUP_LIMIT:-10}" "${AGENTSYNC_BACKUP_MAX_AGE_DAYS:-30}"
+}
+
+_backup_validate_limits() {
+    if [[ ! "$1" =~ ^[0-9]+$ ]]; then
+        _backup_error "Backup limit must be a non-negative integer: $1"
+        return 1
+    fi
+    if [[ ! "$2" =~ ^[0-9]+$ ]]; then
+        _backup_error "Backup max age must be a non-negative integer: $2"
+        return 1
+    fi
 }
 
 _backup_canonical_root() {
@@ -293,6 +338,7 @@ _backup_snapshot_age_days() {
 # staging directory safe: a backup takes seconds, and the shell-init hook can
 # run sync alongside a manual one in the same project.
 _backup_sweep_stale_staging() {
+    [[ "$BACKUP_RETENTION_MODE" != "preserve" ]] || return 0
     local store="$1"
     local leftover
     while IFS= read -r leftover; do
@@ -408,7 +454,8 @@ _backup_snapshot_path() {
 
     local snapshot="$store/$snapshot_id"
     if [[ -L "$snapshot" ]] || [[ ! -d "$snapshot" ]] || \
-       [[ ! -f "$snapshot/.complete" ]] || [[ ! -f "$snapshot/targets.tsv" ]]; then
+       [[ ! -f "$snapshot/.complete" || -L "$snapshot/.complete" ]] || \
+       [[ ! -f "$snapshot/targets.tsv" || -L "$snapshot/targets.tsv" ]]; then
         _backup_error "Backup snapshot is missing or incomplete: $snapshot_id"
         return 1
     fi
@@ -639,14 +686,8 @@ backup_prune() {
     local supplied_root="$1"
     local limit="${2:-${AGENTSYNC_BACKUP_LIMIT:-10}}"
     local max_age="${3:-${AGENTSYNC_BACKUP_MAX_AGE_DAYS:-30}}"
-    if [[ ! "$limit" =~ ^[0-9]+$ ]]; then
-        _backup_error "Backup limit must be a non-negative integer: $limit"
-        return 1
-    fi
-    if [[ ! "$max_age" =~ ^[0-9]+$ ]]; then
-        _backup_error "Backup max age must be a non-negative integer: $max_age"
-        return 1
-    fi
+    _backup_validate_limits "$limit" "$max_age" || return 1
+    [[ "$BACKUP_RETENTION_MODE" != "preserve" ]] || return 0
 
     local canonical_root store
     canonical_root=$(_backup_canonical_root "$supplied_root") || return 1
@@ -685,6 +726,8 @@ _rollback_cleanup() {
     if [[ "$ROLLBACK_TRANSACTION_ACTIVE" == "true" ]] && [[ $status -ne 0 ]]; then
         echo "Warning: Rollback failed; restoring the state from before rollback..." >&2
         if backup_restore "$ROLLBACK_ROOT" "$ROLLBACK_SAFETY_PATH"; then
+            backup_seal "$ROLLBACK_ROOT" "$ROLLBACK_SAFETY_PATH" || \
+                echo "Warning: Could not record the restored state ($BACKUP_SEAL_REASON); rolling back backup $(basename "$ROLLBACK_SAFETY_PATH") cannot detect later changes." >&2
             echo "Restored pre-rollback state from ${ROLLBACK_SAFETY_PATH#"$ROLLBACK_ROOT"/}" >&2
         else
             echo "Error: Recovery failed. Safety backup retained at ${ROLLBACK_SAFETY_PATH#"$ROLLBACK_ROOT"/}" >&2
@@ -720,12 +763,37 @@ Restore AgentSync-managed targets from a backup. Without an ID, restores the
 latest complete snapshot. A safety snapshot is created before every restore,
 so the rollback itself can be undone.
 
+Rollback refuses, naming the first changed path, when a target differs from the
+state recorded after the backup's operation finished.
+
 Options:
   --list       List complete backups
-  --dry-run    Show the restore plan without changing files
+  --dry-run    Show the restore plan and any conflict without changing files
+  --force      Restore even when targets changed after the backup's operation
   -y, --yes    Skip the confirmation prompt
   -h, --help   Show this help
 HELP
+}
+
+# Undo a safety snapshot that no restore will use, including its .latest update.
+# Usage: _rollback_discard_safety <store> <safety-path> <previous-latest-id-or-empty>
+_rollback_discard_safety() {
+    rm -rf "$2" || return 1
+    if [[ -n "$3" ]]; then
+        _backup_write_latest "$1" "$3"
+    else
+        rm -f "$1/.latest"
+    fi
+}
+
+# Usage: _rollback_report_conflict <backup-id> <path> <backup-is-latest>
+_rollback_report_conflict() {
+    _backup_error "Rollback conflict: $2 changed after the operation recorded in backup $1; no files were changed."
+    if [[ "$3" == "true" ]]; then
+        echo "Re-run with --force to restore the backup anyway and discard that change." >&2
+    else
+        echo "Newer AgentSync operations may have changed this target. Roll back the newer backups first, or re-run with --force to restore anyway." >&2
+    fi
 }
 
 cmd_rollback() {
@@ -733,6 +801,7 @@ cmd_rollback() {
     local list_only=false
     local dry_run=false
     local assume_yes=false
+    local force=false
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -742,6 +811,10 @@ cmd_rollback() {
                 ;;
             --dry-run)
                 dry_run=true
+                shift
+                ;;
+            --force)
+                force=true
                 shift
                 ;;
             --yes|-y)
@@ -788,6 +861,8 @@ cmd_rollback() {
         return 0
     fi
 
+    backup_configure "$root" || return 1
+
     local snapshot
     if [[ -n "$backup_id" ]]; then
         if [[ "$backup_id" != "$(basename "$backup_id")" ]]; then
@@ -805,6 +880,23 @@ cmd_rollback() {
 
     backup_load_targets "$root" "$snapshot" || return 1
 
+    local latest is_latest="false" sealed="false" conflict=""
+    latest=$(backup_latest "$root") || latest=""
+    [[ "${latest##*/}" != "$backup_id" ]] || is_latest="true"
+
+    if [[ "$force" != "true" ]] || [[ "$dry_run" == "true" ]]; then
+        backup_preflight "$root" "$snapshot"
+        case "$BACKUP_PREFLIGHT_STATUS" in
+            clean) sealed="true" ;;
+            conflict) conflict="$BACKUP_PREFLIGHT_DETAIL" ;;
+            *) echo "Warning: Backup $backup_id $BACKUP_PREFLIGHT_DETAIL; changes made after that operation cannot be detected." >&2 ;;
+        esac
+    fi
+    if [[ -n "$conflict" ]] && [[ "$dry_run" != "true" ]]; then
+        _rollback_report_conflict "$backup_id" "$conflict" "$is_latest"
+        return 1
+    fi
+
     echo "Rollback plan:"
     echo "  Backup: $backup_id"
     local index action
@@ -818,7 +910,13 @@ cmd_rollback() {
     done
 
     if [[ "$dry_run" == "true" ]]; then
+        if [[ -n "$conflict" ]] && [[ "$force" == "true" ]]; then
+            echo "Warning: Rollback conflict: $conflict changed after the operation recorded in backup $backup_id; --force will overwrite it." >&2
+        elif [[ -n "$conflict" ]]; then
+            _rollback_report_conflict "$backup_id" "$conflict" "$is_latest"
+        fi
         echo "Dry run — nothing was written."
+        [[ -z "$conflict" ]] || [[ "$force" == "true" ]] || return 1
         return 0
     fi
 
@@ -829,6 +927,10 @@ cmd_rollback() {
     fi
 
     local -a current_targets=("${BACKUP_LOADED_PATHS[@]}")
+    local store="$root/.ai/backups" previous_latest=""
+    if [[ -f "$store/.latest" ]] && [[ ! -L "$store/.latest" ]]; then
+        IFS= read -r previous_latest < "$store/.latest" || true
+    fi
     local safety
     safety=$(backup_create \
         "$root" \
@@ -837,6 +939,19 @@ cmd_rollback() {
         _backup_error "Could not create a pre-rollback safety backup; no files were changed"
         return 1
     }
+
+    # Do not arm automatic recovery until this final check succeeds: a refusal
+    # must not itself restore the safety snapshot over a concurrent edit.
+    if [[ "$sealed" == "true" ]]; then
+        backup_preflight "$root" "$snapshot"
+        if [[ "$BACKUP_PREFLIGHT_STATUS" == "conflict" ]]; then
+            if ! _rollback_discard_safety "$store" "$safety" "$previous_latest"; then
+                echo "Warning: Could not remove the unused safety backup $(basename "$safety")." >&2
+            fi
+            _rollback_report_conflict "$backup_id" "$BACKUP_PREFLIGHT_DETAIL" "$is_latest"
+            return 1
+        fi
+    fi
 
     ROLLBACK_ROOT="$root"
     ROLLBACK_SAFETY_PATH="$safety"
@@ -850,6 +965,9 @@ cmd_rollback() {
 
     # Handler stays armed; the flag above is what gates the safety restore.
     ROLLBACK_TRANSACTION_ACTIVE="false"
+    if ! backup_seal "$root" "$safety"; then
+        echo "Warning: Could not record the post-rollback state ($BACKUP_SEAL_REASON); rolling back backup $(basename "$safety") cannot detect later changes." >&2
+    fi
     if ! backup_prune "$root"; then
         echo "Warning: Could not prune old AgentSync backups." >&2
     fi

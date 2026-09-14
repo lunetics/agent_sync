@@ -42,12 +42,8 @@ _enable_prepare_context() {
     }
     DEFAULT_REPO_ROOT="$(cd "$system_dir/.." && pwd)"
 
-    PROJECT_CONFIG_PATH=""
-    if [[ -f "$project_dir/.ai/agent_sync.yaml" ]]; then
-        PROJECT_CONFIG_PATH="$project_dir/.ai/agent_sync.yaml"
-    elif [[ -f "$project_dir/agent_sync.yaml" ]]; then
-        PROJECT_CONFIG_PATH="$project_dir/agent_sync.yaml"
-    fi
+    tool_resolver_select_project_config
+    tool_resolver_init_user_dir
 
     export REPO_ROOT REPO_ROOT_CANONICAL DEFAULT_REPO_ROOT PROJECT_CONFIG_PATH
 }
@@ -185,6 +181,10 @@ USAGE
     fi
 
     _enable_prepare_context
+    if ! tool_resolver_user_dir_in_project; then
+        [[ "$scaffold_mode" == "yes" ]] && tool_resolver_require_project_user_dir
+        scaffold_mode="no"
+    fi
 
     local cfg
     cfg=$(_enable_resolve_or_create_config "$REPO_ROOT")
@@ -251,11 +251,19 @@ cmd_disable() {
 
     _enable_prepare_context
 
+    local tool
+    if ! tool_resolver_user_dir_in_project; then
+        for tool in "$@"; do
+            if [[ "$(parse_yaml_value "$(tool_resolver_user_file "$tool")" "enabled")" == "true" ]]; then
+                tool_resolver_require_project_user_dir
+            fi
+        done
+    fi
+
     local cfg
     cfg=$(_enable_resolve_or_create_config "$REPO_ROOT")
 
     local removed=0 not_enabled=0
-    local tool
     for tool in "$@"; do
         if is_tool_enabled "$tool"; then
             yaml_list_remove "$cfg" "tools.enabled" "$tool"

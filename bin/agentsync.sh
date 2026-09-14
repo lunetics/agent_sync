@@ -351,7 +351,7 @@ main() {
     _native_try "$@" || true
 
     case "$command" in
-        init)          _need prompts yaml logging tool_resolver template_manifest paths filters file_ops manifest tmp backup adopt format init; shift; cmd_init "$@" ;;
+        init)          _need prompts yaml logging tool_resolver template_manifest paths filters file_ops manifest tmp project_config backup backup_state adopt format init; shift; cmd_init "$@" ;;
         sync)
             shift
             # --workspace fan-out: run sync in every .ai/ below cwd before
@@ -372,7 +372,7 @@ main() {
                 cmd_engine "sync.sh" "$@"
             fi
             ;;
-        rollback)      _need prompts paths backup;                     shift; cmd_rollback "$@" ;;
+        rollback)      _need prompts paths yaml project_config manifest backup backup_state; shift; cmd_rollback "$@" ;;
         check)         shift; cmd_engine "check.sh" "$@" ;;
         setup-hooks)   shift; cmd_engine "setup_hooks.sh" "$@" ;;
         shell-init)    _need logging shell_init;                      shift; cmd_shell_init "$@" ;;
@@ -380,23 +380,23 @@ main() {
         export)        _need yaml export;                              shift; cmd_export "$@" ;;
         import)        _need import;                                   shift; cmd_import "$@" ;;
         refresh)       _need yaml export prompts template_manifest refresh; shift; cmd_refresh "$@" ;;
-        enable)        _need prompts yaml yaml_edit tool_resolver edit_paths enable; shift; cmd_enable "$@" ;;
-        disable)       _need yaml yaml_edit tool_resolver enable;      shift; cmd_disable "$@" ;;
+        enable)        _need prompts yaml yaml_edit tool_resolver project_config paths edit_paths enable; shift; cmd_enable "$@" ;;
+        disable)       _need yaml yaml_edit tool_resolver project_config paths enable;      shift; cmd_disable "$@" ;;
         add)           _need add;                                      shift; cmd_add "$@" ;;
-        customize)     _need yaml yaml_edit tool_resolver customize;   shift; cmd_customize "$@" ;;
-        simplify)      _need yaml yaml_edit tool_resolver customize simplify;   shift; cmd_simplify "$@" ;;
-        migrate)       _need prompts yaml yaml_edit tool_resolver template_manifest format migrate; shift; cmd_migrate "$@" ;;
-        show)          _need yaml yaml_edit tool_resolver snapshot customize;   shift; cmd_show "$@" ;;
-        diff)          _need yaml yaml_edit tool_resolver snapshot customize;   shift; cmd_diff "$@" ;;
-        resolve)       _need yaml yaml_edit tool_resolver snapshot customize resolve_cmd; shift; cmd_resolve "$@" ;;
-        doctor)        _need yaml tool_resolver edit_paths opencode format doctor; cmd_doctor ;;
+        customize)     _need yaml yaml_edit tool_resolver project_config paths customize;   shift; cmd_customize "$@" ;;
+        simplify)      _need yaml yaml_edit tool_resolver project_config paths customize simplify;   shift; cmd_simplify "$@" ;;
+        migrate)       _need prompts yaml yaml_edit tool_resolver project_config template_manifest format migrate; shift; cmd_migrate "$@" ;;
+        show)          _need yaml yaml_edit tool_resolver project_config snapshot customize;   shift; cmd_show "$@" ;;
+        diff)          _need yaml yaml_edit tool_resolver project_config snapshot customize;   shift; cmd_diff "$@" ;;
+        resolve)       _need yaml yaml_edit tool_resolver project_config snapshot customize resolve_cmd; shift; cmd_resolve "$@" ;;
+        doctor)        _need yaml tool_resolver project_config edit_paths opencode format doctor; cmd_doctor ;;
         dedupe)        _need yaml yaml_edit prompts paths template_manifest dedupe; shift; cmd_dedupe "$@" ;;
-        adopt)         _need yaml tool_resolver paths logging filters file_ops prompts manifest cli_colors adopt; shift; cmd_adopt "$@" ;;
-        profile)       _need yaml yaml_edit tool_resolver profiles paths logging prompts profile; shift; cmd_profile "$@" ;;
+        adopt)         _need yaml tool_resolver project_config paths logging filters file_ops prompts manifest cli_colors adopt; shift; cmd_adopt "$@" ;;
+        profile)       _need yaml yaml_edit tool_resolver project_config profiles paths logging prompts profile; shift; cmd_profile "$@" ;;
         update)        _need yaml snapshot;                            shift; cmd_update "$@" ;;
         upgrade-config) _need prompts yaml tool_resolver init;         shift; cmd_upgrade_config "$@" ;;
         release)       _need release;                                  shift; cmd_release "$@" ;;
-        list|ls)       _need yaml tool_resolver customize list;        cmd_list ;;
+        list|ls)       _need yaml tool_resolver project_config customize list;        cmd_list ;;
         version|--version|-v) echo "agentsync v${VERSION}" ;;
         help|--help|-h)       print_usage ;;
         *)

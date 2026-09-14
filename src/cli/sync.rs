@@ -10,7 +10,7 @@ use crate::paths::{self, Paths};
 use crate::render::{self, Run, Selection, Stop};
 use crate::session::Session;
 use crate::workspace::Workspace;
-use crate::{Error, backup, gitignore};
+use crate::{Error, backup, gitignore, witness};
 
 pub const USAGE: &str = "AgentSync Config Sync Script
 
@@ -164,6 +164,12 @@ impl Transaction {
         s.log.warning("Sync failed; restoring pre-sync state...");
         match backup::restore(&root, &backup_path) {
             Ok(()) => {
+                if let Err(reason) = witness::seal(&root, &backup_path) {
+                    s.log.warning(&format!(
+                        "Could not record the restored state ({reason}); rolling back backup {} cannot detect later changes.",
+                        paths::leaf(&backup_path)
+                    ));
+                }
                 s.log.info(&format!("Restored pre-sync state from {shown}"));
                 prune(s, env, self.retention);
             }
@@ -232,6 +238,14 @@ fn sync(s: &mut Session, args: &Args, env: &Env, tx: &mut Transaction) -> Result
         prune(s, env, run.retention);
     }
     tx.active = false;
+    if let Some(backup_path) = &tx.backup
+        && let Err(reason) = witness::seal(&root, backup_path)
+    {
+        s.log.warning(&format!(
+            "Could not record the post-sync state ({reason}); rolling back backup {} cannot detect later changes.",
+            paths::leaf(backup_path)
+        ));
+    }
     Ok(())
 }
 

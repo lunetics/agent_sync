@@ -692,7 +692,7 @@ Every later count in this plan is one higher.
 **Interfaces:**
 - Consumes: `witness::seal`.
 
-- [ ] **Step 1: Write the implementation**
+- [x] **Step 1: Write the implementation**
 
 In `Transaction::fail`, replace the `Ok(())` arm with:
 
@@ -726,7 +726,7 @@ At the end of `sync`, replace `tx.active = false;\n    Ok(())` with:
 
 Add `witness` to the `use crate::{…}` list of `src/cli/sync.rs`.
 
-- [ ] **Step 2: Run the tests**
+- [x] **Step 2: Run the tests**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -3
@@ -739,7 +739,7 @@ bats --tap -f 'native sync writes is restored' tests/native_parity.bats
 
 Expected: `184 passed` and `11 passed`; `0` for each file; the parity case `ok`.
 
-- [ ] **Step 3: Lint and commit**
+- [x] **Step 3: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings
@@ -1096,4 +1096,11 @@ The family is closed when every box is ticked, `rollback_preflight.bats` is gree
 - Verified: Task 0 at `b9669f6`: `cargo test` 178 and 11; native `rollback_preflight` 23 failures (1–8, 11–16, 18–20, 22, 26–30), `rollback`, `backup`, `backup_retention` 0. Case 28 hung the native `sync` for 21 minutes and a `sync` from the earlier post-merge baseline had hung for almost 6 hours: that run, recorded on 2026-09-14 as killed for low memory, was this hang; both were ended with `kill -9`, since the blocked `open` never reaches the signal flag. Task 1: `cargo test` 183 and 11 passed; fmt and clippy exit 0.
 - Plan amended: Task 1b added for the FIFO; later counts are one higher.
 - Next: Task 1b Step 1.
+- Blocker: none.
+
+### 2026-09-14 — Tasks 1b and 2 done
+- Commits: "fix(native): recreate a FIFO in a backup instead of reading it", "feat(native): seal the sync snapshot after the run".
+- Verified: Task 1b's test ran past 40 seconds before the fix and was killed, then passed in 0.01 s; `cargo test` 184 and 11. Task 2: native `sync`, `backup_retention`, `drift` 0; `parity: a backup the native sync writes is restored by the Bash rollback` `ok` with Task 4's `cmp` of the two `after.tsv` files already in place (left uncommitted until Task 4).
+- Plan amended: none.
+- Next: Task 3 Step 4 (Steps 1–3 are written and `cargo test` passes 185 and 11).
 - Blocker: none.

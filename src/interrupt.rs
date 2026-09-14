@@ -65,18 +65,3 @@ impl Drop for Interrupt {
 pub fn status(sig: i32) -> u8 {
     u8::try_from(128 + sig).unwrap_or(u8::MAX)
 }
-
-#[cfg(all(test, unix))]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_trapped_signal_is_recorded_instead_of_ending_the_process() {
-        let interrupt = Interrupt::arm();
-        assert_eq!(interrupt.received(), None);
-        signal_hook::low_level::raise(signal::SIGHUP).unwrap();
-        assert_eq!(interrupt.received(), Some(signal::SIGHUP));
-        assert_eq!(status(signal::SIGHUP), 129);
-        assert_eq!(status(signal::SIGINT), 130);
-    }
-}

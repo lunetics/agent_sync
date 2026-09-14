@@ -42,6 +42,8 @@ pub struct Env {
     /// The bounds `backup_configure` validates; `None` when the run takes no
     /// backup (`AGENTSYNC_INTERNAL_SKIP_BACKUP=true`, and `check`).
     pub backup: Option<BackupBounds>,
+    /// `AGENTSYNC_EXTERNAL_SOURCE_ROOTS`.
+    pub external_source_roots: Option<String>,
 }
 
 /// `AGENTSYNC_BACKUP_LIMIT` and `AGENTSYNC_BACKUP_MAX_AGE_DAYS` for a run that
@@ -122,6 +124,7 @@ fn io(s: &mut Session, error: Error) -> Stop {
 pub fn render(s: &mut Session, env: &Env) -> Step {
     let mut run = prepare(s, env, Selection::default())?;
     refuse_configless_cleanup(s, &run)?;
+    refuse_escaping_source_links(s, &run)?;
     check_version_pin(s, &run)?;
     banner(s);
     setup_overlays(s, &mut run, false)?;
@@ -132,7 +135,7 @@ pub fn render(s: &mut Session, env: &Env) -> Step {
 /// `_load_run_config` and `_resolve_sources`.
 pub fn prepare(s: &mut Session, env: &Env, selection: Selection) -> Result<Run, Stop> {
     let mut run = load_run_config(s, env, selection)?;
-    resolve_sources(s, &mut run)?;
+    resolve_sources(s, env, &mut run)?;
     Ok(run)
 }
 
@@ -257,7 +260,7 @@ fn load_run_config(s: &mut Session, env: &Env, selection: Selection) -> Result<R
 }
 
 /// `_resolve_sources`.
-fn resolve_sources(s: &mut Session, run: &mut Run) -> Step {
+fn resolve_sources(s: &mut Session, env: &Env, run: &mut Run) -> Step {
     let global = catalog::GLOBAL_CONFIG;
     let root = s.paths.root.clone();
     let detect = |s: &Session, is_file: bool, sub: &str| -> Option<String> {
@@ -310,6 +313,52 @@ fn resolve_sources(s: &mut Session, run: &mut Run) -> Step {
         }
     }
 
+    s.paths
+        .trust_external_roots(env.external_source_roots.as_deref());
+    let mut explicit = Vec::new();
+    if let Some(text) = &run.config {
+        for key in [
+            "agents",
+            "rules",
+            "skills",
+            "tools",
+            "commands",
+            "subagents",
+        ] {
+            let raw = yaml_subset::value(text, &format!("source.{key}"));
+            if raw.is_empty() {
+                continue;
+            }
+            match s.paths.classify_explicit_source(&raw) {
+                paths::ExplicitSource::Inside => {}
+                paths::ExplicitSource::Outside(canonical) => explicit.push(canonical),
+                paths::ExplicitSource::Refused(canonical) => {
+                    s.log.error(&format!(
+                        "source.{key} must not be the filesystem root, the home directory, or the project root or its ancestor: {raw} -> {canonical}"
+                    ));
+                    return Err(Stop(1));
+                }
+                paths::ExplicitSource::Untrusted(canonical) => {
+                    s.log.error(&format!(
+                        "source.{key} points outside the project at {canonical}, which AGENTSYNC_EXTERNAL_SOURCE_ROOTS does not list; add that directory (or a parent) to the variable to read from it"
+                    ));
+                    return Err(Stop(1));
+                }
+            }
+        }
+    }
+    s.paths.register_explicit_roots(explicit);
+    let configured_tools = run
+        .config
+        .as_deref()
+        .map(|text| yaml_subset::value(text, "source.tools"))
+        .unwrap_or_default();
+    s.tools_dir = if configured_tools.is_empty() {
+        format!("{root}/.ai/src/tools")
+    } else {
+        s.paths.absolute(&configured_tools)
+    };
+
     let agents_abs = s
         .paths
         .clone()
@@ -342,6 +391,47 @@ pub fn refuse_configless_cleanup(s: &mut Session, run: &Run) -> Step {
         "No project configuration found and no tool is enabled; refusing a sync that would remove every tool's outputs. Run 'agentsync enable <tool>' to create .ai/agent_sync.yaml, or set AGENTSYNC_CONFIG_PATH.",
     );
     Err(Stop(1))
+}
+
+/// `_refuse_escaping_source_links_or_exit`: `.ai/` without its backups, then
+/// the resolved sources, then the tool overrides.
+pub fn refuse_escaping_source_links(s: &mut Session, run: &Run) -> Step {
+    let ai = format!("{}/.ai", s.paths.root);
+    let mut names: Vec<String> = std::fs::read_dir(&ai)
+        .map(|entries| {
+            entries
+                .filter_map(|e| e.ok())
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .collect()
+        })
+        .unwrap_or_default();
+    names.sort();
+    let (dotted, plain): (Vec<String>, Vec<String>) =
+        names.into_iter().partition(|name| name.starts_with('.'));
+    let mut roots: Vec<String> = plain
+        .into_iter()
+        .chain(dotted.into_iter().filter(|name| !name.starts_with("..")))
+        .filter(|name| name != "backups")
+        .map(|name| format!("{ai}/{name}"))
+        .collect();
+    let sources = &run.sources;
+    for raw in [
+        &sources.agents,
+        &sources.rules,
+        &sources.skills,
+        &sources.commands,
+        &sources.subagents,
+    ] {
+        if !raw.is_empty() {
+            roots.push(s.paths.absolute(raw));
+        }
+    }
+    roots.push(s.tools_dir.clone());
+    if let Err(message) = s.paths.escaping_source_link(&roots) {
+        s.log.error(&message);
+        return Err(Stop(1));
+    }
+    Ok(())
 }
 
 /// `_check_version_pin_or_exit`.
@@ -433,10 +523,10 @@ fn load_tools(s: &mut Session, run: &mut Run) {
     run.tools = all.into_iter().collect();
 }
 
-/// The `.ai/src/tools/<slug>.yaml` overrides, `_`-prefixed templates skipped.
+/// The `<tools dir>/<slug>.yaml` overrides, `_`-prefixed templates skipped.
 fn user_tool_slugs(s: &Session) -> Vec<String> {
-    let tools_dir = format!("{}/.ai/src/tools", s.paths.root);
-    s.ws.glob(&tools_dir)
+    let tools_dir = &s.tools_dir;
+    s.ws.glob(tools_dir)
         .into_iter()
         .filter_map(|name| {
             let stem = name.strip_suffix(".yaml")?;
@@ -446,9 +536,9 @@ fn user_tool_slugs(s: &Session) -> Vec<String> {
         .collect()
 }
 
-/// The layered tool with its `.ai/src/tools/<slug>.yaml` read from the workspace.
+/// The layered tool with its `<tools dir>/<slug>.yaml` read from the workspace.
 fn load_tool(s: &Session, slug: &str) -> Tool {
-    let path = format!("{}/.ai/src/tools/{slug}.yaml", s.paths.root);
+    let path = format!("{}/{slug}.yaml", s.tools_dir);
     let user_yaml =
         s.ws.read(&path)
             .ok()
@@ -1059,6 +1149,7 @@ fn sync_subagents_step(
 
 fn sync_payloads_step(s: &mut Session, tool: &Tool, dests: &Dests) -> Step {
     let root = s.paths.root.clone();
+    let tools_dir = s.tools_dir.clone();
     let src_settings = if dests.settings.is_empty() {
         None
     } else {
@@ -1076,7 +1167,7 @@ fn sync_payloads_step(s: &mut Session, tool: &Tool, dests: &Dests) -> Step {
         if let Some(settings) = &src_settings {
             if let Some(mcp) = &src_mcp {
                 compose_opencode(s, settings, mcp, &dests.settings)?;
-                let label = payload::describe_source(&root, mcp, &tool.slug, "mcp");
+                let label = payload::describe_source(&tools_dir, &root, mcp, &tool.slug, "mcp");
                 if !label.is_empty() {
                     s.log.step(&format!("mcp source: {label}"));
                 }
@@ -1089,7 +1180,7 @@ fn sync_payloads_step(s: &mut Session, tool: &Tool, dests: &Dests) -> Step {
             file_ops::copy_file(s, settings, &dests.settings).map_err(|e| io(s, e))?;
         }
         if let Some(mcp) = &src_mcp {
-            let label = payload::describe_source(&root, mcp, &tool.slug, "mcp");
+            let label = payload::describe_source(&tools_dir, &root, mcp, &tool.slug, "mcp");
             file_ops::copy_file(s, mcp, &dests.mcp).map_err(|e| io(s, e))?;
             if !label.is_empty() {
                 s.log.step(&format!("mcp source: {label}"));
@@ -1352,6 +1443,34 @@ mod tests {
             "tools:\n  enabled: [claude]\nbackup:\n  retention: typo\n",
         );
         assert_eq!(render(&mut s, &Env::default()), Ok(()));
+    }
+
+    #[test]
+    fn source_tools_moves_the_tool_overrides_and_a_refused_root_stops() {
+        let mut s = project();
+        file(
+            &mut s,
+            "/proj/.ai/agent_sync.yaml",
+            "source:\n  tools: \"catalog\"\n",
+        );
+        file(&mut s, "/proj/catalog/claude.yaml", "enabled: true\n");
+        assert_eq!(render(&mut s, &Env::default()), Ok(()));
+        assert_eq!(s.tools_dir, "/proj/catalog");
+        assert!(s.ws.is_file("/proj/CLAUDE.md"));
+
+        let mut s = project();
+        file(
+            &mut s,
+            "/proj/.ai/agent_sync.yaml",
+            "tools:\n  enabled: [claude]\nsource:\n  rules: \"/\"\n",
+        );
+        assert_eq!(render(&mut s, &Env::default()), Err(Stop(1)));
+        assert_eq!(
+            s.log.tail(5),
+            [
+                "[ERROR] source.rules must not be the filesystem root, the home directory, or the project root or its ancestor: / -> /"
+            ]
+        );
     }
 
     fn with_config(path: &str) -> Env {

@@ -210,10 +210,11 @@ fn sync(s: &mut Session, args: &Args, env: &Env, tx: &mut Transaction) -> Result
         profile: args.profile.clone(),
     };
     let mut run = render::prepare(s, &env.render, selection)?;
-    if args.if_stale && !is_stale(&s.paths.root, &run) {
+    if args.if_stale && !is_stale(&s.paths.root, &run, &s.tools_dir) {
         return Ok(());
     }
     render::refuse_configless_cleanup(s, &run)?;
+    render::refuse_escaping_source_links(s, &run)?;
     render::check_version_pin(s, &run)?;
     render::banner(s);
     render::setup_overlays(s, &mut run, true)?;
@@ -235,7 +236,7 @@ fn sync(s: &mut Session, args: &Args, env: &Env, tx: &mut Transaction) -> Result
 }
 
 /// `_sync_is_stale`: no manifest, or any source input modified after it.
-fn is_stale(root: &str, run: &Run) -> bool {
+fn is_stale(root: &str, run: &Run, tools_dir: &str) -> bool {
     let manifest = Path::new(root).join(manifest::REL);
     let Some(since) = std::fs::metadata(&manifest)
         .ok()
@@ -258,17 +259,18 @@ fn is_stale(root: &str, run: &Run) -> bool {
     }
     let sources = &run.sources;
     for rel in [
-        &sources.agents,
-        &sources.rules,
-        &sources.skills,
-        &sources.commands,
-        &sources.subagents,
+        sources.agents.as_str(),
+        sources.rules.as_str(),
+        sources.skills.as_str(),
+        sources.commands.as_str(),
+        sources.subagents.as_str(),
+        tools_dir,
     ] {
         if rel.is_empty() {
             continue;
         }
         let abs = if rel.starts_with('/') {
-            rel.clone()
+            rel.to_string()
         } else {
             format!("{root}/{rel}")
         };

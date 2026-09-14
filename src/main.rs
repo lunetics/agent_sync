@@ -48,6 +48,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
                 skip_post_sync: Some("true".to_string()),
                 allow_post_sync: None,
                 backup: None,
+                external_source_roots: var("AGENTSYNC_EXTERNAL_SOURCE_ROOTS"),
             };
             let mut out = std::io::stdout().lock();
             let mut err = std::io::stderr().lock();
@@ -117,6 +118,7 @@ fn sync_env() -> cli::sync::Env {
                 limit: var("AGENTSYNC_BACKUP_LIMIT"),
                 max_age: var("AGENTSYNC_BACKUP_MAX_AGE_DAYS"),
             }),
+            external_source_roots: var("AGENTSYNC_EXTERNAL_SOURCE_ROOTS"),
         },
         skip_backup,
         backup_limit: var("AGENTSYNC_BACKUP_LIMIT"),

@@ -386,7 +386,7 @@ git commit -m "feat(native): classify outside source roots and scan source links
   - `pub fn refuse_escaping_source_links(s: &mut Session, run: &Run) -> Step`
   - `payload::describe_source(tools_dir: &str, root: &str, path: &str, slug: &str, resource: &str) -> &'static str`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append inside `mod tests` in `src/render.rs`:
 
@@ -420,12 +420,12 @@ Append inside `mod tests` in `src/render.rs`:
 
 In `src/payload.rs` tests, change the `describe_source("/proj", …)` calls to `describe_source("/proj/.ai/src/tools", "/proj", …)`.
 
-- [ ] **Step 2: Run the tests, confirm they fail**
+- [x] **Step 2: Run the tests, confirm they fail**
 
 Run: `cargo test render::tests::source_tools 2>&1 | grep -E '^error\[' | sort | uniq -c`
 Expected: `no field `tools_dir` on type `Session`` and the four-argument `describe_source` mismatch.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `src/session.rs`: add `pub tools_dir: String,` to `Session` and, in `new`, `tools_dir: format!("{}/.ai/src/tools", paths.root),` before `paths,` (move `paths` into the struct last).
 
@@ -547,7 +547,7 @@ pub fn describe_source(tools_dir: &str, root: &str, path: &str, slug: &str, reso
 
 `src/main.rs`: `sync_env`'s `render: Env { … }` and `Command::Check`'s `Env { … }` gain `external_source_roots: var("AGENTSYNC_EXTERNAL_SOURCE_ROOTS"),`.
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -3
@@ -560,7 +560,7 @@ done
 
 Expected: `175 passed` and `11 passed`; the remaining `source_overrides.bats` failures are those that need the overlays (Task 3) and `list` (Task 4), recorded in the Run log; `0` for `sync`, `check`, and `shared`.
 
-- [ ] **Step 5: Lint and commit**
+- [x] **Step 5: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings
@@ -878,4 +878,11 @@ The family is closed when every box is ticked, `source_overrides.bats` is green 
 - Verified: Task 0 at `1cfb31c`: `source_overrides` native failures 18 (1, 2, 3, 5, 6, 9, 11, 12, 13, 14, 15, 17, 18, 19, 20, 24, 25, 26), `shared`, `list`, `sync`, `check` 0. Task 1: `cargo test` 174 and 11 passed; fmt and clippy exit 0.
 - Plan amended: `trust_external_roots` keeps only directory entries, because `_canon_dir_r` is `cd -P`, which refuses a file; a third test `only_a_directory_entry_is_trusted` pins it, and the link test adds a relative escaping link and a self-looping link, so every later count is one higher. Task 2's untrusted-root message ends in "to read from it", as `register_explicit_source_roots` prints it.
 - Next: Task 2 Step 1.
+- Blocker: none.
+
+### 2026-09-14 — Task 2 done
+- Commits: "feat(native): trust outside sources and refuse escaping source links".
+- Verified: `cargo test` 175 and 11 passed; fmt and clippy exit 0 (clippy asked for `s.ws.glob(tools_dir)` without the borrow). Native bats: `source_overrides` 7 failures (1, 2, 3, 5, 13, 15, 17: skills and rules from outside sources missing from the overlays), `sync`, `check`, `shared` 0.
+- Plan amended: none beyond the counts.
+- Next: Task 3 Step 1.
 - Blocker: none.

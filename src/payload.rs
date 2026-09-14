@@ -65,7 +65,7 @@ pub fn legacy_override_path(project: &Project, tool: &Tool, resource: &str) -> O
 /// → legacy flat layout → shared `.ai/src/mcp.json` (mcp only) → shipped base.
 pub fn resolve_source(s: &mut Session, tool: &Tool, resource: &str) -> Option<String> {
     let root = s.paths.root.clone();
-    let override_dir = format!("{root}/.ai/src/tools/{}", tool.slug);
+    let override_dir = format!("{}/{}", s.tools_dir, tool.slug);
     if s.ws.is_dir(&override_dir) {
         let prefix = format!("{resource}.");
         let found =
@@ -121,11 +121,17 @@ pub fn resolve_source(s: &mut Session, tool: &Tool, resource: &str) -> Option<St
 }
 
 /// `describe_payload_source`.
-pub fn describe_source(root: &str, path: &str, slug: &str, resource: &str) -> &'static str {
+pub fn describe_source(
+    tools_dir: &str,
+    root: &str,
+    path: &str,
+    slug: &str,
+    resource: &str,
+) -> &'static str {
     if path.is_empty() {
         return "";
     }
-    if path.starts_with(&format!("{root}/.ai/src/tools/{slug}/")) {
+    if path.starts_with(&format!("{tools_dir}/{slug}/")) {
         return "override";
     }
     if resource == "mcp" && path == format!("{root}/.ai/src/mcp.json") {
@@ -175,11 +181,12 @@ mod tests {
         let found = resolve_source(&mut s, &claude, "mcp").unwrap();
         assert_eq!(found, "/proj/.ai/src/tools/claude/mcp.json");
         assert_eq!(
-            describe_source("/proj", &found, "claude", "mcp"),
+            describe_source("/proj/.ai/src/tools", "/proj", &found, "claude", "mcp"),
             "override"
         );
         assert_eq!(
             describe_source(
+                "/proj/.ai/src/tools",
                 "/proj",
                 "/<agentsync>/lib/templates/mcp/claude.json",
                 "claude",

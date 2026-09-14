@@ -12,6 +12,8 @@ use crate::workspace::Workspace;
 pub struct Session {
     pub ws: Workspace,
     pub paths: Paths,
+    /// `TOOL_RESOLVER_USER_DIR`: `.ai/src/tools` until `source.tools` moves it.
+    pub tools_dir: String,
     pub log: Log,
     pub dry_run: bool,
     pub force: bool,
@@ -26,6 +28,7 @@ impl Session {
     pub fn new(ws: Workspace, paths: Paths) -> Self {
         Self {
             ws,
+            tools_dir: format!("{}/.ai/src/tools", paths.root),
             paths,
             log: Log::default(),
             dry_run: false,

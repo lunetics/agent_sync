@@ -168,6 +168,8 @@ pub struct Paths {
     pub root_canonical: String,
     home: Option<String>,
     lexical_below_root: bool,
+    external: Vec<String>,
+    explicit: Vec<String>,
 }
 
 impl Paths {
@@ -177,6 +179,8 @@ impl Paths {
             root_canonical: root_canonical.to_string(),
             home: home.filter(|h| !h.is_empty()).map(str::to_string),
             lexical_below_root: true,
+            external: Vec::new(),
+            explicit: Vec::new(),
         }
     }
 
@@ -221,27 +225,7 @@ impl Paths {
         {
             return Some(format!("{}{rest}", self.root_canonical));
         }
-        let mut ancestor = abs.to_string();
-        while !Path::new(&ancestor).exists() {
-            let up = parent(&ancestor);
-            if up == ancestor {
-                break;
-            }
-            ancestor = up;
-        }
-        let ancestor_canonical = if Path::new(&ancestor).is_dir() {
-            canonical_dir(&ancestor)?
-        } else {
-            format!("{}/{}", canonical_dir(&parent(&ancestor))?, leaf(&ancestor))
-        };
-        if abs == ancestor {
-            return Some(ancestor_canonical);
-        }
-        let mut suffix = abs[ancestor.len()..].to_string();
-        if !suffix.is_empty() && !suffix.starts_with('/') {
-            suffix.insert(0, '/');
-        }
-        Some(normalize(&format!("{ancestor_canonical}{suffix}")))
+        disk_canonical(abs)
     }
 
     /// `resolve_dest_path_r`: the normalised path, or `None` after logging why.
@@ -264,9 +248,106 @@ impl Paths {
         Some(abs)
     }
 
-    /// `is_path_safe_source`: the project, the engine, and the overlay trees.
+    /// `is_path_safe_source`: the project, the engine, the overlay trees, and
+    /// the explicit roots a config registered.
     pub fn is_safe_source(&self, canonical: &str) -> bool {
-        is_within(canonical, &self.root_canonical) || is_virtual(canonical)
+        is_within(canonical, &self.root_canonical)
+            || is_virtual(canonical)
+            || self.explicit.iter().any(|root| is_within(canonical, root))
+    }
+
+    /// The directories `AGENTSYNC_EXTERNAL_SOURCE_ROOTS` lists, colon-separated;
+    /// a relative entry, or one that is not a directory, trusts nothing.
+    pub fn trust_external_roots(&mut self, raw: Option<&str>) {
+        self.external = raw
+            .unwrap_or_default()
+            .split(':')
+            .filter(|entry| entry.starts_with('/') && Path::new(entry).is_dir())
+            .filter_map(canonical_dir)
+            .collect();
+    }
+
+    /// `_external_source_trusted`.
+    pub fn is_trusted_external(&self, canonical: &str) -> bool {
+        self.external.iter().any(|root| is_within(canonical, root))
+    }
+
+    /// `explicit_source_root_r` for a `source.*` value.
+    pub fn classify_explicit_source(&self, raw: &str) -> ExplicitSource {
+        let abs = self.absolute(raw);
+        if abs.starts_with(&format!("{}/", self.root)) {
+            return ExplicitSource::Inside;
+        }
+        let Some(canonical) = self.canonicalize_with_existing_ancestor(&abs) else {
+            return ExplicitSource::Inside;
+        };
+        if canonical.starts_with(&format!("{}/", self.root_canonical)) {
+            return ExplicitSource::Inside;
+        }
+        let home = self.home.as_deref().and_then(canonical_dir);
+        if canonical == "/"
+            || home.as_deref() == Some(canonical.as_str())
+            || canonical == self.root_canonical
+            || self.root_canonical.starts_with(&format!("{canonical}/"))
+        {
+            return ExplicitSource::Refused(canonical);
+        }
+        if !self.is_trusted_external(&canonical) {
+            return ExplicitSource::Untrusted(canonical);
+        }
+        ExplicitSource::Outside(canonical)
+    }
+
+    /// `EXPLICIT_SOURCE_ROOTS`: canonical roots `is_safe_source` admits.
+    pub fn register_explicit_roots(&mut self, roots: Vec<String>) {
+        self.explicit = roots;
+    }
+
+    /// `refuse_escaping_source_links`: every symlink at or below `roots`, and
+    /// below each safe directory a link reaches, must resolve to a safe source
+    /// or a trusted external root. `Err` is the message to log.
+    pub fn escaping_source_link(&self, roots: &[String]) -> Result<(), String> {
+        let mut pending: Vec<String> = roots.to_vec();
+        let mut visited: Vec<String> = Vec::new();
+        let mut index = 0usize;
+        while index < pending.len() {
+            let root = pending[index].clone();
+            index += 1;
+            if root.is_empty() {
+                continue;
+            }
+            if index > 256 {
+                return Err(
+                    "Too many nested symlinks under the source directories to check them safely"
+                        .to_string(),
+                );
+            }
+            let mut links = Vec::new();
+            if is_symlink(&root) {
+                links.push(root);
+            } else if Path::new(&root).is_dir() {
+                collect_links(&root, &mut links);
+            }
+            for link in links {
+                let shown = link
+                    .strip_prefix(&format!("{}/", self.root))
+                    .unwrap_or(&link)
+                    .to_string();
+                let Some(target) = link_target(&link) else {
+                    return Err(format!("Cannot resolve source symlink: {shown}"));
+                };
+                if !self.is_safe_source(&target) && !self.is_trusted_external(&target) {
+                    return Err(format!(
+                        "Source symlink {shown} resolves outside the project: {target}; add that directory (or a parent) to AGENTSYNC_EXTERNAL_SOURCE_ROOTS to read it"
+                    ));
+                }
+                if Path::new(&target).is_dir() && !visited.contains(&target) {
+                    visited.push(target.clone());
+                    pending.push(target);
+                }
+            }
+        }
+        Ok(())
     }
 
     /// `resolve_source_path_r`: the normalised path, or `None` after logging an
@@ -318,6 +399,82 @@ fn canonical_dir(dir: &str) -> Option<String> {
     std::fs::canonicalize(dir)
         .ok()
         .map(|p| p.to_string_lossy().into_owned())
+}
+
+/// What `explicit_source_root_r` returns: 0, 1, 2, and 3, with the canonical root.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ExplicitSource {
+    Inside,
+    Outside(String),
+    Refused(String),
+    Untrusted(String),
+}
+
+/// `canonicalize_with_existing_ancestor_r` through the disk: the nearest
+/// existing ancestor canonicalised, the missing rest appended lexically.
+fn disk_canonical(abs: &str) -> Option<String> {
+    let mut ancestor = abs.to_string();
+    while !Path::new(&ancestor).exists() {
+        let up = parent(&ancestor);
+        if up == ancestor {
+            break;
+        }
+        ancestor = up;
+    }
+    let ancestor_canonical = if Path::new(&ancestor).is_dir() {
+        canonical_dir(&ancestor)?
+    } else {
+        format!("{}/{}", canonical_dir(&parent(&ancestor))?, leaf(&ancestor))
+    };
+    if abs == ancestor {
+        return Some(ancestor_canonical);
+    }
+    let mut suffix = abs[ancestor.len()..].to_string();
+    if !suffix.is_empty() && !suffix.starts_with('/') {
+        suffix.insert(0, '/');
+    }
+    Some(normalize(&format!("{ancestor_canonical}{suffix}")))
+}
+
+fn is_symlink(path: &str) -> bool {
+    std::fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_symlink())
+}
+
+/// `_source_link_target_r`: follow a chain of at most 40 links, a relative
+/// target resolving from the link's physical directory.
+fn link_target(link: &str) -> Option<String> {
+    let mut path = link.to_string();
+    let mut hops = 0;
+    while is_symlink(&path) {
+        if hops >= 40 {
+            return None;
+        }
+        hops += 1;
+        let target = std::fs::read_link(&path).ok()?;
+        let target = target.to_string_lossy().into_owned();
+        path = if target.starts_with('/') {
+            target
+        } else {
+            format!("{}/{target}", canonical_dir(&parent(&path))?)
+        };
+    }
+    disk_canonical(&path)
+}
+
+/// `find <dir> -type l`: links in walk order, directories entered without
+/// following links.
+fn collect_links(dir: &str, links: &mut Vec<String>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.filter_map(|e| e.ok()) {
+        let path = format!("{dir}/{}", entry.file_name().to_string_lossy());
+        match entry.file_type() {
+            Ok(kind) if kind.is_symlink() => links.push(path),
+            Ok(kind) if kind.is_dir() => collect_links(&path, links),
+            _ => {}
+        }
+    }
 }
 
 #[cfg(test)]
@@ -511,5 +668,130 @@ mod tests {
             real.to_string_lossy()
         );
         assert_eq!(logical_root(Some("/x/y/.."), &real, None), "/x");
+    }
+
+    #[cfg(unix)]
+    fn disk() -> (tempfile::TempDir, String, String) {
+        let dir = tempfile::tempdir().unwrap();
+        let base = std::fs::canonicalize(dir.path())
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        let root = format!("{base}/proj");
+        std::fs::create_dir_all(format!("{root}/.ai/src/rules")).unwrap();
+        std::fs::create_dir_all(format!("{base}/outside/rules")).unwrap();
+        std::fs::write(format!("{base}/outside/rules/o.md"), "o\n").unwrap();
+        (dir, base, root)
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn explicit_sources_are_inside_outside_refused_or_untrusted() {
+        let (_dir, base, root) = disk();
+        let mut p = Paths::new(&root, &root, Some(&base));
+        assert_eq!(
+            p.classify_explicit_source(".ai/src/rules"),
+            ExplicitSource::Inside
+        );
+        let outside = format!("{base}/outside/rules");
+        assert_eq!(
+            p.classify_explicit_source(&outside),
+            ExplicitSource::Untrusted(outside.clone())
+        );
+        assert_eq!(
+            p.classify_explicit_source("../outside/rules"),
+            ExplicitSource::Untrusted(outside.clone())
+        );
+        p.trust_external_roots(Some(&format!(
+            "relative:/nonexistent:{base}/outside/rules/o.md:{base}/outside"
+        )));
+        assert_eq!(
+            p.classify_explicit_source(&outside),
+            ExplicitSource::Outside(outside.clone())
+        );
+        assert_eq!(
+            p.classify_explicit_source("/"),
+            ExplicitSource::Refused("/".into())
+        );
+        assert_eq!(
+            p.classify_explicit_source(".."),
+            ExplicitSource::Refused(base.clone())
+        );
+        assert_eq!(
+            p.classify_explicit_source(&base),
+            ExplicitSource::Refused(base.clone())
+        );
+
+        assert!(!p.is_safe_source(&format!("{outside}/o.md")));
+        p.register_explicit_roots(vec![outside.clone()]);
+        assert!(p.is_safe_source(&format!("{outside}/o.md")));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn only_a_directory_entry_is_trusted() {
+        let (_dir, base, root) = disk();
+        let mut p = Paths::new(&root, &root, None);
+        let file = format!("{base}/outside/rules/o.md");
+        p.trust_external_roots(Some(&file));
+        assert!(!p.is_trusted_external(&file));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_source_link_escaping_the_project_is_named_unless_trusted() {
+        use std::os::unix::fs::symlink;
+        let (_dir, base, root) = disk();
+        let mut p = Paths::new(&root, &root, None);
+        std::fs::create_dir_all(format!("{root}/docs")).unwrap();
+        std::fs::write(format!("{root}/docs/shared.md"), "s\n").unwrap();
+        symlink(
+            format!("{root}/docs/shared.md"),
+            format!("{root}/.ai/src/rules/shared.md"),
+        )
+        .unwrap();
+        let roots = vec![format!("{root}/.ai/src")];
+        assert_eq!(p.escaping_source_link(&roots), Ok(()));
+
+        symlink(
+            "../../../../outside/rules/o.md",
+            format!("{root}/.ai/src/rules/leak.md"),
+        )
+        .unwrap();
+        assert_eq!(
+            p.escaping_source_link(&roots),
+            Err(format!(
+                "Source symlink .ai/src/rules/leak.md resolves outside the project: {base}/outside/rules/o.md; add that directory (or a parent) to AGENTSYNC_EXTERNAL_SOURCE_ROOTS to read it"
+            ))
+        );
+        p.trust_external_roots(Some(&format!("{base}/outside")));
+        assert_eq!(p.escaping_source_link(&roots), Ok(()));
+
+        let p = Paths::new(&root, &root, None);
+        std::fs::remove_file(format!("{root}/.ai/src/rules/leak.md")).unwrap();
+        std::fs::create_dir_all(format!("{root}/vendor/skill")).unwrap();
+        symlink(
+            format!("{base}/outside/rules/o.md"),
+            format!("{root}/vendor/skill/leak.md"),
+        )
+        .unwrap();
+        symlink(
+            format!("{root}/vendor/skill"),
+            format!("{root}/.ai/src/skill"),
+        )
+        .unwrap();
+        assert_eq!(
+            p.escaping_source_link(&roots),
+            Err(format!(
+                "Source symlink vendor/skill/leak.md resolves outside the project: {base}/outside/rules/o.md; add that directory (or a parent) to AGENTSYNC_EXTERNAL_SOURCE_ROOTS to read it"
+            ))
+        );
+
+        std::fs::remove_file(format!("{root}/vendor/skill/leak.md")).unwrap();
+        symlink("a", format!("{root}/vendor/skill/a")).unwrap();
+        assert_eq!(
+            p.escaping_source_link(&roots),
+            Err("Cannot resolve source symlink: vendor/skill/a".to_string())
+        );
     }
 }

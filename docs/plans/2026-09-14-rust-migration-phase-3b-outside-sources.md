@@ -50,7 +50,7 @@ lib/sync.sh                       802-818   _refuse_escaping_source_links_or_exi
 
 **Files:** none changed.
 
-- [ ] **Step 1: Record the baseline**
+- [x] **Step 1: Record the baseline**
 
 ```bash
 git log --oneline -1
@@ -80,7 +80,7 @@ Expected: the family 2 close commit; `171 passed` and `11 passed`; 18 native fai
   - `pub fn register_explicit_roots(&mut self, roots: Vec<String>)`
   - `pub fn escaping_source_link(&self, roots: &[String]) -> Result<(), String>` — `Err` is the log message without its tag
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append inside `mod tests` in `src/paths.rs`:
 
@@ -161,12 +161,12 @@ Append inside `mod tests` in `src/paths.rs`:
     }
 ```
 
-- [ ] **Step 2: Run the tests, confirm they fail**
+- [x] **Step 2: Run the tests, confirm they fail**
 
 Run: `cargo test paths::tests 2>&1 | grep -E '^error\[' | sort | uniq -c`
 Expected: errors for `ExplicitSource` and the four new methods.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Give `Paths` two fields and initialise them in `new`:
 
@@ -354,12 +354,12 @@ fn collect_links(dir: &str, links: &mut Vec<String>) {
 }
 ```
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 Run: `cargo test 2>&1 | grep 'test result' | head -3`
-Expected: `173 passed` and `11 passed`.
+Expected: `174 passed` and `11 passed`.
 
-- [ ] **Step 5: Lint and commit**
+- [x] **Step 5: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings
@@ -456,7 +456,7 @@ Expected: `no field `tools_dir` on type `Session`` and the four-argument `descri
                 }
                 paths::ExplicitSource::Untrusted(canonical) => {
                     s.log.error(&format!(
-                        "source.{key} points outside the project at {canonical}, which AGENTSYNC_EXTERNAL_SOURCE_ROOTS does not list; add that directory (or a parent) to the variable to read it"
+                        "source.{key} points outside the project at {canonical}, which AGENTSYNC_EXTERNAL_SOURCE_ROOTS does not list; add that directory (or a parent) to the variable to read from it"
                     ));
                     return Err(Stop(1));
                 }
@@ -558,7 +558,7 @@ for f in sync check shared; do
 done
 ```
 
-Expected: `174 passed` and `11 passed`; the remaining `source_overrides.bats` failures are those that need the overlays (Task 3) and `list` (Task 4), recorded in the Run log; `0` for `sync`, `check`, and `shared`.
+Expected: `175 passed` and `11 passed`; the remaining `source_overrides.bats` failures are those that need the overlays (Task 3) and `list` (Task 4), recorded in the Run log; `0` for `sync`, `check`, and `shared`.
 
 - [ ] **Step 5: Lint and commit**
 
@@ -708,7 +708,7 @@ for f in shared base_skills profiles sync check; do
 done
 ```
 
-Expected: `175 passed` and `11 passed`; only the `list`-driven failures remain in `source_overrides.bats`; `0` elsewhere.
+Expected: `176 passed` and `11 passed`; only the `list`-driven failures remain in `source_overrides.bats`; `0` elsewhere.
 
 - [ ] **Step 5: Lint and commit**
 
@@ -780,7 +780,7 @@ printf 'source_overrides native=%s\n' "$(AGENTSYNC_NATIVE=1 bats --tap tests/sou
 printf 'list native=%s\n' "$(AGENTSYNC_NATIVE=1 bats --tap tests/list.bats | grep -c '^not ok')"
 ```
 
-Expected: `176 passed` and `11 passed`; `source_overrides native=0`; `list native=0`.
+Expected: `177 passed` and `11 passed`; `source_overrides native=0`; `list native=0`.
 
 - [ ] **Step 5: Lint and commit**
 
@@ -849,7 +849,7 @@ for f in source_overrides shared base_skills profiles list sync check config_saf
 done
 ```
 
-Expected: `176 passed` and `11 passed`; lint exit 0; every line `bash=0 native=0` except `native_parity bash=1 native=1` (family 4).
+Expected: `177 passed` and `11 passed`; lint exit 0; every line `bash=0 native=0` except `native_parity bash=1 native=1` (family 4).
 
 - [ ] **Step 5: Commit**
 
@@ -871,4 +871,11 @@ The family is closed when every box is ticked, `source_overrides.bats` is green 
 - Verified: plan written against `lib/sync.sh` 802-938 and 1331-1333, `lib/helpers/paths.sh`, `lib/helpers/shared.sh`, `lib/helpers/tool_resolver.sh` on the migration branch, and `src/paths.rs`, `src/overlay.rs`, `src/render.rs`, `src/payload.rs`, `src/workspace.rs` (paths outside the root are read from disk in memory too).
 - Plan amended: none.
 - Next: Task 0 Step 1.
+- Blocker: none.
+
+### 2026-09-14 — Tasks 0 and 1 done
+- Commits: the Task 1 commit, "feat(native): classify outside source roots and scan source links".
+- Verified: Task 0 at `1cfb31c`: `source_overrides` native failures 18 (1, 2, 3, 5, 6, 9, 11, 12, 13, 14, 15, 17, 18, 19, 20, 24, 25, 26), `shared`, `list`, `sync`, `check` 0. Task 1: `cargo test` 174 and 11 passed; fmt and clippy exit 0.
+- Plan amended: `trust_external_roots` keeps only directory entries, because `_canon_dir_r` is `cd -P`, which refuses a file; a third test `only_a_directory_entry_is_trusted` pins it, and the link test adds a relative escaping link and a self-looping link, so every later count is one higher. Task 2's untrusted-root message ends in "to read from it", as `register_explicit_source_roots` prints it.
+- Next: Task 2 Step 1.
 - Blocker: none.

@@ -1,6 +1,7 @@
 //! AgentSync native engine. `main.rs` is the only place that talks to the
 //! process (arguments, exit codes); everything here is callable from tests.
 
+pub mod backup;
 pub mod catalog;
 pub mod cli;
 pub mod convert;

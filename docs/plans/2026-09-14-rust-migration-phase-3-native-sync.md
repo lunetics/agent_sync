@@ -3045,7 +3045,7 @@ git commit -m "feat(native): update the managed .gitignore block"
 - Consumes: `paths::{parent, leaf, is_within}`.
 - Produces: `Error::Backup(String)` — a refusal of `backup.sh`, whose `Display` is the message a caller prints after `Error: `. `backup::Target { present: bool, rel: String }`. `backup::canonical_root(root: &str) -> Result<String, Error>`; `backup::create(root: &str, operation: &str, targets: &[String]) -> Result<String, Error>` (the canonical snapshot path); `backup::snapshot_path(root: &str, requested: &str) -> Result<String, Error>`; `backup::load_targets(root: &str, requested: &str) -> Result<Vec<Target>, Error>`; `backup::restore(root: &str, requested: &str) -> Result<(), Error>`; `backup::latest(root: &str) -> Result<Option<String>, Error>`; `backup::list(root: &str) -> Result<Vec<(String, String, String)>, Error>` (id, operation, created); `backup::prune(root: &str, limit: Option<&str>, max_age: Option<&str>) -> Result<(), Error>` (the raw `AGENTSYNC_BACKUP_LIMIT` and `AGENTSYNC_BACKUP_MAX_AGE_DAYS`). Snapshot directories are `0700`, `.latest` and the store's `.gitignore` `0600`, as `mktemp` creates them; links stay links and modes and modification times are kept, as `tar` and `cp -pPR` keep them.
 
-- [ ] **Step 1: Create `src/backup.rs`**
+- [x] **Step 1: Create `src/backup.rs`**
 
 ```rust
 //! Transactional backups of `lib/helpers/backup.sh`, in its on-disk layout:
@@ -4062,7 +4062,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Add the refusal variant to `src/error.rs`**
+- [x] **Step 2: Add the refusal variant to `src/error.rs`**
 
 ```rust
 use std::path::PathBuf;
@@ -4100,7 +4100,7 @@ impl Error {
 }
 ```
 
-- [ ] **Step 3: Declare the module in `src/lib.rs`**
+- [x] **Step 3: Declare the module in `src/lib.rs`**
 
 ```rust
 //! AgentSync native engine. `main.rs` is the only place that talks to the
@@ -4140,7 +4140,7 @@ pub fn engine_version() -> &'static str {
 }
 ```
 
-- [ ] **Step 4: Run the gates, confirm green**
+- [x] **Step 4: Run the gates, confirm green**
 
 ```bash
 cargo test 2>&1 | grep 'test result'
@@ -4150,7 +4150,7 @@ cargo clippy --all-targets -- -D warnings
 
 Expected: `138 passed` (unit) and `7 passed` (integration); fmt and clippy exit 0. The nine `backup::tests` mirror `tests/backup.bats`: restore of present and missing targets, collapse of nested targets, the refusals, links, modes, and times, symlinked store and snapshot, metadata written through symlinks, count and age pruning, the latest surviving an age limit, and the stale-staging sweep.
 
-- [ ] **Step 5: Cross-check the stamp arithmetic**
+- [x] **Step 5: Cross-check the stamp arithmetic**
 
 ```bash
 date -u -r 1789323442 +%Y%m%dT%H%M%SZ 2>/dev/null || date -u -d @1789323442 +%Y%m%dT%H%M%SZ
@@ -4160,7 +4160,7 @@ bash -c 'source lib/helpers/backup.sh; _backup_days_from_civil 2020 1 1'
 
 Expected: `20260913T181722Z`, `20000229T000000Z`, `18262` — the values `stamps_and_days_agree_with_date_and_days_from_civil` asserts.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/backup.rs src/error.rs src/lib.rs docs/plans/2026-09-14-rust-migration-phase-3-native-sync.md

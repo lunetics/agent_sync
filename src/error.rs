@@ -8,6 +8,9 @@ pub enum Error {
         #[source]
         source: std::io::Error,
     },
+    /// A refusal of `lib/helpers/backup.sh`, printed as `Error: <message>`.
+    #[error("{0}")]
+    Backup(String),
     #[error("Repository root not found: {}", .0.display())]
     ProjectRootNotFound(PathBuf),
     #[error(

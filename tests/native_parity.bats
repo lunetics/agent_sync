@@ -652,3 +652,30 @@ assert_tree_parity() {
     printf '{"mcpServers":{}}\n' > .ai/src/mcp.json
     assert_tree_parity show claude mcp
 }
+
+@test "parity: diff reports overrides and payload hunks like Bash" {
+    enable_tools cursor
+    assert_tree_parity diff
+    assert_tree_parity diff claude
+    assert_tree_parity diff claude hooks
+    assert_tree_parity diff a b c
+    assert_tree_parity diff --bogus
+    assert_tree_parity diff claude --help
+    _run_engine 0 customize cursor --full >/dev/null
+    _run_engine 0 customize claude >/dev/null
+    printf 'name: "My Claude"\ntargets:\n  rules:\n    dest: ".custom/rules"\n' >> .ai/src/tools/claude.yaml
+    printf 'name: "Mine"\n' > .ai/src/tools/mytool.yaml
+    assert_tree_parity diff
+    assert_tree_parity diff claude
+    assert_tree_parity diff zed
+    assert_tree_parity diff claude settings
+    assert_tree_parity diff cursor nope
+    assert_tree_parity diff nope mcp
+    _run_engine 0 customize cursor hooks --yes >/dev/null
+    assert_tree_parity diff cursor hooks
+    printf '{\n  "version": 2,\n  "hooks": {"afterFileEdit": []}\n}\n' > .ai/src/tools/cursor/hooks.json
+    assert_tree_parity diff cursor hooks
+    mkdir -p .ai/src/mcp
+    printf '{"legacy":true}\n' > .ai/src/mcp/claude.json
+    assert_tree_parity diff claude mcp
+}

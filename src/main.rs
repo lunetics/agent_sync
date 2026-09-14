@@ -34,7 +34,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
         return print_version();
     }
     // `cmd_enable` reads a leading `--` as the start of tool slugs; clap would consume it.
-    if let Some(command @ ("enable" | "disable" | "customize" | "show")) =
+    if let Some(command @ ("enable" | "disable" | "customize" | "show" | "diff")) =
         args.first().and_then(|a| a.to_str())
     {
         let rest: Vec<String> = args[1..]
@@ -57,6 +57,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
                 cli::enable::disable(&rest, &Project::discover, &style, &mut out, &mut err)
             }
             "show" => cli::show::show(&rest, &Project::discover, &style, &mut out, &mut err),
+            "diff" => cli::diff::diff(&rest, &Project::discover, &style, &mut out, &mut err),
             _ => cli::customize::customize(
                 &rest,
                 &Project::discover,

@@ -1248,7 +1248,7 @@ git commit -m "feat(native): port show"
 - Consumes: Task 1, `customize::{VALID_RESOURCES, unknown_resource, put}`, `show::{base_tool_shown, read_text}`.
 - Produces: `pub fn diff(args: &[String], discover: &dyn Fn() -> Result<Project, Error>, style: &Style, out: &mut dyn Write, err: &mut dyn Write) -> Result<u8, Error>`
 
-- [ ] **Step 1: Parity fixture, Bash side**
+- [x] **Step 1: Parity fixture, Bash side**
 
 ```bash
 @test "parity: diff reports overrides and payload hunks like Bash" {
@@ -1282,7 +1282,7 @@ git commit -m "feat(native): port show"
 Run: `bats --tap -f 'diff reports' tests/native_parity.bats`
 Expected: `ok`.
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 Create `src/cli/diff.rs` with the tests module only; add `pub mod diff;`:
 
@@ -1345,7 +1345,7 @@ mod tests {
 Run: `cargo test --lib cli::diff 2>&1 | grep -E '^error' | sort | uniq -c`
 Expected: `cannot find function 'diff'`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Above the tests module:
 
@@ -1634,7 +1634,7 @@ fn unified_diff(base: &[u8], override_file: &std::path::Path) -> Vec<u8> {
 
 In `src/main.rs` add `"diff" => cli::diff::diff(&rest, &Project::discover, &style, &mut out, &mut err),` to the raw dispatch; in `bin/agentsync.sh:280` append `diff`.
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -4
@@ -1645,7 +1645,7 @@ bats --tap -f 'diff reports' tests/native_parity.bats
 
 Expected: `199 passed`, `0`, `11`, `1`; `0`; `ok`.
 
-- [ ] **Step 5: Prove the fixture bites, lint, commit**
+- [x] **Step 5: Prove the fixture bites, lint, commit**
 
 Change `"--label", "override"` to `"--label", "yours"`, rebuild, rerun the fixture: `not ok` with a `+++` diff line; revert and rebuild.
 
@@ -1751,4 +1751,11 @@ The plan is closed when every box is ticked, `customize.bats` is green under `AG
 - Verified: `cargo test` 198 lib; fmt and clippy exit 0; the fixture `ok` on the Bash side and with `show` native; `AGENTSYNC_NATIVE=1` `customize.bats` 13 `ok`, `source_overrides.bats` 0 `not ok`. Mutation: `★ user override (legacy)` failed the fixture with that diff; reverted, rebuilt.
 - Plan amended: none.
 - Next: Task 4 Step 1.
+- Blocker: none.
+
+### 2026-09-15 — Task 4 done
+- Commits: "feat(native): port diff".
+- Verified: `cargo test` 199 lib; fmt and clippy exit 0; the fixture `ok` on the Bash side; with `diff` native it failed inside the agent sandbox, where Apple `diff` cannot read `-` ("Operation not permitted") and the native side printed no hunks, and passed outside it. Mutation (outside the sandbox): `--label yours` failed the fixture with `+++ yours`; reverted, rebuilt. `AGENTSYNC_NATIVE=1 bats tests/customize.bats` 13 `ok`.
+- Plan amended: bats runs that reach `diff`'s payload branch run outside the agent sandbox from here on; the stdin read is an environment restriction, not a platform one.
+- Next: Task 5 Step 1.
 - Blocker: none.

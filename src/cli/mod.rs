@@ -1,5 +1,6 @@
 pub mod check;
 pub mod customize;
+pub mod diff;
 pub mod enable;
 pub mod list;
 pub mod rollback;

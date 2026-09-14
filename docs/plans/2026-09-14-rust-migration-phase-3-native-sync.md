@@ -187,7 +187,7 @@ git commit -m "fix(sync): count each replaced path once in the first-sync warnin
 - Consumes: nothing new.
 - Produces: `manifest_has_entry_below <rel-dir>` returns 0 when the loaded manifest records a file below the directory; `sync_may_prune` allows pruning such a directory. **Decision 1 of the review.** The second test pins the unchanged half: a directory the manifest records nothing below stays and is reported as kept.
 
-- [ ] **Step 1: Write the tests in `tests/drift.bats`, after `@test "drift: obsolete sync-generated rule is still pruned when removed from source"`**
+- [x] **Step 1: Write the tests in `tests/drift.bats`, after `@test "drift: obsolete sync-generated rule is still pruned when removed from source"`**
 
 ```bash
 
@@ -213,12 +213,12 @@ git commit -m "fix(sync): count each replaced path once in the first-sync warnin
 }
 ```
 
-- [ ] **Step 2: Run them, confirm the first fails**
+- [x] **Step 2: Run them, confirm the first fails**
 
 Run: `bats tests/drift.bats -f 'skill directory'`
 Expected: `not ok 1 drift: obsolete sync-generated skill directory is pruned when removed from source`; `ok 2 drift: sync preserves a user-added skill directory in a generated dir`.
 
-- [ ] **Step 3: Add `manifest_has_entry_below` to `lib/helpers/manifest.sh`, directly above the `# Load existing manifest from disk into MANIFEST_KEYS/VALUES.` comment**
+- [x] **Step 3: Add `manifest_has_entry_below` to `lib/helpers/manifest.sh`, directly above the `# Load existing manifest from disk into MANIFEST_KEYS/VALUES.` comment**
 
 ```bash
 # True (0) when the loaded manifest records a file below directory <rel>.
@@ -234,7 +234,7 @@ manifest_has_entry_below() {
 
 ```
 
-- [ ] **Step 4: Consult it in `sync_may_prune` in `lib/helpers/file_ops.sh`**
+- [x] **Step 4: Consult it in `sync_may_prune` in `lib/helpers/file_ops.sh`**
 
 Replace:
 
@@ -257,7 +257,7 @@ with:
 }
 ```
 
-- [ ] **Step 5: Run the affected files and ShellCheck, confirm green**
+- [x] **Step 5: Run the affected files and ShellCheck, confirm green**
 
 ```bash
 bats --jobs 4 tests/drift.bats tests/files.bats tests/base_skills.bats tests/shared.bats tests/profiles.bats tests/sync.bats tests/adopt.bats tests/doctor.bats --tap | grep -c '^not ok'
@@ -267,7 +267,7 @@ shellcheck -x -S warning -e SC1091 lib/helpers/file_ops.sh lib/helpers/manifest.
 
 Expected: `0`; `1..28`; ShellCheck exits 0.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add lib/helpers/file_ops.sh lib/helpers/manifest.sh tests/drift.bats docs/plans/2026-09-14-rust-migration-phase-3-native-sync.md

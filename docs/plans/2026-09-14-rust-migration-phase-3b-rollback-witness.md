@@ -600,7 +600,7 @@ Task 0's baseline hung on `sync with a FIFO under a target succeeds and records 
 **Files:**
 - Modify: `src/backup.rs` (`copy_preserving`; test)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append inside `mod tests` in `src/backup.rs`:
 
@@ -637,12 +637,12 @@ Append inside `mod tests` in `src/backup.rs`:
     }
 ```
 
-- [ ] **Step 2: Run it, confirm it fails**
+- [x] **Step 2: Run it, confirm it fails**
 
 Run: `cargo test --lib backup::tests::a_fifo 2>&1 | tail -3` in the background and stop it after 20 seconds.
 Expected: it does not finish (the copy blocks in `open`).
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 In `copy_preserving`, before `std::fs::copy(src, dst)?;`:
 
@@ -667,12 +667,12 @@ In `copy_preserving`, before `std::fs::copy(src, dst)?;`:
     }
 ```
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 Run: `cargo test 2>&1 | grep 'test result' | head -3`
 Expected: `184 passed` and `11 passed`.
 
-- [ ] **Step 5: Lint and commit**
+- [x] **Step 5: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings
@@ -737,7 +737,7 @@ done
 bats --tap -f 'native sync writes is restored' tests/native_parity.bats
 ```
 
-Expected: `183 passed` and `11 passed`; `0` for each file; the parity case `ok`.
+Expected: `184 passed` and `11 passed`; `0` for each file; the parity case `ok`.
 
 - [ ] **Step 3: Lint and commit**
 
@@ -972,7 +972,7 @@ for f in rollback backup backup_retention baseline; do
 done
 ```
 
-Expected: `184 passed` and `11 passed`; in `rollback_preflight.bats` only the two hash-tool cases fail (Task 4 gates them); `0` for the others.
+Expected: `185 passed` and `11 passed`; in `rollback_preflight.bats` only the two hash-tool cases fail (Task 4 gates them); `0` for the others.
 
 - [ ] **Step 5: Lint and commit**
 
@@ -1067,7 +1067,7 @@ for f in rollback_preflight rollback backup backup_retention baseline config_saf
 done
 ```
 
-Expected: `184 passed` and `11 passed`; lint exit 0; every line `bash=0 native=0`.
+Expected: `185 passed` and `11 passed`; lint exit 0; every line `bash=0 native=0`.
 
 - [ ] **Step 6: Commit**
 

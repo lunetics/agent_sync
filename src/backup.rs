@@ -336,6 +336,24 @@ fn copy_preserving(src: &Path, dst: &Path) -> std::io::Result<()> {
         std::fs::File::open(dst)?.set_modified(meta.modified()?)?;
         return Ok(());
     }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::FileTypeExt;
+        let kind = meta.file_type();
+        if kind.is_fifo() {
+            let made = std::process::Command::new("mkfifo").arg(dst).status()?;
+            if !made.success() {
+                return Err(std::io::Error::other(format!(
+                    "mkfifo failed for {}",
+                    dst.display()
+                )));
+            }
+            return std::fs::set_permissions(dst, meta.permissions());
+        }
+        if kind.is_socket() || kind.is_block_device() || kind.is_char_device() {
+            return Ok(());
+        }
+    }
     std::fs::copy(src, dst)?;
     std::fs::File::open(dst)?.set_modified(meta.modified()?)
 }
@@ -1227,6 +1245,38 @@ mod tests {
                 .to_string(),
             "Backup limit must be a non-negative integer: x"
         );
+    }
+
+    #[test]
+    fn a_fifo_under_a_target_is_recreated_not_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = std::fs::canonicalize(dir.path())
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        std::fs::create_dir_all(format!("{root}/.claude/skills")).unwrap();
+        let made = std::process::Command::new("mkfifo")
+            .arg(format!("{root}/.claude/skills/pipe"))
+            .status()
+            .is_ok_and(|status| status.success());
+        if !made {
+            return;
+        }
+        let snapshot = create(
+            &root,
+            "sync",
+            &[format!("{root}/.claude/skills")],
+            Retention::Bounded,
+        )
+        .unwrap();
+        use std::os::unix::fs::FileTypeExt;
+        let copied =
+            std::fs::symlink_metadata(format!("{snapshot}/files/.claude/skills/pipe")).unwrap();
+        assert!(copied.file_type().is_fifo());
+        std::fs::remove_file(format!("{root}/.claude/skills/pipe")).unwrap();
+        restore(&root, &snapshot).unwrap();
+        let restored = std::fs::symlink_metadata(format!("{root}/.claude/skills/pipe")).unwrap();
+        assert!(restored.file_type().is_fifo());
     }
 
     #[test]

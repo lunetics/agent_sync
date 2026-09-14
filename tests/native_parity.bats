@@ -265,6 +265,23 @@ YAML
     assert_parity_head 2 check
 }
 
+@test "parity: config selection and version_pin.mode in check and list" {
+    enable_tools claude
+    AGENTSYNC_CONFIG_PATH=missing.yaml assert_parity check
+    AGENTSYNC_CONFIG_PATH=missing.yaml assert_parity list
+    mkdir -p config
+    cp .ai/agent_sync.yaml config/agentsync.yaml
+    AGENTSYNC_CONFIG_PATH=config/agentsync.yaml _bash_sync
+    AGENTSYNC_CONFIG_PATH=config/agentsync.yaml assert_parity check
+    AGENTSYNC_CONFIG_PATH=config/agentsync.yaml assert_parity list
+    printf 'tools:\n  enabled: [claude]\noutputs: local\nagentsync_version: "0.0.1"\nversion_pin:\n  mode: strict\n' > .ai/agent_sync.yaml
+    assert_parity check
+    printf 'version_pin: nope\n' > .ai/agent_sync.yaml
+    assert_parity check
+    printf 'gitignore:\n  update: false\nagentsync_version: "0.0.1"\n' > .ai/agent_sync.yaml
+    assert_parity check
+}
+
 @test "parity: check with this repository's own .ai/src and all 13 tools" {
     rm -rf .ai/src
     cp -R "$REPO_ROOT/.ai/src" .ai/src
@@ -439,6 +456,21 @@ assert_tree_parity() {
     (cd leaf && _run_engine 0 enable cursor --no-scaffold >/dev/null)
     assert_tree_parity sync --workspace --dry-run
     assert_tree_parity sync --workspace --only cursor
+}
+
+@test "parity: sync fails closed on config selection and enforces version_pin.mode" {
+    enable_tools claude
+    AGENTSYNC_CONFIG_PATH=missing.yaml assert_tree_parity sync
+    printf 'tools:\n  enabled: [claude]\noutputs: local\nagentsync_version: "0.0.1"\nversion_pin: strict\n' > .ai/agent_sync.yaml
+    assert_tree_parity sync
+    printf 'tools:\n  enabled: [claude]\nversion_pin:\n  mode: refuse\n' > .ai/agent_sync.yaml
+    assert_tree_parity sync
+    rm .ai/agent_sync.yaml
+    assert_tree_parity sync
+    assert_tree_parity sync --dry-run
+    mkdir -p .ai/src/tools
+    printf 'enabled: true\n' > .ai/src/tools/claude.yaml
+    assert_tree_parity sync
 }
 
 @test "parity: rollback plans, restores, and refuses like Bash" {

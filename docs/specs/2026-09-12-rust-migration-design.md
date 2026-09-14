@@ -384,6 +384,10 @@ cleanup has a list:
     skill with the description `-`.
 12. `sync --workspace` reports the status of the last project that failed as
     "max exit code" and exits with it (`bin/agentsync.sh`, `cmd_workspace_fanout`).
+13. `version_pin: warn` followed later by a `version_pin:` mapping with
+    `mode: strict` reads as `warn`: the reader answers the first `version_pin`
+    key, so the nested lookup is empty and the scalar wins (`version.sh`,
+    `version_pin_mode`).
 
 ## Accepted deviations
 
@@ -402,9 +406,6 @@ Appended one line at a time as they are found, with the phase:
   its random temporary workspace and overlay directories.
 - Phase 2: `check` without `.ai/` reports `Incomplete copy — missing: .ai` on
   stderr where Bash printed `tar`'s platform-specific error.
-- Phase 2: `check` reads `agent_sync.yaml` with its `shared:` block in place;
-  Bash removed the block from a temporary copy. They differ only when another
-  key's lookup falls through into that block (quirk 1).
 - Phase 2: symlinks under `.ai/` and among the outputs are followed; Bash's
   `tar` copy kept them as links.
 - Phase 2: `agent_sync.yaml` and OpenCode JSON that are not valid UTF-8 are read

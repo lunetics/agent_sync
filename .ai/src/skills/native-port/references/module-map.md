@@ -17,7 +17,8 @@ lib/helpers/resolve.sh           → (none)                  engine dir lookup; 
 (trap INT TERM HUP)              → src/interrupt.rs        signal-hook flags; restore at the next step, then re-raise
 
 Tier 1
-lib/helpers/version.sh           → src/version.rs          engine_version, pinned_version, mismatch hint
+lib/helpers/version.sh           → src/version.rs          version_pin mode, mismatch error and hint; engine_version stays in src/lib.rs
+lib/helpers/project_config.sh    → src/project_config.rs   project_config_path_r over an is_file probe; shared by sync, check, list
 lib/helpers/format.sh            → src/format_rev.rs       project format revision, pending notes
 lib/helpers/paths.sh             → src/paths.rs            normalise, containment (lexical for check, through the disk for sync), repo-relative, ai_dir_enclosing_root, find_workspace_ai_dirs
 lib/helpers/tool_resolver.sh     → src/tool.rs, src/catalog.rs, src/payload.rs

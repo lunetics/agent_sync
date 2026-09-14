@@ -1078,7 +1078,7 @@ git commit -m "feat(native): refuse a missing AGENTSYNC_CONFIG_PATH in list"
 - Consumes: `assert_parity`, `assert_tree_parity`, `_bash_sync`, `enable_tools` in `tests/native_parity.bats` and `tests/test_helper.bash`; the binary from Tasks 3 to 5.
 - Produces: fixtures that fail when either engine's config selection or pin policy drifts.
 
-- [ ] **Step 1: Write the fixtures**
+- [x] **Step 1: Write the fixtures**
 
 After `@test "parity: check without a .ai directory"` in `tests/native_parity.bats`:
 
@@ -1120,7 +1120,7 @@ After the last `@test "parity: sync …"` fixture (before the `rollback` ones):
 }
 ```
 
-- [ ] **Step 2: Run the fixtures in both modes**
+- [x] **Step 2: Run the fixtures in both modes**
 
 ```bash
 cargo build --release
@@ -1130,11 +1130,11 @@ AGENTSYNC_NATIVE=0 bats --tap -f 'config selection' tests/native_parity.bats
 
 Expected: both runs print `ok` for the two new fixtures. A diff here is a port bug: fix the Rust, not the fixture.
 
-- [ ] **Step 3: Prove the fixtures bite**
+- [x] **Step 3: Prove the fixtures bite**
 
 Change `"— expected 'warn' or 'strict'"` to `"— expected 'warn' or 'strict'!"` in `src/render.rs`, then run `cargo build --release && bats --tap -f 'sync fails closed' tests/native_parity.bats`. Expected: `not ok` with a diff naming `expected 'warn' or 'strict'!`. Revert the change and rebuild.
 
-- [ ] **Step 4: Update the spec and the module map**
+- [x] **Step 4: Update the spec and the module map**
 
 In `docs/specs/2026-09-12-rust-migration-design.md`, append to "Known quirks to reproduce now and fix after cutover":
 
@@ -1154,7 +1154,7 @@ lib/helpers/version.sh           → src/version.rs          version_pin mode, m
 lib/helpers/project_config.sh    → src/project_config.rs   project_config_path_r over an is_file probe; shared by sync, check, list
 ```
 
-- [ ] **Step 5: Verify the family**
+- [x] **Step 5: Verify the family**
 
 Run the bats files one at a time.
 
@@ -1173,7 +1173,7 @@ AGENTSYNC_NATIVE=0 AGENTSYNC_HOME="$PWD" bash bin/agentsync.sh sync --force
 
 Expected: `166 passed` and `11 passed`; clippy, fmt, and ShellCheck exit 0; every line `bash=0 native=0` except `native_parity bash=1 native=1` (the rollback usage fixture, family 4); the repository sync ends with `[DONE] Synced 2/13 tools (11 skipped)`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add tests/native_parity.bats docs/specs/2026-09-12-rust-migration-design.md .ai/src/skills/native-port/references/module-map.md .ai/.sync-manifest docs/plans/2026-09-14-rust-migration-phase-3b-config-and-pin.md
@@ -1193,4 +1193,11 @@ The family is closed when every box above is ticked, `config_safety.bats` and `v
 - Verified: after the merge, `cargo test` 147 + 11 passed, clippy and fmt clean, release build ok; `AGENTSYNC_NATIVE=0 bats --jobs 6 --tap tests/` 868 tests, 1 failure (`parity: rollback plans, restores, and refuses like Bash`, family 4); `AGENTSYNC_NATIVE=1` failures by file: `config_safety` 5 of 7, `version_pin` 5 of 13, `backup_retention` 10, `source_overrides` 18 of 28, `native_parity` 1; `rollback_preflight` pending when the plan was written. The native run stopped after `resource_resolver.bats`: two full-suite runs with `--jobs 6` and `--jobs 3` were killed by the system for low memory, so `rollback`, `shared`, `shell_init`, `simplify`, `sync_options`, `sync`, `team_workflow`, `tmp`, `update_snapshot`, `update`, and `workspace` have no native count after the merge yet; Task 0 records them.
 - Plan amended: none.
 - Next: Task 0 Step 1, after the review takes the four decisions.
+- Blocker: none.
+
+### 2026-09-14 — Tasks 0–6 done, family 1 served natively
+- Commits: `f664ea1` select agent_sync.yaml like project_config_path_r; `e47afea` read version_pin.mode like version.sh; `add4969` fail closed on config selection and enforce version_pin.mode; `130f0d4` select the config and apply version_pin.mode in check; `521c17c` refuse a missing AGENTSYNC_CONFIG_PATH in list; the Task 6 commit with the parity fixtures, spec, and module map.
+- Verified: Task 0 native baseline `check`, `list`, `sync`, `outputs_mode`, `team_workflow`, `workspace` all `0`. After Task 6: `cargo test` 166 + 11 passed; clippy, fmt, and ShellCheck exit 0; one file at a time in both modes, `config_safety`, `version_pin`, `check`, `sync`, `list`, `outputs_mode`, `team_workflow`, `workspace` `bash=0 native=0`, `native_parity` `bash=1 native=1` (only `parity: rollback plans, restores, and refuses like Bash`, family 4); the two new fixtures pass, and appending `!` to the unknown-mode message made `parity: sync fails closed …` fail with that diff before it was reverted; repository `sync --force` ended `[DONE] Synced 2/13 tools (11 skipped)`.
+- Plan amended: Task 3 Step 2 expects three failing tests, not four (the legacy-enabled test guards the refusal's exception and passes throughout); Task 3 Step 3's local `selection` renamed `chosen`, since `load_run_config` already takes a `selection` parameter; Task 3 Step 4 expects only tests 4 and 7 in `config_safety.bats` and none in `version_pin.bats`, whose `check` cases pass loosely once the shared render fails closed; Task 3's commit subject shortened to 72 characters; Task 4's `seed_workspace` parameter renamed `selected`, since the function already binds a local `config`, and Step 2's expectation reworded to four failing tests without the compile error.
+- Next: close family 1 with its completion receipt, then plan family 2 (backup retention).
 - Blocker: none.

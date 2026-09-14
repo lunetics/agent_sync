@@ -47,7 +47,7 @@ lib/sync.sh                       743-747   _load_run_config: backup_configure u
 
 **Interfaces:** consumes branch `feat/native-engine-phase-1` at `04929db` or later.
 
-- [ ] **Step 1: Record the baseline**
+- [x] **Step 1: Record the baseline**
 
 ```bash
 git log --oneline -1
@@ -86,7 +86,7 @@ and `0` for `backup`, `rollback`, and `sync`. The test numbers are the file's ow
 **Interfaces:**
 - Produces: `pub fn found(text: &str, key_path: &str) -> Option<String>`; `value(text, key_path)` keeps its signature and returns `found(..).unwrap_or_default()`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append inside `mod tests` in `src/yaml_subset.rs`:
 
@@ -104,12 +104,12 @@ Append inside `mod tests` in `src/yaml_subset.rs`:
     }
 ```
 
-- [ ] **Step 2: Run the test, confirm it fails**
+- [x] **Step 2: Run the test, confirm it fails**
 
 Run: `cargo test yaml_subset::tests::found 2>&1 | grep -E '^error\['`
 Expected: `error[E0425]: cannot find function `found` in this scope`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Replace `pub fn value(text: &str, key_path: &str) -> String {` and its body's return points:
 
@@ -160,12 +160,12 @@ pub fn found(text: &str, key_path: &str) -> Option<String> {
 }
 ```
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 Run: `cargo test 2>&1 | grep 'test result' | head -3`
 Expected: `167 passed` and `11 passed`.
 
-- [ ] **Step 5: Lint and commit**
+- [x] **Step 5: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings

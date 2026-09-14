@@ -63,6 +63,12 @@ fn unwrap_quoted(value: &str, quote: char) -> Option<&str> {
 /// key is missing or empty. Nesting is decided by indentation and the first
 /// occurrence of a key wins.
 pub fn value(text: &str, key_path: &str) -> String {
+    found(text, key_path).unwrap_or_default()
+}
+
+/// [`value`], telling a key present with an empty value (`Some("")`) from a
+/// missing one (`None`), as `YAML_VALUE_FOUND` does.
+pub fn found(text: &str, key_path: &str) -> Option<String> {
     let keys: Vec<&str> = key_path.split('.').collect();
     let mut level = 0usize;
     let mut section_indent = 0usize;
@@ -82,20 +88,20 @@ pub fn value(text: &str, key_path: &str) -> String {
             }
         } else {
             if indent <= section_indent {
-                return String::new();
+                return None;
             }
             if key != keys[level] {
                 continue;
             }
         }
         if level + 1 == keys.len() {
-            return normalize_scalar(rest);
+            return Some(normalize_scalar(rest));
         }
         in_section = true;
         section_indent = indent;
         level += 1;
     }
-    String::new()
+    None
 }
 
 /// Items of the list at a dotted key path: a single-line `[a, b]` or a block
@@ -280,5 +286,17 @@ url: http://example.com/x#frag
     fn an_empty_block_key_takes_the_next_dash_list_like_bash_does() {
         let text = "tools:\n  enabled:\nother:\n  - stolen\n";
         assert_eq!(list(text, "tools.enabled"), ["stolen"]);
+    }
+
+    #[test]
+    fn found_tells_an_empty_value_from_a_missing_key() {
+        let text = "backup:\n  retention:\n  other: \"\"\n  note: # nothing\nkeep: x\n";
+        assert_eq!(found(text, "backup.retention"), Some(String::new()));
+        assert_eq!(found(text, "backup.other"), Some(String::new()));
+        assert_eq!(found(text, "backup.note"), Some(String::new()));
+        assert_eq!(found(text, "backup.missing"), None);
+        assert_eq!(found(text, "keep"), Some("x".to_string()));
+        assert_eq!(found(text, "backup"), Some(String::new()));
+        assert_eq!(found("backup: preserve\n", "backup.retention"), None);
     }
 }

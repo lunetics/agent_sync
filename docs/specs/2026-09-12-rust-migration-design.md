@@ -273,6 +273,9 @@ Grouped by the module they share, each group its own plan:
 
 - `yaml_edit` family: `enable`, `disable`, `customize`, `simplify`, `show`,
   `diff`, `resolve`, `profile`, `upgrade-config`.
+  Planned in three slices: 4a `enable` and `disable` with `yaml_edit` and
+  `edit_paths`; 4b `customize`, `show`, `diff`, `simplify`, `resolve` with
+  `snapshot`; 4c `profile` and `upgrade-config`.
 - `template_manifest` family: `init`, `refresh`, `dedupe`, `migrate`, `adopt`.
 - Standalone: `doctor` (keeps its tri-state exit code), `add`, `export`,
   `import`, `generate`, `shell-init`, `setup-hooks`.
@@ -388,6 +391,14 @@ cleanup has a list:
     `mode: strict` reads as `warn`: the reader answers the first `version_pin`
     key, so the nested lookup is empty and the scalar wins (`version.sh`,
     `version_pin_mode`).
+14. `enable` and `disable` edit `.ai/agent_sync.yaml`, or a root
+    `agent_sync.yaml`, even when `AGENTSYNC_CONFIG_PATH` selects another file,
+    while "already enabled" reads the selected one.
+15. `disable` creates `.ai/agent_sync.yaml` when the project has none.
+16. `enable` under a `tools:` block without `enabled:` appends a second `tools:`
+    block at the end of the file.
+17. `disable` lists every argument that is not enabled afterwards, unknown slugs
+    and repeated ones included.
 
 ## Accepted deviations
 

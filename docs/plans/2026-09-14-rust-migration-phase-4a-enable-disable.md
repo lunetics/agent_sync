@@ -1378,7 +1378,7 @@ git commit -m "feat(native): port enable and disable"
 **Files:**
 - Modify: `docs/specs/2026-09-12-rust-migration-design.md` (Phase 4 slices; known quirks 14–17), `.ai/src/skills/native-port/references/module-map.md`, `.ai/.sync-manifest`
 
-- [ ] **Step 1: Spec**
+- [x] **Step 1: Spec**
 
 In the Phase 4 section, after the `yaml_edit` family bullet:
 
@@ -1403,11 +1403,11 @@ Append to "Known quirks", numbered after the last entry:
 
 If the list's last number is not 13, renumber these four to follow it and use those numbers in the plan's decision 4.
 
-- [ ] **Step 2: Module map and outputs**
+- [x] **Step 2: Module map and outputs**
 
 In `.ai/src/skills/native-port/references/module-map.md`: set the `lib/helpers/yaml_edit.sh` row's note to `set_scalar, list_append, list_remove, find_key_line (Phase 4a); remove_key, rename_key wait for 4b`, the `lib/helpers/edit_paths.sh` row's note to `block for enable (Phase 4a); checklist waits for doctor`, and the `lib/helpers/enable.sh` row to `→ src/cli/enable.rs       Phase 4a, ported`. Regenerate outputs with `AGENTSYNC_NATIVE=0 AGENTSYNC_HOME="$PWD" bash bin/agentsync.sh sync --force`.
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -3
@@ -1423,7 +1423,7 @@ done
 
 Expected: `193 passed` and `11 passed`; lint exit 0; every line `bash=0 native=0`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/specs/2026-09-12-rust-migration-design.md .ai/src/skills/native-port/references/module-map.md .ai/.sync-manifest docs/plans/2026-09-14-rust-migration-phase-4a-enable-disable.md
@@ -1458,3 +1458,45 @@ The plan is closed when every box is ticked, `enable.bats` is green under `AGENT
 - Plan amended: counts are one lower than written (the interrupt test left the lib binary): Tasks 4 and 5 expect `192` lib tests plus `11` and `1` integration.
 - Next: Task 5 Step 1.
 - Blocker: none.
+
+### 2026-09-14 — Task 5 done, plan closed
+- Commits: "docs(native): map the phase 4a modules and quirks", carrying the receipt below.
+- Verified: see the receipt.
+- Plan amended: none.
+- Next: Phase 4b's plan (`customize`, `show`, `diff`, `simplify`, `resolve`).
+- Blocker: none.
+
+## Completion receipt
+
+### Decisions the review took
+
+All four as recommended, on 2026-09-14, under `/decide`.
+
+### Global Constraints
+
+| Constraint | Satisfied by |
+|---|---|
+| `enable` and `disable` write only the config, scaffolded copies, and legacy flags | `src/cli/enable.rs` writes through `yaml_edit::{list_append, list_remove, set_scalar}` and `std::fs::write` of `scaffoldable` copies; the three parity fixtures compare whole trees |
+| The only Bash change is Task 1's fix, with regression tests | `7749360` touches `lib/helpers/yaml_edit.sh` and `tests/enable.bats` (cases 14 and 15); ShellCheck exit 0 |
+| Byte-for-byte parity | `tests/native_parity.bats`: `parity: enable scaffolds, reports, and refuses like Bash`, `parity: disable edits block and inline lists and legacy flags like Bash`, `parity: enable and disable with an explicit config and outside source.tools` |
+| `unsafe_code = "forbid"`, fmt and clippy clean, no new dependency; `main.rs` alone reads environment and terminal | `Cargo.toml` unchanged; `prompts::is_tty` and `Project::discover` are called from `src/main.rs` only |
+| Disk-touching unit tests are `#[cfg(unix)]` | `src/edit_paths.rs` and `src/cli/enable.rs` test modules; `yaml_edit::tests::file_edits_write_beside_and_skip_a_listed_value` |
+| Expected values captured from Bash | `yaml_edit_reference.sh`, `remove_reference.sh` (candidate and committed function give identical output) |
+| Conventional Commits, at most 72 characters, no trailers | `de7137c`, `7749360`, `91846ba`, and the close commit; `2e66f85` came from another session |
+
+### Fresh verification, 2026-09-14, macOS arm64
+
+- `cargo test`: 192 passed (lib), 11 passed (cli), 1 passed (interrupt).
+- `cargo clippy --all-targets -- -D warnings`: exit 0. `cargo fmt --all --check`: exit 0.
+- `shellcheck -x -S warning -e SC1091 bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh`: exit 0.
+- bats, one file at a time, `AGENTSYNC_NATIVE=0` / `=1` failures: `enable` 0/0, `customize` 0/0, `config_safety` 0/0, `init` 0/0, `doctor` 0/0, `list` 0/0, `shared` 0/0, `profiles` 0/0, `sync_options` 0/0, `native_parity` 0/0.
+- Flake: `cargo test --lib` died of `SIGHUP` in 4 of 15 runs before `de7137c` and 0 of 15 after.
+- Mutation: `Run {} to clean up.` in `src/cli/enable.rs` failed the disable parity fixture; reverted, rebuilt.
+
+### Skipped, deferred, open
+
+- **Task 1's Bash fix is not on `main`.** Released 0.36.0 still reports "Disabled 1 tool(s)" without editing an inline `tools.enabled`; carrying `7749360` to `main` needs confirmation.
+- **`2e66f85`** was committed by another session with a non-`native` scope and before Task 1; history left unchanged.
+- **The interactive scaffold prompt** was not exercised on a terminal: bats and the parity suite run without one.
+- **Full-suite runs** stay off on this machine; the files listed are those that run `enable` or `disable`.
+- **Not pushed.**

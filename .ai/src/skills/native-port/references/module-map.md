@@ -36,11 +36,11 @@ lib/helpers/shared.sh            → src/overlay.rs          shared, base-src, a
 lib/helpers/gitignore.sh         → src/gitignore.rs        managed block between START/END markers
 lib/helpers/backup.sh            → src/backup.rs           same on-disk layout; create, restore, latest, list, prune; backup.retention (configure, Retention), validated before sync and rollback write
 lib/helpers/backup_state.sh      → src/witness.rs          after.tsv post-state-v2: print, seal, preflight, first difference
-lib/helpers/yaml_edit.sh         → src/yaml_edit.rs        line-oriented, comment-preserving, atomic write
+lib/helpers/yaml_edit.sh         → src/yaml_edit.rs        set_scalar, list_append, list_remove, find_key_line (Phase 4a); remove_key, rename_key wait for 4b
 lib/helpers/template_manifest.sh → src/template_manifest.rs
 lib/helpers/snapshot.sh          → src/snapshot.rs         install-dir catalog snapshot for update/resolve
 lib/helpers/prompts.sh           → src/prompts.rs          confirm on /dev/tty (Phase 3); multiselect waits for Phase 4
-lib/helpers/edit_paths.sh        → src/edit_paths.rs
+lib/helpers/edit_paths.sh        → src/edit_paths.rs       block for enable (Phase 4a); checklist waits for doctor
 
 Commands
 lib/helpers/list.sh              → src/cli/list.rs         Phase 1
@@ -48,7 +48,7 @@ lib/check.sh                     → src/cli/check.rs        render + compare, n
 lib/sync.sh                      → src/render.rs (stages) + src/cli/sync.rs (transaction); Phase 3, ported
 bin/agentsync.sh workspace fan-out → src/cli/workspace.rs  Phase 3, ported
 lib/helpers/backup.sh (rollback) → src/cli/rollback.rs     Phase 3, ported; preflight, --force, sealed safety snapshot
-lib/helpers/enable.sh            → src/cli/enable.rs       Phase 4, yaml_edit family
+lib/helpers/enable.sh            → src/cli/enable.rs       Phase 4a, ported
 lib/helpers/customize.sh         → src/cli/{customize,show,diff}.rs
 lib/helpers/simplify.sh          → src/cli/simplify.rs
 lib/helpers/resolve_cmd.sh       → src/cli/resolve.rs

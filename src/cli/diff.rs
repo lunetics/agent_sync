@@ -21,7 +21,7 @@ const USAGE: &str = "Usage: agentsync diff [<slug>] [<resource>]
                Default: tool (the YAML config).
 ";
 
-const KEYS: [&str; 26] = [
+pub(crate) const KEYS: [&str; 26] = [
     "name",
     "enabled",
     "targets.agents.dest",

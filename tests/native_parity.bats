@@ -706,3 +706,14 @@ assert_tree_parity() {
     rm .ai/src/tools/cursor/mcp.json
     assert_tree_parity simplify --apply
 }
+
+@test "parity: resolve reports read-only and clears the pending queue like Bash" {
+    enable_tools cursor
+    printf '# q\nconflicts:\n  - tool: "cursor"\n    field: "targets.rules.dest"\n' > .ai/.pending-resolutions.yaml
+    assert_tree_parity resolve
+    _run_engine 0 customize cursor >/dev/null
+    printf 'targets:\n  rules:\n    dest: ".mine"\n' >> .ai/src/tools/cursor.yaml
+    assert_tree_parity resolve
+    assert_tree_parity resolve nope
+    assert_tree_parity resolve --bogus
+}

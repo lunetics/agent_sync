@@ -881,7 +881,7 @@ git commit -m "feat(native): port simplify"
 - Consumes: Task 1, `cli::diff::KEYS`, `cli::customize::{put, relative}`.
 - Produces: `pub fn resolve(args: &[String], discover: &dyn Fn() -> Result<Project, Error>, style: &Style, interactive: bool, ask: &mut dyn FnMut(&str, &mut dyn Write) -> String, out: &mut dyn Write, err: &mut dyn Write) -> Result<u8, Error>`
 
-- [ ] **Step 1: Parity fixture, Bash side**
+- [x] **Step 1: Parity fixture, Bash side**
 
 ```bash
 @test "parity: resolve reports read-only and clears the pending queue like Bash" {
@@ -899,7 +899,7 @@ git commit -m "feat(native): port simplify"
 Run: `bats --tap -f 'resolve reports' tests/native_parity.bats`
 Expected: `ok`.
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Create `src/cli/resolve.rs` with the tests module only; add `pub mod resolve;`:
 
@@ -985,7 +985,7 @@ Before running, confirm the prompt spacing against Bash: `printf "        %s " "
 Run: `cargo test --lib cli::resolve 2>&1 | grep -E '^error' | sort | uniq -c`
 Expected: `cannot find function 'resolve'`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 In `src/cli/diff.rs` change `const KEYS` to `pub(crate) const KEYS`.
 
@@ -1167,7 +1167,7 @@ In `src/main.rs`: add `"resolve"` to the raw dispatch and the branch
 
 In `bin/agentsync.sh:280` append `resolve`.
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -4
@@ -1177,7 +1177,7 @@ bats --tap -f 'resolve reports' tests/native_parity.bats
 
 Expected: `205 passed`, `0`, `11`, `1`; `ok`.
 
-- [ ] **Step 5: Prove the fixture bites, lint, commit**
+- [x] **Step 5: Prove the fixture bites, lint, commit**
 
 Change `"No user overrides — nothing to resolve."` to `"No overrides — nothing to resolve."`, rebuild, rerun the fixture: `not ok` with that diff; revert and rebuild.
 
@@ -1264,4 +1264,11 @@ The plan is closed when every box is ticked, `simplify.bats` is green under `AGE
 - Verified: with `resolve` parked outside the tree so the commit builds alone: `cargo test` 203 lib; fmt and clippy exit 0; the fixture `ok` on the Bash side and with `simplify` native; `AGENTSYNC_NATIVE=1 bats tests/simplify.bats` 16 `ok`. Mutation: `would drop` failed the fixture with that diff; reverted, rebuilt.
 - Plan amended: the raw-dispatch comment in `src/main.rs` now names every command it covers.
 - Next: Task 3 Step 1 (the parked module goes back first).
+- Blocker: none.
+
+### 2026-09-15 — Task 3 done
+- Commits: "feat(native): port resolve".
+- Verified: `cargo test` 205 lib, 11 cli, 1 interrupt; fmt and clippy exit 0; the fixture `ok` on the Bash side and with `resolve` native. Mutation: `No overrides — nothing to resolve.` failed the fixture with that diff; reverted, rebuilt. The interactive walk is covered by `an_interactive_walk_adopts_keeps_and_marks_flagged_fields` only; no terminal session was run.
+- Plan amended: none.
+- Next: Task 4 Step 1.
 - Blocker: none.

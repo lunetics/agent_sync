@@ -3,6 +3,7 @@ pub mod customize;
 pub mod diff;
 pub mod enable;
 pub mod list;
+pub mod resolve;
 pub mod rollback;
 pub mod show;
 pub mod simplify;

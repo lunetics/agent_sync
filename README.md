@@ -656,7 +656,7 @@ Sources outside the project follow these rules:
   symlink such as `.ai/src/rules -> /elsewhere` is refused.
 - **Refused roots.** A value that resolves to `/`, your home directory, the
   project root, or a directory containing the project root is rejected before
-  anything is written, and `doctor` reports it.
+  anything is written; `doctor` reports it for every key except `tools`.
 - **Relative to the project root.** Relative values resolve from the project
   root, including when `AGENTSYNC_CONFIG_PATH` selects a config file stored
   elsewhere and inside `check`'s temporary workspace.

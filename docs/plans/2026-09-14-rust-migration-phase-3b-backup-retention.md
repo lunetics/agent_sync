@@ -702,7 +702,7 @@ git commit -m "feat(native): validate and honour backup.retention in rollback"
 - Modify: `tests/native_parity.bats` (fixture after `parity: sync fails closed …`)
 - Modify: `.ai/src/skills/native-port/references/module-map.md`, `.ai/.sync-manifest`
 
-- [ ] **Step 1: Write the fixture**
+- [x] **Step 1: Write the fixture**
 
 ```bash
 @test "parity: backup.retention in sync and rollback" {
@@ -728,7 +728,7 @@ git commit -m "feat(native): validate and honour backup.retention in rollback"
 
 `assert_tree_parity` compares trees outside `.ai/backups`; the preserved history is covered by `backup_retention.bats`, whose Bash and native runs both assert it.
 
-- [ ] **Step 2: Run it and prove it bites**
+- [x] **Step 2: Run it and prove it bites**
 
 ```bash
 cargo build --release
@@ -737,11 +737,11 @@ bats --tap -f 'backup.retention' tests/native_parity.bats
 
 Expected: `ok`. Then change `"; expected bounded or preserve"` to `"; expected bounded or preserve!"` in `src/backup.rs`, rebuild, rerun: `not ok` with a diff naming `preserve!`; revert and rebuild.
 
-- [ ] **Step 3: Module map**
+- [x] **Step 3: Module map**
 
 In `.ai/src/skills/native-port/references/module-map.md`, append to the Tier 2 line for `lib/helpers/manifest.sh`'s neighbour the backup entry, or, when the map lists `lib/helpers/backup.sh`, extend it with `; backup.retention (configure, Retention), validated before sync and rollback write`. Regenerate outputs with `AGENTSYNC_NATIVE=0 AGENTSYNC_HOME="$PWD" bash bin/agentsync.sh sync --force`.
 
-- [ ] **Step 4: Verify the family**
+- [x] **Step 4: Verify the family**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -3
@@ -757,7 +757,7 @@ done
 
 Expected: `171 passed` and `11 passed`; lint exit 0; every line `bash=0 native=0` except `native_parity bash=1 native=1` (family 4's rollback usage fixture).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add tests/native_parity.bats .ai/src/skills/native-port/references/module-map.md .ai/.sync-manifest docs/plans/2026-09-14-rust-migration-phase-3b-backup-retention.md

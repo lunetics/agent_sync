@@ -473,6 +473,25 @@ assert_tree_parity() {
     assert_tree_parity sync
 }
 
+@test "parity: backup.retention in sync and rollback" {
+    enable_tools claude
+    mkdir -p .ai/backups/20200101T000000Z-sync-1/files .ai/backups/.tmp.sync.abandoned
+    printf 'schema=1\noperation=sync\ncreated_at=20200101T000000Z\n' > .ai/backups/20200101T000000Z-sync-1/metadata
+    : > .ai/backups/20200101T000000Z-sync-1/targets.tsv
+    : > .ai/backups/20200101T000000Z-sync-1/.complete
+    touch -t 202001010000 .ai/backups/.tmp.sync.abandoned
+    printf 'backup:\n  retention: typo\n' >> .ai/agent_sync.yaml
+    assert_tree_parity sync
+    sed 's/retention: typo/retention: preserve/' .ai/agent_sync.yaml > .ai/agent_sync.yaml.tmp
+    mv .ai/agent_sync.yaml.tmp .ai/agent_sync.yaml
+    AGENTSYNC_BACKUP_LIMIT=1 AGENTSYNC_BACKUP_MAX_AGE_DAYS=1 assert_tree_parity sync
+    AGENTSYNC_BACKUP_LIMIT=typo assert_tree_parity sync
+    _bash_sync
+    AGENTSYNC_BACKUP_LIMIT=1 assert_tree_parity rollback --yes
+    AGENTSYNC_CONFIG_PATH=missing.yaml assert_tree_parity rollback --yes
+    AGENTSYNC_CONFIG_PATH=missing.yaml assert_tree_parity rollback --list
+}
+
 @test "parity: rollback plans, restores, and refuses like Bash" {
     enable_tools claude
     printf 'before-sync\n' > CLAUDE.md

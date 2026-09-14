@@ -34,7 +34,7 @@ lib/helpers/format_conversion.sh → src/convert.rs          frontmatter and per
 lib/helpers/opencode.sh          → src/opencode_json.rs    awk composer, exit codes 20-26
 lib/helpers/shared.sh            → src/overlay.rs          shared, base-src, and profile overlays; shared parent merge for check
 lib/helpers/gitignore.sh         → src/gitignore.rs        managed block between START/END markers
-lib/helpers/backup.sh            → src/backup.rs           same on-disk layout; create, restore, latest, list, prune
+lib/helpers/backup.sh            → src/backup.rs           same on-disk layout; create, restore, latest, list, prune; backup.retention (configure, Retention), validated before sync and rollback write
 lib/helpers/yaml_edit.sh         → src/yaml_edit.rs        line-oriented, comment-preserving, atomic write
 lib/helpers/template_manifest.sh → src/template_manifest.rs
 lib/helpers/snapshot.sh          → src/snapshot.rs         install-dir catalog snapshot for update/resolve

@@ -727,7 +727,7 @@ _rollback_cleanup() {
         echo "Warning: Rollback failed; restoring the state from before rollback..." >&2
         if backup_restore "$ROLLBACK_ROOT" "$ROLLBACK_SAFETY_PATH"; then
             backup_seal "$ROLLBACK_ROOT" "$ROLLBACK_SAFETY_PATH" || \
-                echo "Warning: Recovery has no verified post-operation state." >&2
+                echo "Warning: Could not record the restored state ($BACKUP_SEAL_REASON); rolling back backup $(basename "$ROLLBACK_SAFETY_PATH") cannot detect later changes." >&2
             echo "Restored pre-rollback state from ${ROLLBACK_SAFETY_PATH#"$ROLLBACK_ROOT"/}" >&2
         else
             echo "Error: Recovery failed. Safety backup retained at ${ROLLBACK_SAFETY_PATH#"$ROLLBACK_ROOT"/}" >&2
@@ -912,10 +912,12 @@ cmd_rollback() {
     trap '_rollback_on_signal HUP 1' HUP
 
     backup_restore "$root" "$snapshot"
-    backup_seal "$root" "$safety" || return 1
 
     # Handler stays armed; the flag above is what gates the safety restore.
     ROLLBACK_TRANSACTION_ACTIVE="false"
+    if ! backup_seal "$root" "$safety"; then
+        echo "Warning: Could not record the post-rollback state ($BACKUP_SEAL_REASON); rolling back backup $(basename "$safety") cannot detect later changes." >&2
+    fi
     if ! backup_prune "$root"; then
         echo "Warning: Could not prune old AgentSync backups." >&2
     fi

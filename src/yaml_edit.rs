@@ -224,6 +224,41 @@ pub fn list_remove_text(text: &str, key_path: &str, value: &str) -> Option<Strin
     Some(out)
 }
 
+/// `yaml_remove_key` on text: the key line, then every blank line and every
+/// line indented deeper than the key until the first one that is not.
+pub fn remove_key_text(text: &str, key_path: &str) -> Option<String> {
+    let (key_lineno, key_indent) = find_key_line(text, key_path)?;
+    let mut out = String::new();
+    let mut skipping = false;
+    for (index, line) in lines(text).into_iter().enumerate() {
+        if index + 1 == key_lineno {
+            skipping = true;
+            continue;
+        }
+        if skipping {
+            let (indent, stripped) = split_indent(line);
+            if stripped.is_empty() || indent > key_indent {
+                continue;
+            }
+            skipping = false;
+        }
+        out.push_str(line);
+        out.push('\n');
+    }
+    Some(out)
+}
+
+/// `yaml_remove_key`.
+pub fn remove_key(file: &Path, key_path: &str) -> Result<(), Error> {
+    let Some(text) = read_existing(file)? else {
+        return Ok(());
+    };
+    match remove_key_text(&text, key_path) {
+        Some(updated) => staging::write_beside(file, updated.as_bytes()),
+        None => Ok(()),
+    }
+}
+
 fn read_existing(file: &Path) -> Result<Option<String>, Error> {
     if !file.is_file() {
         return Ok(None);
@@ -415,5 +450,35 @@ mod tests {
         );
         list_remove(&dir.path().join("missing.yaml"), "tools.enabled", "claude").unwrap();
         assert!(!dir.path().join("missing.yaml").exists());
+    }
+
+    #[test]
+    fn remove_key_drops_the_block_and_the_blank_lines_right_after_it() {
+        let cases: [(&str, &str, &str); 4] = [
+            (
+                "name: \"X\"\nenabled: true\n\ntargets:\n  rules:\n    dest: \".r\"\n    # note\n\n    extension: \".md\"\n  skills:\n    dest: \".s\"\n",
+                "targets.rules.dest",
+                "name: \"X\"\nenabled: true\n\ntargets:\n  rules:\n    # note\n\n    extension: \".md\"\n  skills:\n    dest: \".s\"\n",
+            ),
+            (
+                "name: \"X\"\ntargets:\n  rules:\n    dest: \".r\"\n\n  # c\n  skills:\n    dest: \".s\"\n",
+                "targets.rules",
+                "name: \"X\"\ntargets:\n  # c\n  skills:\n    dest: \".s\"\n",
+            ),
+            ("name: \"X\"\n\nenabled: true", "name", "enabled: true\n"),
+            (
+                "post_sync:\n  - a\n  - b\n# tail\nx: 1",
+                "post_sync",
+                "# tail\nx: 1\n",
+            ),
+        ];
+        for (text, key, expected) in cases {
+            assert_eq!(
+                remove_key_text(text, key).as_deref(),
+                Some(expected),
+                "{key}"
+            );
+        }
+        assert_eq!(remove_key_text("a: 1\n", "missing.key"), None);
     }
 }

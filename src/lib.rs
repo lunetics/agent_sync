@@ -24,6 +24,7 @@ pub mod prompts;
 pub mod render;
 pub mod rules;
 pub mod session;
+pub mod snapshot;
 pub mod staging;
 pub mod style;
 pub mod text;

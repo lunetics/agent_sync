@@ -21,6 +21,14 @@ pub fn confirm(question: &str, default_yes: bool) -> bool {
     answer_is_yes(&reply, default_yes)
 }
 
+/// A line typed on the terminal device, without its newline; empty when none
+/// can be read, as `read -r answer < /dev/tty || answer=""` leaves it.
+pub fn read_terminal() -> String {
+    read_terminal_line()
+        .map(|line| line.strip_suffix('\n').unwrap_or(&line).to_string())
+        .unwrap_or_default()
+}
+
 fn answer_is_yes(reply: &str, default_yes: bool) -> bool {
     let reply = reply.trim_matches([' ', '\t', '\n']).to_lowercase();
     match reply.as_str() {

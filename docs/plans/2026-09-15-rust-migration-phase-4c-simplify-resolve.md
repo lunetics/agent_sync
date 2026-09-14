@@ -50,7 +50,7 @@ Reused: `yaml_edit::find_key_line`, `project::Project`, `tool::Tool`, `catalog`,
 
 **Files:** none changed.
 
-- [ ] **Step 1: Record the baseline**
+- [x] **Step 1: Record the baseline**
 
 ```bash
 git log --oneline -1
@@ -80,7 +80,7 @@ Expected: this plan's commit; `199 passed`, `0 passed`, `11 passed`, `1 passed`;
   - `snapshot::clear_pending(root: &Path)`
   - `prompts::read_terminal() -> String` — one line from the terminal device, newline stripped, empty on failure
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append inside the tests module of `src/yaml_edit.rs`:
 
@@ -139,12 +139,12 @@ mod tests {
 }
 ```
 
-- [ ] **Step 2: Run the tests, confirm they fail**
+- [x] **Step 2: Run the tests, confirm they fail**
 
 Run: `cargo test --lib 2>&1 | grep -E '^error' | sort | uniq -c`
 Expected: `cannot find function` for `remove_key_text`, `read_pending_pairs`, and `clear_pending`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `src/yaml_edit.rs`, after `list_remove_text`:
 
@@ -263,12 +263,12 @@ pub fn read_terminal() -> String {
 }
 ```
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 Run: `cargo test 2>&1 | grep 'test result' | head -4`
 Expected: `201 passed`, `0`, `11`, `1`.
 
-- [ ] **Step 5: Lint and commit**
+- [x] **Step 5: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings
@@ -1250,4 +1250,11 @@ The plan is closed when every box is ticked, `simplify.bats` is green under `AGE
 - Verified: `scratchpad/phase4/simplify_reference.sh` ran `simplify`, `resolve`, and `yaml_remove_key` in Bash (output in `simplify_reference.out`); no `tests/*.bats` file runs `resolve`, so the parity fixture is its only CLI coverage.
 - Plan amended: none.
 - Next: Task 0 Step 1.
+- Blocker: none.
+
+### 2026-09-15 — Tasks 0 and 1 done
+- Commits: "feat(native): port yaml_remove_key and the pending-resolution reader".
+- Verified: Task 0 at `9074ff3`: `simplify`, `update_snapshot`, `customize`, `native_parity` all `bash=0`. Task 1: `cargo test` 201 lib, 11 cli, 1 interrupt; fmt and clippy exit 0.
+- Plan amended: none.
+- Next: Task 2 Step 1 (Tasks 2 and 3 are written and pass `cargo test` at 205).
 - Blocker: none.

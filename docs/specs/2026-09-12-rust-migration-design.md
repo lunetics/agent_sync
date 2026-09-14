@@ -405,6 +405,15 @@ cleanup has a list:
     differs from the shipped template's.
 20. `diff` selects the project config before it validates the resource;
     `customize` and `show` validate first.
+21. `simplify`'s payload pass scans `.ai/src/tools` even when `source.tools`
+    moves the tool override directory.
+22. `resolve` without a terminal ignores its tool filter and exits 0.
+23. `yaml_remove_key` (`simplify --apply`, `resolve` adopt) drops the blank
+    lines directly after the removed block.
+24. `resolve` in a project without overrides deletes
+    `.ai/.pending-resolutions.yaml`, terminal or not.
+25. `simplify --apply` without a terminal deletes byte-identical payload copies
+    but keeps an override file it emptied.
 
 ## Accepted deviations
 

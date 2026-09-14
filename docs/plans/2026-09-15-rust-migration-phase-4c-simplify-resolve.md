@@ -1194,7 +1194,7 @@ git commit -m "feat(native): port resolve"
 **Files:**
 - Modify: `docs/specs/2026-09-12-rust-migration-design.md`, `.ai/src/skills/native-port/references/module-map.md`, `.ai/.sync-manifest`
 
-- [ ] **Step 1: Spec**
+- [x] **Step 1: Spec**
 
 Append to "Known quirks":
 
@@ -1210,11 +1210,11 @@ Append to "Known quirks":
     but keeps an override file it emptied.
 ```
 
-- [ ] **Step 2: Module map and outputs**
+- [x] **Step 2: Module map and outputs**
 
 Set the `lib/helpers/simplify.sh` row to `→ src/cli/simplify.rs     Phase 4c, ported`, the `lib/helpers/resolve_cmd.sh` row to `→ src/cli/resolve.rs      Phase 4c, ported`, the `lib/helpers/snapshot.sh` row's note to `read_pending_pairs, clear_pending (Phase 4c); save, diff, conflicts wait for update`, and extend the `lib/helpers/yaml_edit.sh` row's note with `, remove_key (Phase 4c)` in place of `remove_key` in its waiting list. Regenerate outputs with `AGENTSYNC_NATIVE=0 AGENTSYNC_HOME="$PWD" bash bin/agentsync.sh sync --force`.
 
-- [ ] **Step 3: Verify (outside the agent sandbox, since `native_parity` reaches `diff`)**
+- [x] **Step 3: Verify (outside the agent sandbox, since `native_parity` reaches `diff`)**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -4
@@ -1230,7 +1230,7 @@ done
 
 Expected: `205 passed`, `0`, `11`, `1`; lint exit 0; every line `bash=0 native=0`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/specs/2026-09-12-rust-migration-design.md .ai/src/skills/native-port/references/module-map.md .ai/.sync-manifest docs/plans/2026-09-15-rust-migration-phase-4c-simplify-resolve.md
@@ -1272,3 +1272,43 @@ The plan is closed when every box is ticked, `simplify.bats` is green under `AGE
 - Plan amended: none.
 - Next: Task 4 Step 1.
 - Blocker: none.
+
+### 2026-09-15 — Task 4 done, plan closed
+- Commits: "docs(native): map the phase 4c modules and quirks", carrying the receipt below.
+- Verified: see the receipt.
+- Plan amended: none.
+- Next: Phase 4d's plan (`profile` and `upgrade-config`).
+- Blocker: none.
+
+## Completion receipt
+
+### Decisions the review took
+
+All three as recommended, on 2026-09-15, under `/decide`.
+
+### Global Constraints
+
+| Constraint | Satisfied by |
+|---|---|
+| `simplify --apply` and `resolve` remove only what Bash removes; a dry run writes nothing | `src/cli/simplify.rs`, `src/cli/resolve.rs`; the parity fixtures compare whole trees after dry runs and applies |
+| No Bash change | `git diff --stat 9074ff3..HEAD -- lib` is empty; ShellCheck exit 0 |
+| Byte-for-byte parity | `tests/native_parity.bats`: `parity: simplify previews and applies like Bash`, `parity: resolve reports read-only and clears the pending queue like Bash` |
+| `unsafe_code = "forbid"`, fmt and clippy clean, no new dependency; `main.rs` alone reads terminal state | `Cargo.toml` unchanged; `prompts::is_tty` and `prompts::read_terminal` are called from `src/main.rs` |
+| Disk-touching unit tests are `#[cfg(unix)]` | `src/snapshot.rs`, `src/cli/simplify.rs`, `src/cli/resolve.rs` test modules |
+| Expected values from Bash | `simplify_reference.out` |
+| Conventional Commits, at most 72 characters, no trailers | `9074ff3` … the close commit |
+
+### Fresh verification, 2026-09-15, macOS arm64, outside the agent sandbox
+
+- `cargo test`: 205 passed (lib), 11 passed (cli), 1 passed (interrupt).
+- `cargo clippy --all-targets -- -D warnings`: exit 0. `cargo fmt --all --check`: exit 0.
+- `shellcheck -x -S warning -e SC1091 bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh`: exit 0.
+- bats, one file at a time, `AGENTSYNC_NATIVE=0` / `=1` failures: `simplify` 0/0 (16 cases), `update_snapshot` 0/0, `customize` 0/0, `native_parity` 0/0.
+- Mutations: `would drop` in `simplify` and `No overrides — nothing to resolve.` in `resolve` each failed their fixture with that diff; reverted, rebuilt.
+
+### Skipped, deferred, open
+
+- **The interactive branches** (the `simplify` delete prompts and the `resolve` walk) are covered by unit tests with scripted answers; no terminal session was run, and the prompt spacing on a terminal is unverified.
+- **No bats file runs `resolve`**; the parity fixture is its only CLI coverage.
+- **Full-suite runs** stay off on this machine.
+- **Not pushed.**

@@ -5,6 +5,8 @@ Status: In progress since 2026-09-12. Phases 1 and 2 are closed in
 `docs/plans/2026-09-12-rust-migration-phase-1-native-list.md` and
 `docs/plans/2026-09-13-rust-migration-phase-2-native-check.md`; Phase 3 is
 planned in `docs/plans/2026-09-14-rust-migration-phase-3-native-sync.md`.
+Phase 3b ports release 0.36.0's Bash changes, one plan per family, starting
+with `docs/plans/2026-09-14-rust-migration-phase-3b-config-and-pin.md`.
 
 ## Objective
 
@@ -237,6 +239,33 @@ gate, `--dry-run`, `--force`, `--only`, `--skip`, `--profile`, `--if-stale`,
 signal-safe restore. Exit: `sync`, `check`, `rollback` bats files and
 `drift`, `outputs_mode`, `team_workflow`, `workspace`, `version_pin` green
 natively; `sync` on the 13-tool fixture measured and recorded.
+
+### Phase 3b — Bash 0.36.0 behaviour in `sync`, `check`, `list`, and `rollback`
+
+Release 0.36.0 changed ported commands in Bash on `main` while Phase 3 was
+closing, and `main` was merged into the migration branch afterwards. Each family
+below gets its own plan, in this order, because the later ones read the config
+the first one selects:
+
+1. **Config selection and the version pin.** `project_config_path_r` (an
+   explicit `AGENTSYNC_CONFIG_PATH` never falls back), the configless-sync
+   refusal, `version_pin.mode: warn | strict` with its scalar shorthand, and
+   `check`'s committed-mode rule for `gitignore.update: false`, in `sync`,
+   `check`, and `list`.
+2. **Backup retention.** `backup.retention: bounded | preserve`, validated
+   before `init`, `sync`, and a rollback restore write, skipped by `check` and
+   `rollback --list`.
+3. **Sources outside the project.** Explicit `source.*` roots trusted through
+   `AGENTSYNC_EXTERNAL_SOURCE_ROOTS`, refused roots, `source.tools` for tool
+   YAML and payloads, and the refusal of source symlinks that escape the
+   project.
+4. **The rollback witness.** `after.tsv` (`post-state-v2`) sealed after `init`,
+   `sync`, and `rollback`, the preflight that names the first changed path,
+   `rollback --force`, and unsealed snapshots restored with a warning.
+
+Exit: `config_safety`, `version_pin`, `backup_retention`, `source_overrides`,
+and `rollback_preflight` green natively, `tests/native_parity.bats` green in
+both modes, and each family's parity fixtures in place.
 
 ### Phase 4 — Remaining commands
 

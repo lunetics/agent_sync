@@ -1118,3 +1118,42 @@ The family is closed when every box is ticked, `rollback_preflight.bats` is gree
 - Plan amended: a third accepted deviation for sockets and device files under a target, from Task 1b.
 - Next: Phase 4's first plan, the `yaml_edit` family, following `.ai/src/commands/native-phase-plan.md`.
 - Blocker: none.
+
+## Completion receipt
+
+### Decisions the review took
+
+All three as recommended, on 2026-09-14, by the maintainer's instruction to proceed without waiting.
+
+### Global Constraints
+
+| Constraint | Satisfied by |
+|---|---|
+| A refused rollback writes nothing; a late refusal removes the safety snapshot and restores `.latest` | `src/cli/rollback.rs` reports a first-pass conflict before the plan and calls `backup::discard_safety` on a second-pass conflict; `rollback_preflight.bats` 1–8, 13, 22 native `ok` with tree checkpoints |
+| No binary ships; no Bash change under `lib/` or `bin/` | `git diff --stat b9669f6..HEAD -- lib bin` is empty; ShellCheck exit 0 |
+| Byte-for-byte parity including `after.tsv` | `tests/native_parity.bats`: `parity: rollback conflicts, --force, and unsealed snapshots`, `parity: rollback plans, restores, and refuses like Bash`, and `cmp` of the two engines' `after.tsv` in `parity: a backup the native sync writes is restored by the Bash rollback` |
+| `unsafe_code = "forbid"`, fmt and clippy clean, no new dependency; hashes from `manifest::sha256_hex` | `Cargo.toml` and `Cargo.lock` unchanged; `src/witness.rs` imports `manifest::sha256_hex` |
+| Disk-touching unit tests are `#[cfg(unix)]` | `src/witness.rs` and `src/cli/rollback.rs` test modules are `#[cfg(all(test, unix))]`; `src/backup.rs` likewise |
+| `init` stays Bash and its seal is read natively | `rollback_preflight.bats` 21 ("supports sealed init snapshots and their undo") native `ok` |
+| Conventional Commits, at most 72 characters, no trailers | `7383577` … `5c69e27`, longest subject 68 characters |
+
+### Fresh verification, 2026-09-14, macOS arm64
+
+- `cargo test`: 185 passed (unit), 11 passed (integration).
+- `cargo clippy --all-targets -- -D warnings`: exit 0. `cargo fmt --all --check`: exit 0.
+- `shellcheck -x -S warning -e SC1091 bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh`: exit 0.
+- bats, one file at a time, `AGENTSYNC_NATIVE=0` / `=1` failures: `rollback_preflight` 0/0 (30 cases; 29 and 30 skipped natively by decision 1; 23 failures and a hang at the baseline), `rollback` 0/0, `backup` 0/0, `backup_retention` 0/0, `baseline` 0/0, `config_safety` 0/0, `version_pin` 0/0, `source_overrides` 0/0, `sync` 0/0, `check` 0/0, `list` 0/0, `native_parity` 0/0.
+- TAP files checked for real runs: native `rollback_preflight` plan `1..30`, 30 `ok`, 2 `# skip`; native `sync` 55 `ok`.
+- Mutations: `; nothing was changed.` in `src/cli/rollback.rs` failed `parity: rollback conflicts, --force, and unsealed snapshots` with that diff; before the FIFO fix, `a_fifo_under_a_target_is_recreated_not_read` ran past 40 seconds. Both reverted or fixed and rebuilt.
+
+### Phase 3b exit
+
+The spec's exit is met: `config_safety`, `version_pin`, `backup_retention`, `source_overrides`, and `rollback_preflight` green natively, `tests/native_parity.bats` green in both modes, and each family's parity fixtures in place (`parity: config selection and version_pin.mode in check and list`, `parity: sync fails closed on config selection and enforces version_pin.mode`, `parity: backup.retention in sync and rollback`, `parity: sources outside the project and escaping source links`, `parity: rollback conflicts, --force, and unsealed snapshots`).
+
+### Skipped, deferred, open
+
+- **The FIFO hang was a Phase 3 bug.** A native `sync` or `rollback` blocked forever on a FIFO under a target; the "killed for low memory" `rollback_preflight` run of 2026-09-14 was this hang. Fixed in `4a49211`; sockets and devices are skipped (accepted deviation).
+- **A trapped signal cannot interrupt a blocked system call**, by the Phase 3 design (flags checked between steps). No other blocking open is known.
+- **Full-suite runs** stay off on this machine; `init`-, `doctor`-, and `drift`-owned files that touch backups ran only where listed.
+- **Timings.** Not measured: a seal adds one walk and hash of the targets after `sync`, as Bash does.
+- **Not pushed.** The migration branch carries Phase 3 and all of Phase 3b locally.

@@ -867,14 +867,7 @@ _resolve_sources() {
     [[ -n "$override_commands" ]] && SOURCE_COMMANDS="$override_commands"
     [[ -n "$override_subagents" ]] && SOURCE_SUBAGENTS="$override_subagents"
 
-    # shellcheck disable=SC2034  # consumed by paths.sh's source allowlist
-    CONFIGURED_SOURCE_ROOTS=()
-    register_configured_source_root "$SOURCE_AGENTS"
-    register_configured_source_root "$SOURCE_RULES"
-    register_configured_source_root "$SOURCE_SKILLS"
-    register_configured_source_root "$SOURCE_TOOLS"
-    register_configured_source_root "$SOURCE_COMMANDS"
-    register_configured_source_root "$SOURCE_SUBAGENTS"
+    register_explicit_source_roots "$PROJECT_CONFIG_PATH" || exit 1
 
     local source_agents_abs
     source_agents_abs=$(resolve_source_path "$SOURCE_AGENTS" "source.agents")

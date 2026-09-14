@@ -12,6 +12,35 @@ teardown() {
     if [[ -n "${EXTERNAL_TOOLS_ROOT:-}" ]]; then
         _rm_rf_resilient "$EXTERNAL_TOOLS_ROOT"
     fi
+    if [[ -n "${OUTSIDE_ROOT:-}" ]]; then
+        _rm_rf_resilient "$OUTSIDE_ROOT"
+    fi
+}
+
+write_project_sources() {
+    mkdir -p "$TEST_PROJECT/.ai/src/rules" "$TEST_PROJECT/.ai/src/skills/project-skill"
+    printf '%s\n' '# Project Agent' > "$TEST_PROJECT/.ai/src/AGENTS.md"
+    printf '%s\n' '# Project Rule' > "$TEST_PROJECT/.ai/src/rules/project.md"
+    printf '%s\n' '---' 'name: project-skill' 'description: project fixture skill' '---' '' '# Project Skill' \
+        > "$TEST_PROJECT/.ai/src/skills/project-skill/SKILL.md"
+}
+
+# Write .ai/agent_sync.yaml enabling Claude, with source.rules set when given.
+write_rules_config() {
+    local rules_source="${1:-}"
+    mkdir -p "$TEST_PROJECT/.ai"
+    {
+        printf '%s\n' 'format: 2' 'outputs: committed' 'tools:' '  enabled:' '    - claude'
+        if [[ -n "$rules_source" ]]; then
+            printf '%s\n' 'source:' "  rules: \"$rules_source\""
+        fi
+    } > "$TEST_PROJECT/.ai/agent_sync.yaml"
+}
+
+make_outside_rules() {
+    OUTSIDE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_outside.XXXXXX")"
+    mkdir -p "$OUTSIDE_ROOT/rules"
+    printf '%s\n' '# Outside Rule' > "$OUTSIDE_ROOT/rules/outside.md"
 }
 
 write_external_fixture() {
@@ -200,4 +229,53 @@ run_external_sync() {
     [ "$status" -eq 0 ]
     [ -f "$TEST_PROJECT/sources/tools/claude-hub.yaml" ]
     grep -q '^base: claude$' "$TEST_PROJECT/sources/tools/claude-hub.yaml"
+}
+
+@test "source containment: default config refuses a .ai/src symlink that escapes the project" {
+    write_project_sources
+    make_outside_rules
+    _rm_rf_resilient "$TEST_PROJECT/.ai/src/rules"
+    create_test_symlink "$OUTSIDE_ROOT/rules" "$TEST_PROJECT/.ai/src/rules"
+    write_rules_config
+
+    run run_agentsync sync
+
+    [ "$status" -eq 1 ]
+    printf '%s' "$output" | grep -qF -- "targets.rules.source for Claude Code resolves outside safe source roots"
+    [ ! -e ".claude/rules/outside.md" ]
+}
+
+@test "source containment: explicit source root at / is refused" {
+    write_project_sources
+    write_rules_config "/"
+
+    run run_agentsync sync
+
+    [ "$status" -eq 1 ]
+    printf '%s' "$output" | grep -qF -- 'source.rules must not be the filesystem root, the home directory, or the project root or its ancestor: / -> /'
+    [ ! -e ".claude" ]
+}
+
+@test "source containment: explicit source root at \$HOME is refused" {
+    write_project_sources
+    OUTSIDE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_home.XXXXXX")"
+    printf '%s\n' '# Home Rule' > "$OUTSIDE_ROOT/home.md"
+    write_rules_config "$OUTSIDE_ROOT"
+
+    run env HOME="$OUTSIDE_ROOT" AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync
+
+    [ "$status" -eq 1 ]
+    printf '%s' "$output" | grep -qF -- "source.rules must not be the filesystem root, the home directory, or the project root or its ancestor"
+    [ ! -e ".claude/rules/home.md" ]
+}
+
+@test "source containment: explicit source root at a project ancestor is refused" {
+    write_project_sources
+    write_rules_config ".."
+
+    run run_agentsync sync
+
+    [ "$status" -eq 1 ]
+    printf '%s' "$output" | grep -qF -- "source.rules must not be the filesystem root, the home directory, or the project root or its ancestor: .."
+    [ ! -e ".claude" ]
 }

@@ -18,14 +18,6 @@ fi
 REPO_ROOT="$(cd "$REPO_ROOT" && pwd)"
 MANIFEST_REL=".ai/.sync-manifest"
 
-# Preserve an explicitly selected external configuration while sync runs in
-# TEMP_ROOT. Relative source.* values keep their documented meaning: relative
-# to the original project root, not to the isolated output workspace.
-CHECK_SOURCE_BASE_ROOT=""
-if [[ -n "${AGENTSYNC_CONFIG_PATH:-}" ]]; then
-    CHECK_SOURCE_BASE_ROOT="$REPO_ROOT"
-fi
-
 # shellcheck source=helpers/tmp.sh
 source "$SCRIPT_DIR/helpers/tmp.sh"
 # shellcheck source=helpers/yaml.sh
@@ -156,11 +148,13 @@ done < "$COPY_LIST"
 # --force bypasses the manifest drift check inside the temp copy: any divergence
 # between source and dest is caught by the comparison below, which gives the
 # user a richer "out of sync" report than the abort message would.
+# Sources resolve from the project itself: source.* values relative to it, or
+# outside it, have no copy in the workspace.
 if ! AGENTSYNC_REPO_ROOT="$TEMP_ROOT" \
      AGENTSYNC_SKIP_POST_SYNC=true \
      AGENTSYNC_INTERNAL_SKIP_BACKUP=true \
      AGENTSYNC_CONFIG_PATH="$CHECK_CONFIG_PATH" \
-     AGENTSYNC_INTERNAL_SOURCE_BASE_ROOT="$CHECK_SOURCE_BASE_ROOT" \
+     AGENTSYNC_INTERNAL_SOURCE_BASE_ROOT="$REPO_ROOT" \
      "$SCRIPT_DIR/sync.sh" --force >"$SYNC_LOG" 2>&1; then
     echo "❌ Sync script failed during check"
     echo "Sync output (last 40 lines):"

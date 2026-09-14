@@ -33,17 +33,6 @@ _doctor_prepare_context() {
 
     tool_resolver_select_project_config
 
-    # shellcheck disable=SC2034  # consumed by paths.sh's source allowlist
-    CONFIGURED_SOURCE_ROOTS=()
-    local source_key source_value
-    for source_key in agents rules skills tools commands subagents; do
-        source_value=""
-        if [[ -n "$PROJECT_CONFIG_PATH" ]]; then
-            source_value=$(parse_yaml_value "$PROJECT_CONFIG_PATH" "source.$source_key")
-        fi
-        register_configured_source_root "$source_value"
-    done
-
     export REPO_ROOT REPO_ROOT_CANONICAL DEFAULT_REPO_ROOT PROJECT_CONFIG_PATH
 }
 

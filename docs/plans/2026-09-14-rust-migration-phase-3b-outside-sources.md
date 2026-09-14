@@ -908,3 +908,38 @@ The family is closed when every box is ticked, `source_overrides.bats` is green 
 - Plan amended: the fixture creates `.ai/src/rules` before linking into it.
 - Next: Phase 3b family 4, the rollback witness: commit its plan, then Task 0.
 - Blocker: none.
+
+## Completion receipt
+
+### Decisions the review took
+
+All three as recommended, on 2026-09-14, by the maintainer's instruction to proceed without waiting.
+
+### Global Constraints
+
+| Constraint | Satisfied by |
+|---|---|
+| Outside sources only read; destinations confined to the project | `src/paths.rs` widens only `is_safe_source`; `resolve_dest` is unchanged; `tests/source_overrides.bats` 9 ("cannot widen output targets through traversal") native 0 |
+| No binary ships; no Bash change | `git diff --stat f588821..HEAD -- lib bin` is empty; ShellCheck exit 0 |
+| Byte-for-byte parity on stdout, stderr, status, and files | `tests/native_parity.bats` `parity: sources outside the project and escaping source links` (untrusted refusal, trusted sync, `check`, `list`, escaping link in `sync` and `check`) |
+| `unsafe_code = "forbid"`, fmt and clippy clean, no new dependency; `main.rs` alone reads the environment | `Cargo.toml` and `Cargo.lock` unchanged; `AGENTSYNC_EXTERNAL_SOURCE_ROOTS` read in `src/main.rs`, passed through `render::Env` |
+| Disk-touching unit tests are `#[cfg(unix)]` | `src/paths.rs` three new tests; `src/cli/check.rs` tests module; `src/project.rs` and `src/render.rs` tests use tempdirs or the in-memory workspace |
+| `AGENTSYNC_INTERNAL_SOURCE_BASE_ROOT` not ported | `src/cli/check.rs` `seed_workspace` seeds the in-project sources `lib/check.sh` read through it (Task 3 amendment) |
+| Phase 3 symlink deviation stands | spec unchanged in this family |
+| Conventional Commits, at most 72 characters, no trailers | `1cfb31c` … `977d3bc`, longest subject 68 characters |
+
+### Fresh verification, 2026-09-14, macOS arm64
+
+- `cargo test`: 178 passed (unit), 11 passed (integration).
+- `cargo clippy --all-targets -- -D warnings`: exit 0. `cargo fmt --all --check`: exit 0.
+- `shellcheck -x -S warning -e SC1091 bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh`: exit 0.
+- bats, one file at a time, `AGENTSYNC_NATIVE=0` / `=1` failures: `source_overrides` 0/0 (18 native at the baseline), `shared` 0/0, `base_skills` 0/0, `profiles` 0/0, `list` 0/0, `sync` 0/0, `check` 0/0, `config_safety` 0/0, `backup_retention` 0/0, `native_parity` 1/1 (`parity: rollback plans, restores, and refuses like Bash`, owned by family 4).
+- Mutation: `to read it!` in the escaping-link message of `src/paths.rs` failed `parity: sources outside the project and escaping source links` with that diff; reverted, rebuilt.
+
+### Skipped, deferred, open
+
+- **One unexplained `cargo test` failure** during Task 3: a single run printed `error: test failed` without naming a test; the next four runs passed. Watch for a flaky disk test.
+- **Scan order across several escaping links** follows `read_dir` order (decision 2); no fixture has two escaping links.
+- **Full-suite runs** stay off on this machine for memory. `doctor.bats`, which also covers outside sources, is Bash-only and was not rerun.
+- **Timings.** Not measured: the scan adds one walk of `.ai/` and the source roots before the banner.
+- **Not pushed.**

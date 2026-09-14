@@ -13,7 +13,7 @@ setup() {
 }
 
 teardown() {
-    # Keep the complete before/restore evidence outside the disposable project.
+    [[ -n "${RETENTION_EVIDENCE:-}" ]] && _rm_rf_resilient "$RETENTION_EVIDENCE"
     teardown_test_project
 }
 
@@ -192,7 +192,8 @@ assert_recovery_preserved() {
     snapshot="$(backup_create "$TEST_PROJECT" sync .ai/agent_sync.yaml CLAUDE.md)"
     # This intentional fixture edit is preceded by a full, verified backup.
     save_and_verify_project before-config-change
-    sed -i 's/retention: bounded/retention: preserve/' .ai/agent_sync.yaml
+    sed 's/retention: bounded/retention: preserve/' .ai/agent_sync.yaml > .ai/agent_sync.yaml.tmp
+    mv .ai/agent_sync.yaml.tmp .ai/agent_sync.yaml
     printf 'current-output\n' > CLAUDE.md
     seed_recovery
     save_and_verify_project before
@@ -266,4 +267,21 @@ assert_recovery_preserved() {
     [ "$status" -ne 0 ]
     [[ "$output" == *"AGENTSYNC_CONFIG_PATH is set but file not found"* ]]
     diff -qr . "$RETENTION_EVIDENCE/before-restore"
+}
+
+@test "retention invalid policy still lets rollback --list read the store" {
+    init_project
+    set_retention typo
+    seed_recovery
+    run run_agentsync rollback --list
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"20200101T000000Z-sync-old"* ]]
+}
+
+@test "retention invalid bounds do not fail check, which takes no backup" {
+    init_project
+    run_agentsync sync >/dev/null 2>&1
+    AGENTSYNC_BACKUP_LIMIT=typo run run_agentsync check
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"safe and synced"* ]]
 }

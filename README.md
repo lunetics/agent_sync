@@ -723,7 +723,8 @@ does **not** disable staging cleanup. With preserve, disk usage can grow
 without a bound; review and remove recovery data manually when appropriate.
 
 Init, sync, and rollback validate the policy and numeric bounds before changing
-targets or the backup store. An explicitly empty or unknown retention value is
+targets or the backup store; `rollback --list` and `check`, which change
+neither, skip that validation. An explicitly empty or unknown retention value is
 an error. The selected policy stays fixed for the operation, including automatic
 recovery after a failed sync and a rollback that restores a different config.
 New snapshots are still created and the current `.latest` pointer and

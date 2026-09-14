@@ -739,7 +739,9 @@ _load_run_config() {
     fi
 
     resolve_project_config_path
-    backup_configure "$REPO_ROOT" || return 1
+    if [[ "${AGENTSYNC_INTERNAL_SKIP_BACKUP:-false}" != "true" ]]; then
+        backup_configure "$REPO_ROOT" || exit 1
+    fi
     [[ -n "$PROJECT_CONFIG_PATH" ]] || return 0
 
     if ! VERSION_PIN_MODE=$(version_pin_mode "$PROJECT_CONFIG_PATH"); then

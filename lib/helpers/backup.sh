@@ -812,8 +812,6 @@ cmd_rollback() {
     local root
     root=$(_backup_canonical_root "$supplied_root") || return 1
 
-    backup_configure "$root" || return 1
-
     if [[ "$list_only" == "true" ]]; then
         if [[ -n "$backup_id" ]]; then
             _backup_error "A backup ID cannot be combined with --list"
@@ -829,6 +827,8 @@ cmd_rollback() {
         printf '%s\n' "$rows"
         return 0
     fi
+
+    backup_configure "$root" || return 1
 
     local snapshot
     if [[ -n "$backup_id" ]]; then

@@ -47,6 +47,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
                 config_path: std::env::var("AGENTSYNC_CONFIG_PATH").ok(),
                 skip_post_sync: Some("true".to_string()),
                 allow_post_sync: None,
+                backup: None,
             };
             let mut out = std::io::stdout().lock();
             let mut err = std::io::stderr().lock();
@@ -105,13 +106,18 @@ fn var(name: &str) -> Option<String> {
 }
 
 fn sync_env() -> cli::sync::Env {
+    let skip_backup = var("AGENTSYNC_INTERNAL_SKIP_BACKUP").as_deref() == Some("true");
     cli::sync::Env {
         render: Env {
             config_path: var("AGENTSYNC_CONFIG_PATH"),
             skip_post_sync: var("AGENTSYNC_SKIP_POST_SYNC"),
             allow_post_sync: var("AGENTSYNC_ALLOW_POST_SYNC"),
+            backup: (!skip_backup).then(|| agentsync::render::BackupBounds {
+                limit: var("AGENTSYNC_BACKUP_LIMIT"),
+                max_age: var("AGENTSYNC_BACKUP_MAX_AGE_DAYS"),
+            }),
         },
-        skip_backup: var("AGENTSYNC_INTERNAL_SKIP_BACKUP").as_deref() == Some("true"),
+        skip_backup,
         backup_limit: var("AGENTSYNC_BACKUP_LIMIT"),
         backup_max_age: var("AGENTSYNC_BACKUP_MAX_AGE_DAYS"),
     }

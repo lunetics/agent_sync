@@ -10,7 +10,7 @@ use crate::rules::{self, Conversion, RuleOptions};
 use crate::session::Session;
 use crate::tool::Tool;
 use crate::{
-    Error, catalog, engine_version, file_ops, opencode_json, paths, payload, profiles,
+    Error, backup, catalog, engine_version, file_ops, opencode_json, paths, payload, profiles,
     project_config, version, yaml_subset,
 };
 
@@ -39,6 +39,17 @@ pub struct Env {
     pub config_path: Option<String>,
     pub skip_post_sync: Option<String>,
     pub allow_post_sync: Option<String>,
+    /// The bounds `backup_configure` validates; `None` when the run takes no
+    /// backup (`AGENTSYNC_INTERNAL_SKIP_BACKUP=true`, and `check`).
+    pub backup: Option<BackupBounds>,
+}
+
+/// `AGENTSYNC_BACKUP_LIMIT` and `AGENTSYNC_BACKUP_MAX_AGE_DAYS` for a run that
+/// takes a backup.
+#[derive(Default)]
+pub struct BackupBounds {
+    pub limit: Option<String>,
+    pub max_age: Option<String>,
 }
 
 /// `--only`, `--skip`, and `--profile`.
@@ -66,6 +77,7 @@ pub struct Run {
     pub update_gitignore: bool,
     pub outputs: &'static str,
     pub version_pin: version::Mode,
+    pub retention: backup::Retention,
     skip_post_sync: bool,
     allow_post_sync: bool,
     pub sources: Sources,
@@ -145,6 +157,17 @@ fn load_run_config(s: &mut Session, env: &Env, selection: Selection) -> Result<R
         }
         None => None,
     };
+    let mut retention = backup::Retention::Bounded;
+    if let Some(bounds) = &env.backup {
+        let selected = config_path.as_deref().zip(config.as_deref());
+        match backup::configure(selected, bounds.limit.as_deref(), bounds.max_age.as_deref()) {
+            Ok(policy) => retention = policy,
+            Err(e) => {
+                s.log.err(format!("Error: {e}"));
+                return Err(Stop(1));
+            }
+        }
+    }
 
     fn env_set(value: &Option<String>) -> Option<&str> {
         value.as_deref().filter(|v| !v.is_empty())
@@ -210,6 +233,7 @@ fn load_run_config(s: &mut Session, env: &Env, selection: Selection) -> Result<R
         update_gitignore,
         outputs,
         version_pin,
+        retention,
         skip_post_sync,
         allow_post_sync,
         sources: Sources::default(),
@@ -1299,6 +1323,35 @@ mod tests {
         assert!(s.ws.is_file("/proj/.claude-hub/rules/core.md"));
         assert!(!s.ws.exists("/proj/.claude/rules/hub.md"));
         assert!(!s.ws.exists("/<agentsync-overlay>/profile"));
+    }
+
+    #[test]
+    fn an_invalid_backup_policy_stops_before_the_pin_mode_when_the_run_backs_up() {
+        let mut s = project();
+        file(
+            &mut s,
+            "/proj/.ai/agent_sync.yaml",
+            "backup:\n  retention: typo\nversion_pin:\n  mode: refuse\n",
+        );
+        let env = Env {
+            backup: Some(BackupBounds::default()),
+            ..Env::default()
+        };
+        assert_eq!(render(&mut s, &env), Err(Stop(1)));
+        assert_eq!(
+            s.log.tail(5),
+            [
+                "Error: Invalid backup.retention 'typo' in /proj/.ai/agent_sync.yaml; expected bounded or preserve"
+            ]
+        );
+
+        let mut s = project();
+        file(
+            &mut s,
+            "/proj/.ai/agent_sync.yaml",
+            "tools:\n  enabled: [claude]\nbackup:\n  retention: typo\n",
+        );
+        assert_eq!(render(&mut s, &Env::default()), Ok(()));
     }
 
     fn with_config(path: &str) -> Env {

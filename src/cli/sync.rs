@@ -149,6 +149,7 @@ fn print_usage(log: &mut Log) {
 struct Transaction {
     backup: Option<String>,
     active: bool,
+    retention: backup::Retention,
 }
 
 impl Transaction {
@@ -164,7 +165,7 @@ impl Transaction {
         match backup::restore(&root, &backup_path) {
             Ok(()) => {
                 s.log.info(&format!("Restored pre-sync state from {shown}"));
-                prune(s, env);
+                prune(s, env, self.retention);
             }
             Err(e) => {
                 report_backup_error(&mut s.log, &e);
@@ -183,13 +184,13 @@ fn report_backup_error(log: &mut Log, error: &Error) {
     }
 }
 
-fn prune(s: &mut Session, env: &Env) {
+fn prune(s: &mut Session, env: &Env, retention: backup::Retention) {
     let root = s.paths.root.clone();
     if let Err(e) = backup::prune(
         &root,
         env.backup_limit.as_deref(),
         env.backup_max_age.as_deref(),
-        backup::Retention::Bounded,
+        retention,
     ) {
         report_backup_error(&mut s.log, &e);
         s.log.warning("Could not prune old AgentSync backups.");
@@ -227,7 +228,7 @@ fn sync(s: &mut Session, args: &Args, env: &Env, tx: &mut Transaction) -> Result
     render::run_passes(s, &mut run)?;
     finalize(s, &run, previous.as_ref(), tx)?;
     if tx.backup.is_some() {
-        prune(s, env);
+        prune(s, env, run.retention);
     }
     tx.active = false;
     Ok(())
@@ -408,7 +409,8 @@ fn start_transaction(
     }
     targets.push(format!("{root}/{}", manifest::REL));
     s.interrupt = Some(Interrupt::arm());
-    match backup::create(&root, "sync", &targets, backup::Retention::Bounded) {
+    tx.retention = run.retention;
+    match backup::create(&root, "sync", &targets, run.retention) {
         Ok(path) => {
             tx.backup = Some(path);
             tx.active = true;

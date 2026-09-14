@@ -421,7 +421,7 @@ git commit -m "feat(native): read backup.retention and keep recovery under prese
   - `render::Env { …, pub backup: Option<BackupBounds> }` — `None` skips `backup_configure`
   - `render::Run { …, pub retention: backup::Retention }`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append inside `mod tests` in `src/render.rs`:
 
@@ -454,12 +454,12 @@ Append inside `mod tests` in `src/render.rs`:
     }
 ```
 
-- [ ] **Step 2: Run the test, confirm it fails**
+- [x] **Step 2: Run the test, confirm it fails**
 
 Run: `cargo test render::tests::an_invalid_backup 2>&1 | grep -E '^error\['`
 Expected: `cannot find struct, variant or union type `BackupBounds`` and `struct `render::Env` has no field named `backup``.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 In `src/render.rs`, add `backup` to the `use crate::{…}` list, then:
 
@@ -536,7 +536,7 @@ fn sync_env() -> cli::sync::Env {
 
 and `Command::Check`'s `Env { … }` literal gains `backup: None,`.
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -3
@@ -555,7 +555,7 @@ not ok 15 retention invalid explicit config rejects init and rollback without fa
 
 and `sync native=0`.
 
-- [ ] **Step 5: Lint and commit**
+- [x] **Step 5: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings

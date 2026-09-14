@@ -188,9 +188,11 @@ run_external_sync() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"External Claude"* ]]
 
+    # The fixture's settings payload does not register the guard, so doctor
+    # warns (exit 1) about the unwired guard script.
     run env AGENTSYNC_CONFIG_PATH="$EXTERNAL_CONFIG" AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" doctor
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"External Claude"* ]]
+    [ "$status" -eq 1 ]
+    printf '%s' "$output" | grep -qF -- "External Claude"
 }
 
 @test "external source layout preserves foreign skills and sibling files" {

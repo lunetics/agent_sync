@@ -281,8 +281,6 @@ _doctor_check_commands_config() {
 _doctor_check_guard_wired() {
     local tool="$1"
 
-    [[ "$(get_tool_bool "$tool" "targets.guard.enabled")" == "false" ]] && return 0
-
     local guard_source
     guard_source=$(resolve_payload_source "$tool" "guard")
     [[ -n "$guard_source" ]] && [[ -f "$guard_source" ]] || return 0

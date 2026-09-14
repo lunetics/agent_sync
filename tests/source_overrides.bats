@@ -248,6 +248,20 @@ run_external_sync() {
     [ ! -e ".claude/rules/outside.md" ]
 }
 
+@test "source containment: an explicit in-project source.rules symlink escaping the project is refused" {
+    write_project_sources
+    make_outside_rules
+    _rm_rf_resilient "$TEST_PROJECT/.ai/src/rules"
+    create_test_symlink "$OUTSIDE_ROOT/rules" "$TEST_PROJECT/.ai/src/rules"
+    write_rules_config ".ai/src/rules"
+
+    run run_agentsync sync
+
+    [ "$status" -eq 1 ]
+    printf '%s' "$output" | grep -qF -- "targets.rules.source for Claude Code resolves outside safe source roots"
+    [ ! -e ".claude/rules/outside.md" ]
+}
+
 @test "source containment: explicit absolute source.rules outside the project syncs and checks" {
     write_project_sources
     make_outside_rules

@@ -20,15 +20,19 @@ source_abs_path_r() {
     normalize_absolute_path_r "$raw_path"
 }
 
-# Classify an explicit source.* value. REPLY is its canonical path; returns 0
-# inside the project, 1 for an acceptable outside root, 2 when the root is /,
-# $HOME, or the project root or one of its ancestors.
+# Classify an explicit source.* value. Returns 0 when it is written under the
+# project, where a symlink resolving outside stays refused; 1 for an acceptable
+# outside root; 2 when that root is /, $HOME, or the project root or one of its
+# ancestors. REPLY is the canonical path for 1 and 2.
 explicit_source_root_r() {
     local raw_path="$1"
     local project_root="${SOURCE_BASE_ROOT_CANONICAL:-$REPO_ROOT_CANONICAL}"
 
     source_abs_path_r "$raw_path"
-    canonicalize_with_existing_ancestor_r "$REPLY" 2>/dev/null || return 0
+    local abs_path="$REPLY"
+    local project_path="${AGENTSYNC_INTERNAL_SOURCE_BASE_ROOT:-$REPO_ROOT}"
+    [[ "$abs_path" == "$project_path/"* ]] && return 0
+    canonicalize_with_existing_ancestor_r "$abs_path" 2>/dev/null || return 0
     local canonical_path="$REPLY"
     [[ "$canonical_path" == "$project_root/"* ]] && return 0
 

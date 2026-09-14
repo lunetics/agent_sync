@@ -5,6 +5,7 @@
 use std::io::Write;
 
 use crate::interrupt::{self, Interrupt};
+use crate::witness::{self, Preflight};
 use crate::{Error, backup, paths, project_config};
 
 pub const USAGE: &str = "Usage: agentsync rollback [<backup-id>] [OPTIONS]
@@ -13,9 +14,13 @@ Restore AgentSync-managed targets from a backup. Without an ID, restores the
 latest complete snapshot. A safety snapshot is created before every restore,
 so the rollback itself can be undone.
 
+Rollback refuses, naming the first changed path, when a target differs from the
+state recorded after the backup's operation finished.
+
 Options:
   --list       List complete backups
-  --dry-run    Show the restore plan without changing files
+  --dry-run    Show the restore plan and any conflict without changing files
+  --force      Restore even when targets changed after the backup's operation
   -y, --yes    Skip the confirmation prompt
   -h, --help   Show this help
 ";
@@ -39,11 +44,12 @@ pub fn run(
     err: &mut dyn Write,
 ) -> u8 {
     let mut backup_id: Option<String> = None;
-    let (mut list_only, mut dry_run, mut assume_yes) = (false, false, false);
+    let (mut list_only, mut dry_run, mut assume_yes, mut force) = (false, false, false, false);
     for arg in args {
         match arg.as_str() {
             "--list" => list_only = true,
             "--dry-run" => dry_run = true,
+            "--force" => force = true,
             "--yes" | "-y" => assume_yes = true,
             "--help" | "-h" => {
                 let _ = out.write_all(USAGE.as_bytes());
@@ -146,6 +152,27 @@ pub fn run(
         Err(e) => return fail(err, e),
     };
 
+    let is_latest = matches!(backup::latest(&root), Ok(Some(latest)) if paths::leaf(&latest) == id);
+    let (mut sealed, mut conflict) = (false, None);
+    if !force || dry_run {
+        match witness::preflight(&root, &snapshot) {
+            Preflight::Clean => sealed = true,
+            Preflight::Conflict(path) => conflict = Some(path),
+            Preflight::Unsealed(detail) => {
+                let _ = writeln!(
+                    err,
+                    "Warning: Backup {id} {detail}; changes made after that operation cannot be detected."
+                );
+            }
+        }
+    }
+    if let Some(path) = &conflict
+        && !dry_run
+    {
+        report_conflict(err, &id, path, is_latest);
+        return 1;
+    }
+
     let _ = writeln!(out, "Rollback plan:");
     let _ = writeln!(out, "  Backup: {id}");
     for target in &targets {
@@ -153,8 +180,18 @@ pub fn run(
         let _ = writeln!(out, "  {action:<7} {}", target.rel);
     }
     if dry_run {
+        match &conflict {
+            Some(path) if force => {
+                let _ = writeln!(
+                    err,
+                    "Warning: Rollback conflict: {path} changed after the operation recorded in backup {id}; --force will overwrite it."
+                );
+            }
+            Some(path) => report_conflict(err, &id, path, is_latest),
+            None => {}
+        }
         let _ = writeln!(out, "Dry run — nothing was written.");
-        return 0;
+        return if conflict.is_some() && !force { 1 } else { 0 };
     }
     if !assume_yes && !confirm(&format!("Restore backup {id}?")) {
         let _ = writeln!(out, "Cancelled.");
@@ -165,6 +202,21 @@ pub fn run(
         .iter()
         .map(|target| format!("{root}/{}", target.rel))
         .collect();
+    let store = format!("{root}/.ai/backups");
+    let pointer = std::path::Path::new(&store).join(".latest");
+    let previous_latest = if pointer.is_file() && !pointer.is_symlink() {
+        std::fs::read(&pointer)
+            .map(|bytes| {
+                String::from_utf8_lossy(&bytes)
+                    .split('\n')
+                    .next()
+                    .unwrap_or("")
+                    .to_string()
+            })
+            .unwrap_or_default()
+    } else {
+        String::new()
+    };
     let safety = match backup::create(&root, "rollback", &current, retention) {
         Ok(safety) => safety,
         Err(e) => {
@@ -176,6 +228,18 @@ pub fn run(
             return 1;
         }
     };
+
+    if sealed && let Preflight::Conflict(path) = witness::preflight(&root, &snapshot) {
+        if backup::discard_safety(&store, &safety, &previous_latest).is_err() {
+            let _ = writeln!(
+                err,
+                "Warning: Could not remove the unused safety backup {}.",
+                paths::leaf(&safety)
+            );
+        }
+        report_conflict(err, &id, &path, is_latest);
+        return 1;
+    }
 
     let mut interrupt = Interrupt::arm();
     let restored = backup::restore(&root, &snapshot);
@@ -193,6 +257,13 @@ pub fn run(
         );
         match backup::restore(&root, &safety) {
             Ok(()) => {
+                if let Err(reason) = witness::seal(&root, &safety) {
+                    let _ = writeln!(
+                        err,
+                        "Warning: Could not record the restored state ({reason}); rolling back backup {} cannot detect later changes.",
+                        paths::leaf(&safety)
+                    );
+                }
                 let _ = writeln!(err, "Restored pre-rollback state from {shown}");
             }
             Err(e) => {
@@ -210,6 +281,13 @@ pub fn run(
     }
     drop(interrupt);
 
+    if let Err(reason) = witness::seal(&root, &safety) {
+        let _ = writeln!(
+            err,
+            "Warning: Could not record the post-rollback state ({reason}); rolling back backup {} cannot detect later changes.",
+            paths::leaf(&safety)
+        );
+    }
     if let Err(e) = backup::prune(
         &root,
         env.backup_limit.as_deref(),
@@ -222,6 +300,25 @@ pub fn run(
     let _ = writeln!(out, "Restored backup {id}.");
     let _ = writeln!(out, "Undo backup: {}", paths::leaf(&safety));
     0
+}
+
+/// `_rollback_report_conflict`.
+fn report_conflict(err: &mut dyn Write, id: &str, path: &str, is_latest: bool) {
+    let _ = writeln!(
+        err,
+        "Error: Rollback conflict: {path} changed after the operation recorded in backup {id}; no files were changed."
+    );
+    let _ = if is_latest {
+        writeln!(
+            err,
+            "Re-run with --force to restore the backup anyway and discard that change."
+        )
+    } else {
+        writeln!(
+            err,
+            "Newer AgentSync operations may have changed this target. Roll back the newer backups first, or re-run with --force to restore anyway."
+        )
+    };
 }
 
 #[cfg(all(test, unix))]
@@ -270,6 +367,7 @@ mod tests {
         let id = paths::leaf(&snapshot);
         std::fs::write(dir.path().join("CLAUDE.md"), "after\n").unwrap();
         std::fs::create_dir_all(dir.path().join(".claude/rules")).unwrap();
+        crate::witness::seal(&root, &snapshot).unwrap();
 
         let plan = rollback(&root, &["--dry-run"], false);
         assert_eq!(
@@ -314,6 +412,53 @@ mod tests {
                 .starts_with("Backup ID\tOperation\tCreated (UTC)\n")
         );
         assert!(listed.out.contains(&format!("{id}\tsync\t")));
+    }
+
+    #[test]
+    fn a_changed_target_refuses_and_force_restores_it() {
+        let (dir, root) = project();
+        let targets = [format!("{root}/CLAUDE.md")];
+        let snapshot = backup::create(&root, "sync", &targets, backup::Retention::Bounded).unwrap();
+        let id = paths::leaf(&snapshot);
+        std::fs::write(dir.path().join("CLAUDE.md"), "synced\n").unwrap();
+        crate::witness::seal(&root, &snapshot).unwrap();
+        std::fs::write(dir.path().join("CLAUDE.md"), "edited\n").unwrap();
+
+        let refused = rollback(&root, &["--yes"], true);
+        assert_eq!(refused.status, 1);
+        assert_eq!(refused.out, "");
+        assert_eq!(
+            refused.err,
+            format!(
+                "Error: Rollback conflict: CLAUDE.md changed after the operation recorded in backup {id}; no files were changed.\nRe-run with --force to restore the backup anyway and discard that change.\n"
+            )
+        );
+        let dry = rollback(&root, &["--dry-run", "--force"], true);
+        assert_eq!(dry.status, 0);
+        assert_eq!(
+            dry.err,
+            format!(
+                "Warning: Rollback conflict: CLAUDE.md changed after the operation recorded in backup {id}; --force will overwrite it.\n"
+            )
+        );
+
+        let forced = rollback(&root, &["--force", "--yes"], true);
+        assert_eq!(forced.status, 0);
+        assert_eq!(forced.err, "");
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join("CLAUDE.md")).unwrap(),
+            "before\n"
+        );
+        let undo = backup::latest(&root).unwrap().unwrap();
+        assert!(std::path::Path::new(&format!("{undo}/after.tsv")).is_file());
+
+        std::fs::remove_file(format!("{undo}/after.tsv")).unwrap();
+        let unsealed = rollback(&root, &["--yes"], true);
+        assert_eq!(unsealed.status, 0);
+        assert!(unsealed.err.starts_with(&format!(
+            "Warning: Backup {} has no post-operation record; changes made after that operation cannot be detected.\n",
+            paths::leaf(&undo)
+        )));
     }
 
     #[test]

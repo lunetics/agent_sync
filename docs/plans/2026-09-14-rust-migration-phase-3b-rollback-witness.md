@@ -757,7 +757,7 @@ git commit -m "feat(native): seal the sync snapshot after the run"
 **Interfaces:**
 - Consumes: `witness::{seal, preflight, Preflight}`, `backup::discard_safety`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 In the tests module of `src/cli/rollback.rs`, in `a_rollback_restores_the_latest_backup_and_leaves_an_undo_backup`, seal the snapshot once the test has written `after\n` and created `.claude/rules`, which stand for the operation the snapshot guarded:
 
@@ -816,12 +816,12 @@ and append a new test:
     }
 ```
 
-- [ ] **Step 2: Run it, confirm it fails**
+- [x] **Step 2: Run it, confirm it fails**
 
 Run: `cargo test --lib cli::rollback 2>&1 | grep -E '^test |panicked'`
 Expected: `a_changed_target_refuses_and_force_restores_it ... FAILED` (`--force` is an unknown option).
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Replace `USAGE`'s text after the first paragraph with:
 
@@ -961,7 +961,7 @@ fn report_conflict(err: &mut dyn Write, id: &str, path: &str, is_latest: bool) {
 }
 ```
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -3
@@ -974,7 +974,7 @@ done
 
 Expected: `185 passed` and `11 passed`; in `rollback_preflight.bats` only the two hash-tool cases fail (Task 4 gates them); `0` for the others.
 
-- [ ] **Step 5: Lint and commit**
+- [x] **Step 5: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings
@@ -1103,4 +1103,11 @@ The family is closed when every box is ticked, `rollback_preflight.bats` is gree
 - Verified: Task 1b's test ran past 40 seconds before the fix and was killed, then passed in 0.01 s; `cargo test` 184 and 11. Task 2: native `sync`, `backup_retention`, `drift` 0; `parity: a backup the native sync writes is restored by the Bash rollback` `ok` with Task 4's `cmp` of the two `after.tsv` files already in place (left uncommitted until Task 4).
 - Plan amended: none.
 - Next: Task 3 Step 4 (Steps 1–3 are written and `cargo test` passes 185 and 11).
+- Blocker: none.
+
+### 2026-09-14 — Task 3 done
+- Commits: "feat(native): refuse a rollback over changed targets and add --force".
+- Verified: `cargo test` 185 and 11; fmt and clippy exit 0. Native bats: `rollback_preflight` 2 failures (29 and 30, the hash-tool shims Task 4 gates), `rollback`, `backup`, `backup_retention`, `baseline` 0.
+- Plan amended: none.
+- Next: Task 4 Step 1 (the spec deviations, the parity fixture, and the module map rows are written; Task 1b adds a third deviation line for sockets and devices).
 - Blocker: none.

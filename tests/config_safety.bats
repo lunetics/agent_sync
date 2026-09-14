@@ -42,8 +42,20 @@ run_agentsync_env() {
     run env -u AGENTSYNC_CONFIG_PATH AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync
 
     [ "$status" -ne 0 ]
-    [[ "$output" == *"No project configuration found"* ]]
+    printf '%s' "$output" | grep -qF "No project configuration found and no tool is enabled"
+    printf '%s' "$output" | grep -qF "agentsync enable <tool>"
     [ -f .claude/skills/config-safety-sentinel.md ]
+}
+
+@test "a project without a config still syncs tools enabled in their own YAML" {
+    mkdir -p .ai/src/tools
+    printf '# Project\n' > .ai/src/AGENTS.md
+    printf 'enabled: true\n' > .ai/src/tools/claude.yaml
+
+    run env -u AGENTSYNC_CONFIG_PATH AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync
+
+    [ "$status" -eq 0 ]
+    [ -f CLAUDE.md ]
 }
 
 @test "check hands a relative explicit config outside .ai to its isolated sync" {

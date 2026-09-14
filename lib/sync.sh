@@ -740,13 +740,7 @@ _load_run_config() {
 
     resolve_project_config_path
     backup_configure "$REPO_ROOT" || return 1
-    if [[ -z "$PROJECT_CONFIG_PATH" ]]; then
-        if [[ "$DRY_RUN" == "true" ]]; then
-            return 0
-        fi
-        log_error "No project configuration found; refusing write sync with cleanup defaults. Create .ai/agent_sync.yaml or set AGENTSYNC_CONFIG_PATH."
-        return 1
-    fi
+    [[ -n "$PROJECT_CONFIG_PATH" ]] || return 0
 
     VERSION_PIN_MODE=$(version_pin_mode "$PROJECT_CONFIG_PATH") || exit 1
 
@@ -786,6 +780,15 @@ _load_run_config() {
             exit 1
             ;;
     esac
+}
+
+# Without a project config, a write run whose tools are all disabled would only
+# clean up every tool's outputs, as after agent_sync.yaml is deleted by mistake.
+_refuse_configless_cleanup_or_exit() {
+    [[ -z "$PROJECT_CONFIG_PATH" && "$DRY_RUN" != "true" ]] || return 0
+    [[ -z "$(list_enabled_tools)" ]] || return 0
+    log_error "No project configuration found and no tool is enabled; refusing a sync that would remove every tool's outputs. Run 'agentsync enable <tool>' to create .ai/agent_sync.yaml, or set AGENTSYNC_CONFIG_PATH."
+    exit 1
 }
 
 _check_version_pin_or_exit() {
@@ -1289,6 +1292,7 @@ main() {
         return 0
     fi
 
+    _refuse_configless_cleanup_or_exit
     _check_version_pin_or_exit
     _print_banner
 

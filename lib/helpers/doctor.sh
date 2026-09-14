@@ -36,6 +36,23 @@ _doctor_prepare_context() {
     export REPO_ROOT REPO_ROOT_CANONICAL DEFAULT_REPO_ROOT PROJECT_CONFIG_PATH
 }
 
+DOCTOR_SOURCE_RAW=""
+DOCTOR_SOURCE_ABS=""
+
+# Returns 0 when the project config sets source.<key>, with the value in
+# DOCTOR_SOURCE_RAW and its absolute path in DOCTOR_SOURCE_ABS.
+_doctor_explicit_source() {
+    local key="$1"
+    DOCTOR_SOURCE_RAW=""
+    DOCTOR_SOURCE_ABS=""
+    [[ -n "$PROJECT_CONFIG_PATH" ]] || return 1
+    parse_yaml_value_r "$PROJECT_CONFIG_PATH" "source.$key"
+    [[ -n "$REPLY" ]] || return 1
+    DOCTOR_SOURCE_RAW="$REPLY"
+    source_abs_path_r "$DOCTOR_SOURCE_RAW"
+    DOCTOR_SOURCE_ABS="$REPLY"
+}
+
 DOCTOR_WARNINGS=0
 DOCTOR_ERRORS=0
 DOCTOR_ADVISORIES=0
@@ -596,15 +613,13 @@ cmd_doctor() {
         return 2
     fi
 
-    local agents_source=".ai/src/AGENTS.md"
-    if [[ -n "$PROJECT_CONFIG_PATH" ]]; then
-        local configured_agents
-        configured_agents=$(parse_yaml_value "$PROJECT_CONFIG_PATH" "source.agents")
-        [[ -n "$configured_agents" ]] && agents_source="$configured_agents"
+    local agents_found=false
+    if _doctor_explicit_source agents; then
+        [[ -f "$DOCTOR_SOURCE_ABS" ]] && agents_found=true
+    elif [[ -f "$REPO_ROOT/.ai/src/AGENTS.md" ]] || [[ -f "$REPO_ROOT/.ai/AGENTS.md" ]]; then
+        agents_found=true
     fi
-    local agents_source_abs
-    agents_source_abs=$(resolve_source_path "$agents_source" "source.agents") || agents_source_abs=""
-    if [[ -f "$agents_source_abs" ]]; then
+    if [[ "$agents_found" == "true" ]]; then
         _doctor_ok "AGENTS.md source file found"
     else
         _doctor_fail "No AGENTS.md in .ai/src/ or .ai/ — sync will fail"
@@ -717,26 +732,32 @@ cmd_doctor() {
     # ── Section 4: source directories ────────────────────────────────────────
     _bold "  Source directories"; echo ""
     local missing=0
-    local source_key default_source raw_source source_abs
-    for source_key in agents rules skills commands subagents; do
-        case "$source_key" in
-            agents)    default_source=".ai/src/AGENTS.md"; raw_source=".ai/src/AGENTS.md";;
-            rules)     default_source=".ai/src/rules";     raw_source=".ai/src/rules";;
-            skills)    default_source=".ai/src/skills";    raw_source=".ai/src/skills";;
-            commands)  default_source=".ai/src/commands";  raw_source=".ai/src/commands";;
-            subagents) default_source=".ai/src/agents";    raw_source=".ai/src/agents";;
+    local src source_key display source_abs root_status
+    for src in AGENTS.md rules skills commands agents; do
+        case "$src" in
+            AGENTS.md) source_key="agents" ;;
+            agents)    source_key="subagents" ;;
+            *)         source_key="$src" ;;
         esac
-        if [[ -n "$PROJECT_CONFIG_PATH" ]]; then
-            raw_source=$(parse_yaml_value "$PROJECT_CONFIG_PATH" "source.$source_key")
-            [[ -n "$raw_source" ]] || raw_source="$default_source"
-        fi
-        source_abs=$(resolve_source_path "$raw_source" "source.$source_key") || source_abs=""
-        if [[ -e "$source_abs" ]]; then
-            _doctor_ok "$raw_source"
+        if _doctor_explicit_source "$source_key"; then
+            display="$DOCTOR_SOURCE_RAW"
+            source_abs="$DOCTOR_SOURCE_ABS"
+            root_status=0
+            explicit_source_root_r "$display" || root_status=$?
+            if [[ "$root_status" -eq 2 ]]; then
+                _doctor_fail "source.$source_key must not be the filesystem root, the home directory, or the project root or its ancestor: $display"
+                continue
+            fi
         else
-            case "$source_key" in
-                agents) _doctor_fail "$raw_source missing (required)"; missing=$((missing+1)) ;;
-                *)      _doctor_info "$raw_source not present (optional)" ;
+            display=".ai/src/$src"
+            source_abs="$REPO_ROOT/.ai/src/$src"
+        fi
+        if [[ -e "$source_abs" ]]; then
+            _doctor_ok "$display"
+        else
+            case "$src" in
+                AGENTS.md) _doctor_fail "$display missing (required)"; missing=$((missing+1)) ;;
+                *)         _doctor_info "$display not present (optional)" ;;
             esac
         fi
     done

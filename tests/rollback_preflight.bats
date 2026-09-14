@@ -390,6 +390,8 @@ assert_refused_unchanged() {
     [ "$(cat .codex/config.toml)" = "concurrent foreign change" ]
     assert_tree_equal .claude/skills "$PROOF_DIR/after-sync/.claude/skills"
     cmp .ai/.sync-manifest "$PROOF_DIR/after-sync/.ai/.sync-manifest"
+    [ "$(cat .ai/backups/.latest)" = "$SYNC_ID" ]
+    [ "$(find .ai/backups -maxdepth 1 -name '*-rollback-*' | wc -l | tr -d ' ')" = 0 ]
 }
 
 @test "snapshot post-state refuses trailing-slash targets before traversing a link" {

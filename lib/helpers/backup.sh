@@ -775,6 +775,17 @@ Options:
 HELP
 }
 
+# Undo a safety snapshot that no restore will use, including its .latest update.
+# Usage: _rollback_discard_safety <store> <safety-path> <previous-latest-id-or-empty>
+_rollback_discard_safety() {
+    rm -rf "$2" || return 1
+    if [[ -n "$3" ]]; then
+        _backup_write_latest "$1" "$3"
+    else
+        rm -f "$1/.latest"
+    fi
+}
+
 # Usage: _rollback_report_conflict <backup-id> <path> <backup-is-latest>
 _rollback_report_conflict() {
     _backup_error "Rollback conflict: $2 changed after the operation recorded in backup $1; no files were changed."
@@ -916,6 +927,10 @@ cmd_rollback() {
     fi
 
     local -a current_targets=("${BACKUP_LOADED_PATHS[@]}")
+    local store="$root/.ai/backups" previous_latest=""
+    if [[ -f "$store/.latest" ]] && [[ ! -L "$store/.latest" ]]; then
+        IFS= read -r previous_latest < "$store/.latest" || true
+    fi
     local safety
     safety=$(backup_create \
         "$root" \
@@ -930,6 +945,9 @@ cmd_rollback() {
     if [[ "$sealed" == "true" ]]; then
         backup_preflight "$root" "$snapshot"
         if [[ "$BACKUP_PREFLIGHT_STATUS" == "conflict" ]]; then
+            if ! _rollback_discard_safety "$store" "$safety" "$previous_latest"; then
+                echo "Warning: Could not remove the unused safety backup $(basename "$safety")." >&2
+            fi
             _rollback_report_conflict "$backup_id" "$BACKUP_PREFLIGHT_DETAIL" "$is_latest"
             return 1
         fi

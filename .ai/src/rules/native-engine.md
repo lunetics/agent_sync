@@ -15,12 +15,12 @@ The Rust crate at the repo root replaces the Bash engine one command at a time b
 - Edition 2024, `rust-version = "1.85"`, `unsafe_code = "forbid"`. `cargo fmt --all --check` and `cargo clippy --all-targets -- -D warnings` stay clean.
 - `VERSION` is the only version source. The crate reads it with `include_str!`; `Cargo.toml` stays at `0.0.0` until Phase 5 wires cargo-dist.
 - Templates embed from `lib/templates/` through `include_dir!`. The binary never looks up an engine directory at runtime.
-- Dependencies: clap, include_dir, thiserror; dev: assert_cmd, predicates, tempfile. Add a crate only for a concrete command need. A YAML parser is never added: `yaml_subset` mirrors `lib/helpers/yaml.sh` by design.
+- Dependencies: clap, include_dir, sha2, signal-hook, thiserror; dev: assert_cmd, predicates, tempfile. Add a crate only for a concrete command need. A YAML parser is never added: `yaml_subset` mirrors `lib/helpers/yaml.sh` by design.
 
 ## Structure
 
 - `src/main.rs` is the only process-aware file: arguments, `ExitCode`, the `AGENTSYNC_ENGINE_VERSION` guard. Everything else is a library with a `Result<_, Error>` API.
-- `src/cli/<cmd>.rs` owns one command as `render(…) -> Result<String, Error>` plus `run(…, &mut impl Write)`. Core modules never print.
+- `src/cli/<cmd>.rs` owns one command as `render(…) -> Result<String, Error>` plus `run(…, &mut impl Write)`. A command with its own exit status returns it from `run` — `check` through a `Report`, `sync` and `rollback` as a `u8` — and writes only through the writers or the log sink `main` hands it. Core modules never print.
 - `src/error.rs` is the single error type. Each variant's `Display` text is the Bash message it replaces, and `main` maps the variant to the Bash exit code.
 - Two output voices, kept apart as in Bash: `style` mirrors `cli_colors.sh` for command modules; `log` mirrors `logging.sh` for the engine. Neither leaks into the other's module.
 - Bash semantics are mirrored, quirks included; the numbered list in the design spec is the allowed set. Improving behaviour during a port is not allowed; a deliberate change is one line under "Accepted deviations" in the spec.

@@ -8584,7 +8584,7 @@ git commit -m "test(native): diff Bash against native sync and rollback on disk"
 - Consumes: the modules as they landed.
 - Produces: the map and the rule Phase 4's plans are written from.
 
-- [ ] **Step 1: Update the engine rows of `module-map.md`**
+- [x] **Step 1: Update the engine rows of `module-map.md`**
 
 Replace these rows in the "Engine modules" block:
 
@@ -8618,7 +8618,7 @@ bin/agentsync.sh workspace fan-out → src/cli/workspace.rs  Phase 3, ported
 lib/helpers/backup.sh (rollback) → src/cli/rollback.rs     Phase 3, ported
 ```
 
-- [ ] **Step 2: Describe commands that own their streams in `native-engine.md`**
+- [x] **Step 2: Describe commands that own their streams in `native-engine.md`**
 
 Replace:
 
@@ -8632,12 +8632,12 @@ with:
 - `src/cli/<cmd>.rs` owns one command as `render(…) -> Result<String, Error>` plus `run(…, &mut impl Write)`. A command with its own exit status returns it from `run` — `check` through a `Report`, `sync` and `rollback` as a `u8` — and writes only through the writers or the log sink `main` hands it. Core modules never print.
 ```
 
-- [ ] **Step 3: Regenerate this repository's agent files**
+- [x] **Step 3: Regenerate this repository's agent files**
 
 Run: `bash bin/agentsync.sh sync`
 Expected: `Synced 2/13 tools (11 skipped)`, answered by the native binary built in Task 10; `git status --short` lists the two `.ai/src` files and `.ai/.sync-manifest` (outputs are gitignored here). An agent sandbox that denies writes under `.claude/` fails this run whole and restores it; run it outside the sandbox.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add .ai/src/skills/native-port/references/module-map.md .ai/src/rules/native-engine.md .ai/.sync-manifest docs/plans/2026-09-14-rust-migration-phase-3-native-sync.md
@@ -8668,3 +8668,10 @@ Before reporting Phase 3 done, append the completion receipt from `verification.
 - Plan amended: none; this run wrote it.
 - Next: the plan's review. Four decisions ride on it: Task 0c's behaviour change (recommended: prune a generated skill directory), the `sha2` and `signal-hook` dependencies (recommended: both), the post-sync trust gate (recommended: the embedded config plus `AGENTSYNC_ALLOW_POST_SYNC`), and ratifying the eight proposed deviations. After approval, Task 0 Step 1.
 - Blocker: none. `cargo` is installed at `~/.cargo/bin` but is not on the agent shell's `PATH`; commands ran as `PATH="$HOME/.cargo/bin:$PATH" cargo …`. The agent sandbox denies `openpty`, so the `script(1)` checks ran outside it, and it denies writes under `.claude/`, which Task 11 Step 3 needs.
+
+### 2026-09-14 — Tasks 0–11 done, `sync` and `rollback` are served natively
+- Commits: `576b050 fix(sync): count each replaced path once in the first-sync warning`, `56fe819 fix(sync): prune a generated directory the manifest records files under`, `91d5dc3 fix(sync): sort the .gitignore block by bytes in every locale`, `9c272b9 feat(native): write the project through the workspace and stream the log`, `d3fd3b4 feat(native): honour --dry-run and keep untracked outputs in every render step`, `219d08c feat(native): load, check, and write the sync manifest`, `118cc0f feat(native): update the managed .gitignore block`, `fbfcb93 feat(native): create, restore, and prune backups in the Bash layout`, `1573dd1 feat(native): run sync with its manifest, backup, and .gitignore transaction`, `b9a7434 feat(native): serve sync and its workspace fan-out natively`, `48b18d9 feat(native): restore the pre-sync state when a signal interrupts sync`, `2e2de1a feat(native): port rollback`, `d42a56a test(native): diff Bash against native sync and rollback on disk`, and `docs(native): map the phase 3 modules`.
+- Verified: Task 0 — `cargo test` 112 + 7, `1..762` with 0 failures in both modes, ShellCheck exit 0. Tasks 0b, 0c, 0d — each new test failed with the Bash change held back and passed with it (`baseline.bats` 11, `drift.bats` 28 and 0 failures across the eight sync-facing files, `gitignore.bats` 7); ShellCheck exit 0. Tasks 1–5 — `cargo test` 115, 120, 126, 129, 138 unit and 7 integration, fmt and clippy clean after each; the coloured prefixes under `script(1)`, the Bash helper cross-check (18 lines), the digests and tab-split entries, the three `.gitignore` cases, and the stamp arithmetic printed the asserted values. Task 6 — 142 + 10; the Bash `check`, `base_skills`, `profiles`, `sync_options` files and the native `check` and parity files had 0 failures; a direct native `sync` printed `same output` and `same tree`. Task 7 — 143 + 10; `workspace.bats` 7 ok natively; `1..766` with 0 failures in both modes; ShellCheck exit 0. Task 8 — 144 + 11 with the `SIGTERM` test; the native `sync_options`, `drift`, `workspace` files had 0 failures. Task 9 — 147 + 11; the four rollback-facing files `1..33` with 0 failures natively. Task 10 — parity 34 ok and 34 skipped without a binary; the `Kept!` mutation failed its fixture with the expected diff and was reverted; `1..776` with 0 failures in both modes. Task 11 — the native `sync` of this repository printed `Synced 2/13 tools (11 skipped)`, and a native `check` reports it in sync.
+- Plan amended: the decisions are recorded as taken, with the RustSec screening. Task 8's `cargo add` had written `signal-hook = { version = "0.4.4", … }`; the requirement is `"0.4"`, as the step states, with `Cargo.lock` unchanged. Task 11 replaced the module-map rows in place, with the `(trap INT TERM HUP)` row in Tier 0 and the workspace row among the commands, and also added `sha2` and `signal-hook` to the dependency line of `native-engine.md`, which decision 2 made stale.
+- Next: close the phase — append `## Completion receipt` per the `## Completion` section, with the 13-tool fixture golden run and `sync` timings from `scripts/perf/bench.sh`.
+- Blocker: none. `git checkout` in this checkout triggers a post-checkout hook from outside the project ("Running AI Config Sync (dart wrapper)…") that exits 255 for want of a `pubspec.yaml`; the checkout itself completes. Task 11's `sync` ran outside the agent sandbox, which denies writes under `.claude/`.

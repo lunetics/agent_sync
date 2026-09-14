@@ -20,8 +20,8 @@ Tier 1
 lib/helpers/version.sh           → src/version.rs          version_pin mode, mismatch error and hint; engine_version stays in src/lib.rs
 lib/helpers/project_config.sh    → src/project_config.rs   project_config_path_r over an is_file probe; shared by sync, check, list
 lib/helpers/format.sh            → src/format_rev.rs       project format revision, pending notes
-lib/helpers/paths.sh             → src/paths.rs            normalise, containment (lexical for check, through the disk for sync), repo-relative, ai_dir_enclosing_root, find_workspace_ai_dirs
-lib/helpers/tool_resolver.sh     → src/tool.rs, src/catalog.rs, src/payload.rs
+lib/helpers/paths.sh             → src/paths.rs            normalise, containment (lexical for check, through the disk for sync), repo-relative, ai_dir_enclosing_root, find_workspace_ai_dirs; explicit source roots trusted through AGENTSYNC_EXTERNAL_SOURCE_ROOTS, escaping source-link scan
+lib/helpers/tool_resolver.sh     → src/tool.rs, src/catalog.rs, src/payload.rs; source.tools as Session::tools_dir
 lib/helpers/profiles.sh          → src/profiles.rs         names, overlay dir, tools, active; profile_rewrite_dest waits for `profile`
 
 Tier 2
@@ -32,7 +32,7 @@ Tier 3
 lib/helpers/rule_operations.sh   → src/rules.rs            headers, frontmatter merge, append_imports, merge_to_file, inliners, commands as skills
 lib/helpers/format_conversion.sh → src/convert.rs          frontmatter and per-file converters; directory loops live in src/rules.rs
 lib/helpers/opencode.sh          → src/opencode_json.rs    awk composer, exit codes 20-26
-lib/helpers/shared.sh            → src/overlay.rs          shared, base-src, and profile overlays; shared parent merge for check
+lib/helpers/shared.sh            → src/overlay.rs          shared, base-src, and profile overlays; shared and base-src mirror the resolved sources; shared parent merge for check
 lib/helpers/gitignore.sh         → src/gitignore.rs        managed block between START/END markers
 lib/helpers/backup.sh            → src/backup.rs           same on-disk layout; create, restore, latest, list, prune; backup.retention (configure, Retention), validated before sync and rollback write
 lib/helpers/yaml_edit.sh         → src/yaml_edit.rs        line-oriented, comment-preserving, atomic write

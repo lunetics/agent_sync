@@ -492,6 +492,26 @@ assert_tree_parity() {
     AGENTSYNC_CONFIG_PATH=missing.yaml assert_tree_parity rollback --list
 }
 
+@test "parity: sources outside the project and escaping source links" {
+    enable_tools claude
+    local outside="$BATS_TEST_TMPDIR/outside"
+    mkdir -p "$outside/rules" "$outside/tools/claude"
+    printf '# Outside\n' > "$outside/rules/outside.md"
+    printf '{"outside":true}\n' > "$outside/tools/claude/settings.json"
+    printf '\nsource:\n  rules: "%s/rules"\n  tools: "%s/tools"\n' "$outside" "$outside" >> .ai/agent_sync.yaml
+    assert_tree_parity sync
+    AGENTSYNC_EXTERNAL_SOURCE_ROOTS="$outside" assert_tree_parity sync
+    AGENTSYNC_EXTERNAL_SOURCE_ROOTS="$outside" _bash_sync
+    AGENTSYNC_EXTERNAL_SOURCE_ROOTS="$outside" assert_parity check
+    AGENTSYNC_EXTERNAL_SOURCE_ROOTS="$outside" assert_parity list
+    grep -v '^  rules:\|^  tools:\|^source:' .ai/agent_sync.yaml > .ai/agent_sync.yaml.tmp
+    mv .ai/agent_sync.yaml.tmp .ai/agent_sync.yaml
+    mkdir -p .ai/src/rules
+    create_test_symlink "$outside/rules/outside.md" .ai/src/rules/leak.md
+    assert_tree_parity sync
+    assert_parity check
+}
+
 @test "parity: rollback plans, restores, and refuses like Bash" {
     enable_tools claude
     printf 'before-sync\n' > CLAUDE.md

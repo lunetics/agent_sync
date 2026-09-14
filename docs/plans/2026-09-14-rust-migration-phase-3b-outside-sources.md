@@ -798,7 +798,7 @@ git commit -m "feat(native): read tool overrides from source.tools in list"
 **Files:**
 - Modify: `tests/native_parity.bats`, `.ai/src/skills/native-port/references/module-map.md`, `.ai/.sync-manifest`
 
-- [ ] **Step 1: Write the fixture**
+- [x] **Step 1: Write the fixture**
 
 After `parity: backup.retention in sync and rollback`:
 
@@ -823,7 +823,7 @@ After `parity: backup.retention in sync and rollback`:
 }
 ```
 
-- [ ] **Step 2: Run it and prove it bites**
+- [x] **Step 2: Run it and prove it bites**
 
 ```bash
 cargo build --release
@@ -832,11 +832,11 @@ bats --tap -f 'sources outside' tests/native_parity.bats
 
 Expected: `ok`. Then change `"; add that directory (or a parent) to AGENTSYNC_EXTERNAL_SOURCE_ROOTS to read it"` to end in `it!"` in `src/paths.rs`, rebuild, rerun: `not ok` with that diff; revert and rebuild.
 
-- [ ] **Step 3: Module map and outputs**
+- [x] **Step 3: Module map and outputs**
 
 In `.ai/src/skills/native-port/references/module-map.md`, extend the `lib/helpers/paths.sh` row with `; explicit source roots trusted through AGENTSYNC_EXTERNAL_SOURCE_ROOTS, escaping source-link scan`, the `lib/helpers/shared.sh` row with `; overlays mirror the resolved sources`, and the `tool_resolver.sh` row with `; source.tools as Session::tools_dir`. Regenerate outputs with `AGENTSYNC_NATIVE=0 AGENTSYNC_HOME="$PWD" bash bin/agentsync.sh sync --force`.
 
-- [ ] **Step 4: Verify the family**
+- [x] **Step 4: Verify the family**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -3
@@ -852,7 +852,7 @@ done
 
 Expected: `178 passed` and `11 passed`; lint exit 0; every line `bash=0 native=0` except `native_parity bash=1 native=1` (family 4).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add tests/native_parity.bats .ai/src/skills/native-port/references/module-map.md .ai/.sync-manifest docs/plans/2026-09-14-rust-migration-phase-3b-outside-sources.md
@@ -900,4 +900,11 @@ The family is closed when every box is ticked, `source_overrides.bats` is green 
 - Verified: `cargo test` 178 and 11 passed; fmt and clippy exit 0. Native bats: `list` 0, `source_overrides` 0.
 - Plan amended: the test also writes a `.ai/src/tools/kimi.yaml` that must no longer count once `source.tools` moves the directory.
 - Next: Task 5 Step 2 (the fixture is written in `tests/native_parity.bats`).
+- Blocker: none.
+
+### 2026-09-14 — Task 5 done, family closed
+- Commits: "test(native): diff Bash against native outside sources and links", and the receipt below.
+- Verified: see the receipt.
+- Plan amended: the fixture creates `.ai/src/rules` before linking into it.
+- Next: Phase 3b family 4, the rollback witness: commit its plan, then Task 0.
 - Blocker: none.

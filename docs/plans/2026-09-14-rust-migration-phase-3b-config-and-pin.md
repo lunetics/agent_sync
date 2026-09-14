@@ -957,7 +957,7 @@ git commit -m "feat(native): select the config and apply version_pin.mode in che
   - `pub fn Project::select(root: impl Into<PathBuf>, explicit: Option<&str>) -> Result<Project, Error>`
   - `Project::discover` honours `AGENTSYNC_CONFIG_PATH` and spells the root as `lib/helpers/list.sh` does (`cd "$project_dir" && pwd`).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append inside `mod tests` in `src/project.rs`:
 
@@ -982,12 +982,12 @@ Append inside `mod tests` in `src/project.rs`:
     }
 ```
 
-- [ ] **Step 2: Run the test, confirm it fails**
+- [x] **Step 2: Run the test, confirm it fails**
 
 Run: `cargo test project::tests 2>&1 | tail -5`
 Expected: `no function or associated item named `select` found for struct `Project``.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 In `src/error.rs`, add after `ProjectRootNotFound`:
 
@@ -1045,7 +1045,7 @@ Replace `discover` and `at`:
     }
 ```
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo test 2>&1 | grep 'test result'
@@ -1056,7 +1056,7 @@ AGENTSYNC_NATIVE=1 bats --tap tests/list.bats | grep -c '^not ok'
 
 Expected: `166 passed` (unit) and `11 passed` (integration); `0` in `config_safety.bats`; `0` in `list.bats`.
 
-- [ ] **Step 5: Lint and commit**
+- [x] **Step 5: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings

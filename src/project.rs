@@ -1,9 +1,10 @@
 //! The project being operated on: its root and `agent_sync.yaml`.
 
 use std::collections::BTreeSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use crate::{Error, yaml_subset};
+use crate::project_config::{self, Selection};
+use crate::{Error, paths, yaml_subset};
 
 #[derive(Debug)]
 pub struct Project {
@@ -12,25 +13,37 @@ pub struct Project {
 }
 
 impl Project {
-    /// `AGENTSYNC_REPO_ROOT` when set, else the working directory.
+    /// `_list_prepare_context`: `AGENTSYNC_REPO_ROOT` when set, else the
+    /// working directory, with `AGENTSYNC_CONFIG_PATH` authoritative.
     pub fn discover() -> Result<Self, Error> {
-        let root = match std::env::var_os("AGENTSYNC_REPO_ROOT") {
-            Some(dir) if !dir.is_empty() => PathBuf::from(dir),
-            _ => std::env::current_dir().map_err(|e| Error::io(".", e))?,
-        };
-        Self::at(root)
+        let env_root = std::env::var("AGENTSYNC_REPO_ROOT")
+            .ok()
+            .filter(|root| !root.is_empty());
+        let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
+        let pwd = std::env::var("PWD").ok();
+        let root = paths::logical_root(env_root.as_deref(), &cwd, pwd.as_deref());
+        let explicit = std::env::var("AGENTSYNC_CONFIG_PATH").ok();
+        Self::select(root, explicit.as_deref())
     }
 
     /// Config is `.ai/agent_sync.yaml`, falling back to a root-level `agent_sync.yaml`.
     pub fn at(root: impl Into<PathBuf>) -> Result<Self, Error> {
+        Self::select(root, None)
+    }
+
+    /// `tool_resolver_select_project_config`: an explicit path is authoritative.
+    pub fn select(root: impl Into<PathBuf>, explicit: Option<&str>) -> Result<Self, Error> {
         let root = root.into();
         if !root.is_dir() {
             return Err(Error::ProjectRootNotFound(root));
         }
-        let config_path = [".ai/agent_sync.yaml", "agent_sync.yaml"]
-            .into_iter()
-            .map(|rel| root.join(rel))
-            .find(|path| path.is_file());
+        let shown = root.to_string_lossy().into_owned();
+        let is_file = |path: &str| Path::new(path).is_file();
+        let config_path = match project_config::select(&shown, explicit, &is_file) {
+            Selection::Found(path) => Some(PathBuf::from(path)),
+            Selection::None => None,
+            Selection::Missing(path) => return Err(Error::ConfigPathNotFound(PathBuf::from(path))),
+        };
         Ok(Self { root, config_path })
     }
 
@@ -179,5 +192,28 @@ mod tests {
         let set = project.enabled_tools().unwrap();
         let enabled: Vec<&str> = set.iter().map(String::as_str).collect();
         assert_eq!(enabled, ["claude", "cursor", "zed"]);
+    }
+
+    #[test]
+    fn an_explicit_config_is_authoritative_and_a_missing_one_is_an_error() {
+        let dir = tempfile::tempdir().unwrap();
+        write(
+            dir.path(),
+            ".ai/agent_sync.yaml",
+            "tools:\n  enabled: [claude]\n",
+        );
+        write(dir.path(), "config/a.yaml", "tools:\n  enabled: [zed]\n");
+
+        let project = Project::select(dir.path(), Some("config/a.yaml")).unwrap();
+        assert_eq!(project.configured_enabled_tools().unwrap(), ["zed"]);
+
+        let err = Project::select(dir.path(), Some("missing.yaml")).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            format!(
+                "AGENTSYNC_CONFIG_PATH is set but file not found: {}/missing.yaml",
+                dir.path().display()
+            )
+        );
     }
 }

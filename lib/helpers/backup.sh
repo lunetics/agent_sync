@@ -763,27 +763,26 @@ Restore AgentSync-managed targets from a backup. Without an ID, restores the
 latest complete snapshot. A safety snapshot is created before every restore,
 so the rollback itself can be undone.
 
+Rollback refuses, naming the first changed path, when a target differs from the
+state recorded after the backup's operation finished.
+
 Options:
   --list       List complete backups
-  --dry-run    Show the restore plan without changing files
+  --dry-run    Show the restore plan and any conflict without changing files
+  --force      Restore even when targets changed after the backup's operation
   -y, --yes    Skip the confirmation prompt
   -h, --help   Show this help
 HELP
 }
 
-# Returns 1 on a conflict. A snapshot without a usable record only warns.
-# Usage: _rollback_check_targets <root> <snapshot> <backup-id>
-_rollback_check_targets() {
-    backup_preflight "$1" "$2"
-    case "$BACKUP_PREFLIGHT_STATUS" in
-        conflict)
-            _backup_error "Rollback conflict: $BACKUP_PREFLIGHT_DETAIL changed after the operation; no targets were restored"
-            return 1
-            ;;
-        unsealed)
-            echo "Warning: Backup $3 $BACKUP_PREFLIGHT_DETAIL; changes made after that operation cannot be detected." >&2
-            ;;
-    esac
+# Usage: _rollback_report_conflict <backup-id> <path> <backup-is-latest>
+_rollback_report_conflict() {
+    _backup_error "Rollback conflict: $2 changed after the operation recorded in backup $1; no files were changed."
+    if [[ "$3" == "true" ]]; then
+        echo "Re-run with --force to restore the backup anyway and discard that change." >&2
+    else
+        echo "Newer AgentSync operations may have changed this target. Roll back the newer backups first, or re-run with --force to restore anyway." >&2
+    fi
 }
 
 cmd_rollback() {
@@ -791,6 +790,7 @@ cmd_rollback() {
     local list_only=false
     local dry_run=false
     local assume_yes=false
+    local force=false
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -800,6 +800,10 @@ cmd_rollback() {
                 ;;
             --dry-run)
                 dry_run=true
+                shift
+                ;;
+            --force)
+                force=true
                 shift
                 ;;
             --yes|-y)
@@ -865,9 +869,22 @@ cmd_rollback() {
 
     backup_load_targets "$root" "$snapshot" || return 1
 
-    _rollback_check_targets "$root" "$snapshot" "$backup_id" || return 1
-    local sealed="false"
-    [[ "$BACKUP_PREFLIGHT_STATUS" != "clean" ]] || sealed="true"
+    local latest is_latest="false" sealed="false" conflict=""
+    latest=$(backup_latest "$root") || latest=""
+    [[ "${latest##*/}" != "$backup_id" ]] || is_latest="true"
+
+    if [[ "$force" != "true" ]] || [[ "$dry_run" == "true" ]]; then
+        backup_preflight "$root" "$snapshot"
+        case "$BACKUP_PREFLIGHT_STATUS" in
+            clean) sealed="true" ;;
+            conflict) conflict="$BACKUP_PREFLIGHT_DETAIL" ;;
+            *) echo "Warning: Backup $backup_id $BACKUP_PREFLIGHT_DETAIL; changes made after that operation cannot be detected." >&2 ;;
+        esac
+    fi
+    if [[ -n "$conflict" ]] && [[ "$dry_run" != "true" ]]; then
+        _rollback_report_conflict "$backup_id" "$conflict" "$is_latest"
+        return 1
+    fi
 
     echo "Rollback plan:"
     echo "  Backup: $backup_id"
@@ -882,7 +899,13 @@ cmd_rollback() {
     done
 
     if [[ "$dry_run" == "true" ]]; then
+        if [[ -n "$conflict" ]] && [[ "$force" == "true" ]]; then
+            echo "Warning: Rollback conflict: $conflict changed after the operation recorded in backup $backup_id; --force will overwrite it." >&2
+        elif [[ -n "$conflict" ]]; then
+            _rollback_report_conflict "$backup_id" "$conflict" "$is_latest"
+        fi
         echo "Dry run — nothing was written."
+        [[ -z "$conflict" ]] || [[ "$force" == "true" ]] || return 1
         return 0
     fi
 
@@ -905,7 +928,11 @@ cmd_rollback() {
     # Do not arm automatic recovery until this final check succeeds: a refusal
     # must not itself restore the safety snapshot over a concurrent edit.
     if [[ "$sealed" == "true" ]]; then
-        _rollback_check_targets "$root" "$snapshot" "$backup_id" || return 1
+        backup_preflight "$root" "$snapshot"
+        if [[ "$BACKUP_PREFLIGHT_STATUS" == "conflict" ]]; then
+            _rollback_report_conflict "$backup_id" "$BACKUP_PREFLIGHT_DETAIL" "$is_latest"
+            return 1
+        fi
     fi
 
     ROLLBACK_ROOT="$root"

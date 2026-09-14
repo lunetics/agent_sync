@@ -213,7 +213,7 @@ agentsync <command> [options]
 | ------------------------ | ----- | ---------------------------------------------------------------------------------------------- |
 | `init [dir]`             |       | Create `.ai/` structure with starter templates                                                 |
 | `sync`                   |       | Sync to all enabled tools (`--only`, `--skip`, `--profile`, `--dry-run`, `--force`, `--if-stale`, `--workspace`) |
-| `rollback [backup-id]`   |       | Restore managed targets from the latest or selected backup (`--list`, `--dry-run`, `--yes`)     |
+| `rollback [backup-id]`   |       | Restore managed targets from the latest or selected backup (`--list`, `--dry-run`, `--force`, `--yes`) |
 | `check`                  |       | Verify outputs match source (CI-friendly, exit code 0/1)                                       |
 | `enable <tools…>`        |       | Opt in to one or more tools (scaffolds editable settings/hooks payloads)                        |
 | `disable <tools…>`       |       | Opt out of one or more tools                                                                    |
@@ -735,12 +735,19 @@ already existed when the operation began.
 The transaction covers declared tool destinations plus `.ai/.sync-manifest` and the managed `.gitignore` state. A trusted `post_sync` hook can execute arbitrary commands; side effects it makes outside those paths are outside AgentSync's rollback boundary.
 
 Rollback first compares every target with the state recorded **after** the
-selected operation. Later additions, edits, deletions, type or permission
-changes, and foreign children inside a directory cause the entire rollback to
-abort before any target is restored. This also applies to declared native or
-disabled destinations: a file recorded as absent is not permission to delete a
-file someone created later. `--yes` skips confirmation only; it does not bypass
-conflict checks. `--dry-run` runs the same preflight.
+selected operation. Later additions, edits, deletions, type or executable-bit
+changes, and foreign children inside a directory — even a `.DS_Store` — cause
+the entire rollback to abort before any target is restored, naming the first
+differing path. This also applies to declared native or disabled destinations:
+a file recorded as absent is not permission to delete a file someone created
+later. `--yes` skips confirmation only; it does not bypass conflict checks.
+`--dry-run` shows the plan together with the conflict and exits 1.
+`rollback --force` skips the check and restores anyway, still creating the
+safety snapshot that can undo it.
+
+Rolling back an older snapshot after newer init, sync, or rollback runs is a
+conflict whenever those runs changed its targets. Roll back the newer snapshots
+first, newest to oldest, or use `--force` to jump straight to the older state.
 
 New snapshots receive an `after.tsv` record once init, sync, or rollback has
 finished: one line per file, directory, symlink, or missing target, with
@@ -759,8 +766,8 @@ a conflict. A target reached through a symlinked parent directory is compared
 through it while the link resolves inside the project; one resolving outside
 is refused.
 
-The preflight is repeated after confirmation and after creating the safety
-snapshot, before enabling restore/recovery. These checks are not an atomic
+The preflight runs once before the plan and again after creating the safety
+snapshot, right before enabling restore/recovery. These checks are not an atomic
 filesystem transaction or a lock: concurrent writers can still change files or
 links during a scan or between the final check and a write (TOCTOU). Stop other
 writers while syncing or rolling back. Internal recovery of a failing operation

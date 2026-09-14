@@ -103,8 +103,8 @@ sync_once() {
 assert_refused_unchanged() {
     checkpoint before-refusal
     run run_agentsync rollback "$SYNC_ID" --yes
-    [ "$status" -ne 0 ]
-    [[ "$output" == *"Rollback conflict"* ]]
+    [ "$status" -eq 1 ]
+    printf '%s' "$output" | grep -qF -- "Error: Rollback conflict: "
     assert_tree_equal . "$PROOF_DIR/before-refusal"
 }
 
@@ -233,15 +233,66 @@ assert_refused_unchanged() {
     [ "$(cat .codex/config.toml)" = before ]
 }
 
-@test "rollback preflight also rejects conflict on dry-run without a misleading safe plan" {
+@test "rollback preflight dry-run shows the plan and the conflict and exits 1" {
     sync_once
     mkdir -p .codex
     printf 'foreign\n' > .codex/config.toml
     checkpoint before-refusal
     run run_agentsync rollback "$SYNC_ID" --dry-run
-    [ "$status" -ne 0 ]
-    [[ "$output" == *"Rollback conflict"* ]]
+    [ "$status" -eq 1 ]
+    printf '%s' "$output" | grep -qF -- "Rollback plan:"
+    printf '%s' "$output" | grep -qF -- "Error: Rollback conflict: .codex/config.toml changed after the operation recorded in backup $SYNC_ID; no files were changed."
+    printf '%s' "$output" | grep -qF -- "Dry run — nothing was written."
+    run run_agentsync rollback "$SYNC_ID" --dry-run --force
+    [ "$status" -eq 0 ]
+    printf '%s' "$output" | grep -qF -- "Warning: Rollback conflict: .codex/config.toml changed after the operation recorded in backup $SYNC_ID; --force will overwrite it."
     assert_tree_equal . "$PROOF_DIR/before-refusal"
+}
+
+@test "rollback conflict names the first differing path inside a directory" {
+    sync_once
+    printf 'finder\n' > .claude/skills/.DS_Store
+    run run_agentsync rollback --yes
+    [ "$status" -eq 1 ]
+    printf '%s' "$output" | grep -qF -- "Error: Rollback conflict: .claude/skills/.DS_Store changed after the operation recorded in backup $SYNC_ID; no files were changed."
+    printf '%s' "$output" | grep -qF -- "Re-run with --force to restore the backup anyway and discard that change."
+    [ "$(cat .ai/backups/.latest)" = "$SYNC_ID" ]
+}
+
+@test "rollback --force restores over a conflict and keeps it undoable" {
+    sync_once
+    mkdir -p .claude/skills/foreign
+    printf 'unrelated\n' > .claude/skills/foreign/NOTE.md
+    run run_agentsync rollback "$SYNC_ID" --yes --force
+    [ "$status" -eq 0 ]
+    [ ! -e .claude/skills/foreign ]
+    local undo
+    undo="$(cat .ai/backups/.latest)"
+    [ "$undo" != "$SYNC_ID" ]
+    run run_agentsync rollback "$undo" --yes
+    [ "$status" -eq 0 ]
+    [ "$(cat .claude/skills/foreign/NOTE.md)" = unrelated ]
+}
+
+@test "rolling back an older backup after a newer sync points at the newer backups" {
+    sync_once
+    local first="$SYNC_ID"
+    mkdir -p .ai/src/skills/added
+    printf -- '---\nname: added\ndescription: Added after the first sync.\n---\n\nBody.\n' > .ai/src/skills/added/SKILL.md
+    run_agentsync sync >/dev/null
+    local second
+    second="$(cat .ai/backups/.latest)"
+    [ -e .claude/skills/added/SKILL.md ]
+    run run_agentsync rollback "$first" --yes
+    [ "$status" -eq 1 ]
+    printf '%s' "$output" | grep -qF -- "Error: Rollback conflict: .claude/skills/added changed after the operation recorded in backup $first; no files were changed."
+    printf '%s' "$output" | grep -qF -- "Newer AgentSync operations may have changed this target. Roll back the newer backups first, or re-run with --force to restore anyway."
+    run run_agentsync rollback "$second" --yes
+    [ "$status" -eq 0 ]
+    run run_agentsync rollback "$first" --yes
+    [ "$status" -eq 0 ]
+    [ ! -e .claude/skills ]
+    [ ! -e "$PROOF_DIR/before-sync/.claude/skills" ]
 }
 
 @test "rollback preflight detects mode changes on regular files" {
@@ -334,8 +385,8 @@ assert_refused_unchanged() {
         printf 'concurrent foreign change\n' > "$TEST_PROJECT/.codex/config.toml"
     }
     AGENTSYNC_REPO_ROOT="$TEST_PROJECT" run cmd_rollback "$SYNC_ID" --yes
-    [ "$status" -ne 0 ]
-    [[ "$output" == *"Rollback conflict"* ]]
+    [ "$status" -eq 1 ]
+    printf '%s' "$output" | grep -qF -- "Error: Rollback conflict: .codex/config.toml changed after the operation recorded in backup $SYNC_ID"
     [ "$(cat .codex/config.toml)" = "concurrent foreign change" ]
     assert_tree_equal .claude/skills "$PROOF_DIR/after-sync/.claude/skills"
     cmp .ai/.sync-manifest "$PROOF_DIR/after-sync/.ai/.sync-manifest"

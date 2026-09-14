@@ -498,7 +498,15 @@ Projects scaffolded before this carry their own copy, which shadows the engine's
 
 Generated files are output, so an agent that edits them loses the change on the next sync. Three layers prevent that: the shipped `AGENTS.md` and `rules/core.md` state where instructions live, Claude Code receives a generated `PreToolUse` hook (`.claude/hooks/agentsync-guard.sh`) that blocks a write to any path in `.ai/.sync-manifest` and names the source instead, and `sync` refuses to overwrite a generated file edited since the last run. Replace the hook per project at `.ai/src/tools/claude/guard.sh`, or remove the `hooks` block from your settings override to drop it.
 
-`agentsync_version` in `agent_sync.yaml` pins the engine. With committed outputs every machine and CI must generate byte-identical files, so `sync` and `check` stop when the running version differs from the pin: match it with `agentsync update <version>` (or `AGENTSYNC_VERSION=<version>` on the installer), or move the pin with `agentsync upgrade-config` and commit the re-synced outputs. In `local` mode the mismatch is a warning.
+`agentsync_version` in `agent_sync.yaml` pins the engine. With committed outputs every machine and CI must generate byte-identical files, so `sync` and `check` stop when the running version differs from the pin: match it with `agentsync update <version>` (or `AGENTSYNC_VERSION=<version>` on the installer), or move the pin with `agentsync upgrade-config` and commit the re-synced outputs. In `local` mode the mismatch is a warning by default. Set `version_pin.mode: strict` to make a local mismatch fatal as well; `warn` preserves the default. Unknown modes are rejected before a sync can write outputs.
+
+```yaml
+version_pin:
+  mode: strict # or warn (default)
+
+# Scalar shorthand:
+version_pin: strict # or warn
+```
 
 ## How Sync Works
 

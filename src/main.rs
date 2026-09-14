@@ -75,6 +75,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
                 }
             };
             let env = cli::rollback::Env {
+                config_path: var("AGENTSYNC_CONFIG_PATH"),
                 backup_limit: var("AGENTSYNC_BACKUP_LIMIT"),
                 backup_max_age: var("AGENTSYNC_BACKUP_MAX_AGE_DAYS"),
             };

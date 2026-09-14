@@ -5,7 +5,7 @@
 use std::io::Write;
 
 use crate::interrupt::{self, Interrupt};
-use crate::{Error, backup, paths};
+use crate::{Error, backup, paths, project_config};
 
 pub const USAGE: &str = "Usage: agentsync rollback [<backup-id>] [OPTIONS]
 
@@ -20,9 +20,10 @@ Options:
   -h, --help   Show this help
 ";
 
-/// The environment `backup_prune` reads.
+/// The environment `backup_configure` and `backup_prune` read.
 #[derive(Default)]
 pub struct Env {
+    pub config_path: Option<String>,
     pub backup_limit: Option<String>,
     pub backup_max_age: Option<String>,
 }
@@ -93,6 +94,34 @@ pub fn run(
         return 0;
     }
 
+    let is_file = |path: &str| std::path::Path::new(path).is_file();
+    let config_path = match project_config::select(&root, env.config_path.as_deref(), &is_file) {
+        project_config::Selection::Found(path) => Some(path),
+        project_config::Selection::None => None,
+        project_config::Selection::Missing(path) => {
+            let _ = writeln!(err, "Error: {}", project_config::missing_message(&path));
+            return 1;
+        }
+    };
+    let config = match config_path.as_deref().map(std::fs::read) {
+        Some(Ok(bytes)) => Some(String::from_utf8_lossy(&bytes).into_owned()),
+        Some(Err(e)) => {
+            return fail(
+                err,
+                Error::io(config_path.as_deref().unwrap_or_default(), e),
+            );
+        }
+        None => None,
+    };
+    let retention = match backup::configure(
+        config_path.as_deref().zip(config.as_deref()),
+        env.backup_limit.as_deref(),
+        env.backup_max_age.as_deref(),
+    ) {
+        Ok(retention) => retention,
+        Err(e) => return fail(err, e),
+    };
+
     let snapshot = match &backup_id {
         Some(id) if *id != paths::leaf(id) => {
             let _ = writeln!(err, "Error: Invalid backup ID: {id}");
@@ -136,7 +165,7 @@ pub fn run(
         .iter()
         .map(|target| format!("{root}/{}", target.rel))
         .collect();
-    let safety = match backup::create(&root, "rollback", &current, backup::Retention::Bounded) {
+    let safety = match backup::create(&root, "rollback", &current, retention) {
         Ok(safety) => safety,
         Err(e) => {
             fail(err, e);
@@ -185,7 +214,7 @@ pub fn run(
         &root,
         env.backup_limit.as_deref(),
         env.backup_max_age.as_deref(),
-        backup::Retention::Bounded,
+        retention,
     ) {
         fail(err, e);
         let _ = writeln!(err, "Warning: Could not prune old AgentSync backups.");
@@ -318,5 +347,60 @@ mod tests {
             "Error: No complete AgentSync backup found\n"
         );
         assert_eq!(rollback(&root, &["--help", "--nope"], true).out, USAGE);
+    }
+
+    #[test]
+    fn the_policy_is_checked_after_list_and_preserve_keeps_the_history() {
+        let (dir, root) = project();
+        std::fs::create_dir_all(dir.path().join(".ai")).unwrap();
+        std::fs::write(
+            dir.path().join(".ai/agent_sync.yaml"),
+            "backup:\n  retention: typo\n",
+        )
+        .unwrap();
+        let targets = [format!("{root}/CLAUDE.md")];
+        backup::create(&root, "sync", &targets, backup::Retention::Bounded).unwrap();
+        assert_eq!(rollback(&root, &["--list"], true).status, 0);
+        let refused = rollback(&root, &["--yes"], true);
+        assert_eq!(refused.status, 1);
+        assert_eq!(
+            refused.err,
+            format!(
+                "Error: Invalid backup.retention 'typo' in {root}/.ai/agent_sync.yaml; expected bounded or preserve\n"
+            )
+        );
+
+        std::fs::write(
+            dir.path().join(".ai/agent_sync.yaml"),
+            "backup:\n  retention: preserve\n",
+        )
+        .unwrap();
+        let (mut out, mut err) = (Vec::new(), Vec::new());
+        let env = Env {
+            backup_limit: Some("1".into()),
+            ..Env::default()
+        };
+        let args = ["--yes".to_string()];
+        assert_eq!(
+            run(&root, &args, &env, &mut |_| true, &mut out, &mut err),
+            0
+        );
+        assert_eq!(backup::list(&root).unwrap().len(), 2);
+
+        let (mut out, mut err) = (Vec::new(), Vec::new());
+        let env = Env {
+            config_path: Some("missing.yaml".into()),
+            ..Env::default()
+        };
+        assert_eq!(
+            run(&root, &args, &env, &mut |_| true, &mut out, &mut err),
+            1
+        );
+        assert_eq!(
+            String::from_utf8(err).unwrap(),
+            format!(
+                "Error: AGENTSYNC_CONFIG_PATH is set but file not found: {root}/missing.yaml\n"
+            )
+        );
     }
 }

@@ -575,7 +575,7 @@ git commit -m "feat(native): validate and honour backup.retention in sync"
 - Consumes: `backup::{configure, Retention}`; `project_config::{select, Selection, missing_message}`.
 - Produces: `rollback::Env { pub config_path: Option<String>, pub backup_limit: Option<String>, pub backup_max_age: Option<String> }`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append inside `mod tests` in `src/cli/rollback.rs`:
 
@@ -625,12 +625,12 @@ Append inside `mod tests` in `src/cli/rollback.rs`:
     }
 ```
 
-- [ ] **Step 2: Run the test, confirm it fails**
+- [x] **Step 2: Run the test, confirm it fails**
 
 Run: `cargo test cli::rollback 2>&1 | grep -E '^error\['`
 Expected: `struct `cli::rollback::Env` has no field named `config_path``.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 In `src/cli/rollback.rs`, change the `use crate::{…}` line to `use crate::{Error, backup, paths, project_config};` and `Env` to:
 
@@ -675,7 +675,7 @@ and pass `retention` to `backup::create(&root, "rollback", &current, retention)`
 
 In `src/main.rs`, `Command::Rollback`'s `Env` gains `config_path: var("AGENTSYNC_CONFIG_PATH"),`.
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -3
@@ -686,7 +686,7 @@ printf 'rollback native=%s\n' "$(AGENTSYNC_NATIVE=1 bats --tap tests/rollback.ba
 
 Expected: `171 passed` and `11 passed`; `backup_retention native=0`; `rollback native=0`.
 
-- [ ] **Step 5: Lint and commit**
+- [x] **Step 5: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings

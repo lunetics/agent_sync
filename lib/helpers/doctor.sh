@@ -38,18 +38,25 @@ _doctor_prepare_context() {
 
 DOCTOR_SOURCE_RAW=""
 DOCTOR_SOURCE_ABS=""
+DOCTOR_SOURCE_REFUSED=false
 
-# Returns 0 when the project config sets source.<key>, with the value in
-# DOCTOR_SOURCE_RAW and its absolute path in DOCTOR_SOURCE_ABS.
-_doctor_explicit_source() {
+# Returns 0 when the project config points source.<key> outside the project,
+# with the value in DOCTOR_SOURCE_RAW, its absolute path in DOCTOR_SOURCE_ABS,
+# and DOCTOR_SOURCE_REFUSED=true when sync would refuse that root.
+_doctor_external_source() {
     local key="$1"
     DOCTOR_SOURCE_RAW=""
     DOCTOR_SOURCE_ABS=""
+    DOCTOR_SOURCE_REFUSED=false
     [[ -n "$PROJECT_CONFIG_PATH" ]] || return 1
     parse_yaml_value_r "$PROJECT_CONFIG_PATH" "source.$key"
     [[ -n "$REPLY" ]] || return 1
-    DOCTOR_SOURCE_RAW="$REPLY"
-    source_abs_path_r "$DOCTOR_SOURCE_RAW"
+    local raw_path="$REPLY" root_status=0
+    explicit_source_root_r "$raw_path" || root_status=$?
+    [[ "$root_status" -ne 0 ]] || return 1
+    [[ "$root_status" -eq 2 ]] && DOCTOR_SOURCE_REFUSED=true
+    DOCTOR_SOURCE_RAW="$raw_path"
+    source_abs_path_r "$raw_path"
     DOCTOR_SOURCE_ABS="$REPLY"
 }
 
@@ -614,7 +621,7 @@ cmd_doctor() {
     fi
 
     local agents_found=false
-    if _doctor_explicit_source agents; then
+    if _doctor_external_source agents; then
         [[ -f "$DOCTOR_SOURCE_ABS" ]] && agents_found=true
     elif [[ -f "$REPO_ROOT/.ai/src/AGENTS.md" ]] || [[ -f "$REPO_ROOT/.ai/AGENTS.md" ]]; then
         agents_found=true
@@ -732,19 +739,17 @@ cmd_doctor() {
     # ── Section 4: source directories ────────────────────────────────────────
     _bold "  Source directories"; echo ""
     local missing=0
-    local src source_key display source_abs root_status
+    local src source_key display source_abs
     for src in AGENTS.md rules skills commands agents; do
         case "$src" in
             AGENTS.md) source_key="agents" ;;
             agents)    source_key="subagents" ;;
             *)         source_key="$src" ;;
         esac
-        if _doctor_explicit_source "$source_key"; then
+        if _doctor_external_source "$source_key"; then
             display="$DOCTOR_SOURCE_RAW"
             source_abs="$DOCTOR_SOURCE_ABS"
-            root_status=0
-            explicit_source_root_r "$display" || root_status=$?
-            if [[ "$root_status" -eq 2 ]]; then
+            if [[ "$DOCTOR_SOURCE_REFUSED" == "true" ]]; then
                 _doctor_fail "source.$source_key must not be the filesystem root, the home directory, or the project root or its ancestor: $display"
                 continue
             fi

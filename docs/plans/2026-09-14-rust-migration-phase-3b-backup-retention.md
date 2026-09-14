@@ -778,3 +778,44 @@ The family is closed when every box is ticked, `backup_retention.bats` is green 
 - Plan amended: none.
 - Next: Task 0 Step 1.
 - Blocker: none.
+
+### 2026-09-14 — Tasks 0 to 5 done, family closed
+- Commits: `a80d238`, `0f396a8`, `6b11998`, `cb2ac1b`, `eff5069`, and the receipt below.
+- Verified: see the receipt.
+- Plan amended: none.
+- Next: Phase 3b family 3, sources outside the project: commit its plan, then Task 0.
+- Blocker: none.
+
+## Completion receipt
+
+### Decisions the review took
+
+All three as recommended, on 2026-09-14, by the maintainer's instruction to proceed without waiting.
+
+### Global Constraints
+
+| Constraint | Satisfied by |
+|---|---|
+| `sync` and `rollback` write only what Bash writes; `preserve` deletes nothing | `src/backup.rs` `sweep_stale_staging` and `prune` return early under `Retention::Preserve`; `tests/native_parity.bats` `parity: backup.retention in sync and rollback` compares both trees |
+| No binary ships; no Bash change | `git diff --stat 04929db..HEAD -- lib bin` is empty; ShellCheck exit 0 |
+| Byte-for-byte parity on stdout, stderr, status, and files | `parity: backup.retention in sync and rollback` |
+| `unsafe_code = "forbid"`, fmt and clippy clean, no new dependency | `Cargo.toml` and `Cargo.lock` unchanged; fmt and clippy exit 0 |
+| Disk-touching unit tests are `#[cfg(unix)]` | `src/backup.rs` tests |
+| Expected messages captured from Bash 0.36.0 | `scratchpad/phase3b/bash_reference_retention.sh`, asserted verbatim in `src/backup.rs` and `src/render.rs` tests |
+| No new deviation or quirk | spec unchanged in this family |
+| Conventional Commits, at most 72 characters, no trailers | `a80d238` … `eff5069`, longest subject 68 characters |
+
+### Fresh verification, 2026-09-14, macOS arm64
+
+- `cargo test`: 171 passed (unit), 11 passed (integration).
+- `cargo clippy --all-targets -- -D warnings`: exit 0. `cargo fmt --all --check`: exit 0.
+- `shellcheck -x -S warning -e SC1091 bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh`: exit 0.
+- bats, one file at a time, `AGENTSYNC_NATIVE=0` / `=1` failures: `backup_retention` 0/0, `backup` 0/0, `rollback` 0/0, `sync` 0/0, `check` 0/0, `config_safety` 0/0, `native_parity` 1/1 (`parity: rollback plans, restores, and refuses like Bash`, owned by family 4).
+- Mutation: breaking the `preserve` message in `src/backup.rs` failed `parity: backup.retention in sync and rollback`; reverted, rebuilt.
+
+### Skipped, deferred, open
+
+- **Full-suite runs** stay off on this machine for memory; the files this family touches ran one at a time.
+- **Timings.** Not measured: the family adds one config lookup on a path that already reads the config.
+- **Red `native_parity` fixture** until family 4.
+- **Not pushed.**

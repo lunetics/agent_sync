@@ -221,18 +221,16 @@ assert_refused_unchanged() {
     assert_tree_equal .claude/skills "$PROOF_DIR/after-sync/.claude/skills"
 }
 
-@test "rollback preflight rejects historical snapshots without a proved post-operation state" {
+@test "rollback preflight restores an unsealed historical snapshot with a warning" {
     mkdir -p .codex
     printf 'before\n' > .codex/config.toml
     local historical
     historical="$(backup_create "$TEST_PROJECT" sync .codex/config.toml)"
-    checkpoint before-foreign-write
     printf 'after\n' > .codex/config.toml
-    checkpoint before-refusal
     run run_agentsync rollback "$(basename "$historical")" --yes
-    [ "$status" -ne 0 ]
-    [[ "$output" == *"post-operation"* ]]
-    assert_tree_equal . "$PROOF_DIR/before-refusal"
+    [ "$status" -eq 0 ]
+    printf '%s' "$output" | grep -qF -- "Warning: Backup $(basename "$historical") has no post-operation record; changes made after that operation cannot be detected."
+    [ "$(cat .codex/config.toml)" = before ]
 }
 
 @test "rollback preflight also rejects conflict on dry-run without a misleading safe plan" {
@@ -267,14 +265,34 @@ assert_refused_unchanged() {
     assert_tree_equal "$PROOF_DIR/claude-original" "$PROOF_DIR/after-sync/.claude"
 }
 
-@test "rollback preflight rejects an incomplete or forged post-operation record" {
+@test "rollback preflight treats a malformed post-operation record as unsealed" {
     sync_once
+    mkdir -p .claude/skills/foreign
     printf 'broken\n' > ".ai/backups/$SYNC_ID/after.tsv"
-    checkpoint before-refusal
+    run run_agentsync rollback "$SYNC_ID" --dry-run
+    [ "$status" -eq 0 ]
+    printf '%s' "$output" | grep -qF -- "Warning: Backup $SYNC_ID has a malformed post-operation record; changes made after that operation cannot be detected."
+    printf 'post-state-v2\t%064d\nfile\tnot-a-hash\t.claude/skills\n' 0 > ".ai/backups/$SYNC_ID/after.tsv"
+    run run_agentsync rollback "$SYNC_ID" --dry-run
+    [ "$status" -eq 0 ]
+    printf '%s' "$output" | grep -qF -- "has a post-operation record that does not match its target list"
+    : > ".ai/backups/$SYNC_ID/after.tsv"
     run run_agentsync rollback "$SYNC_ID" --yes
-    [ "$status" -ne 0 ]
-    [[ "$output" == *"post-operation"* ]]
-    assert_tree_equal . "$PROOF_DIR/before-refusal"
+    [ "$status" -eq 0 ]
+    printf '%s' "$output" | grep -qF -- "Warning: Backup $SYNC_ID has a malformed post-operation record"
+    [ ! -e .claude/skills/foreign ]
+}
+
+@test "rollback preflight treats a record with a malformed body as unsealed" {
+    sync_once
+    printf 'foreign\n' > .claude/skills/NOTE.md
+    local record=".ai/backups/$SYNC_ID/after.tsv"
+    { head -1 "$record"; printf 'file\tnot-a-hash\t.claude/skills\n'; } > "$PROOF_DIR/after.tsv"
+    cat "$PROOF_DIR/after.tsv" > "$record"
+    run run_agentsync rollback "$SYNC_ID" --yes
+    [ "$status" -eq 0 ]
+    printf '%s' "$output" | grep -qF -- "Warning: Backup $SYNC_ID has a malformed post-operation record"
+    [ ! -e .claude/skills/NOTE.md ]
 }
 
 @test "rollback preflight supports unusual child names without ignoring their changes" {

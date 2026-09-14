@@ -743,16 +743,21 @@ file someone created later. `--yes` skips confirmation only; it does not bypass
 conflict checks. `--dry-run` runs the same preflight.
 
 New snapshots receive an `after.tsv` record once init, sync, or rollback has
-finished. It binds the expected result to the target list and saved contents.
-Undo uses the result of the preceding rollback as its expected state. Historical
-snapshots, interrupted operations without a completed record, and damaged
-records are refused conservatively. They remain available for inspection via
-`rollback --list` and in the backup store; there is no force override.
+finished: one line per file, directory, symlink, or missing target, with
+content hashes and the executable bit, bound to the snapshot's target list.
+Undo uses the result of the preceding rollback as its expected state. If the
+record cannot be written — no `sha256sum` or `shasum`, an unreadable file — the
+operation still succeeds with a warning. Snapshots without a usable record
+(taken before this check existed, left unsealed by such a warning, or with an
+empty or damaged `after.tsv`) are restored as before, with a warning that
+changes made after their operation cannot be detected.
 
 Symlinks are compared by their link text, without inspecting or restoring their
 destination contents. Changes to mutable knowledge behind an unchanged link
 therefore neither block rollback nor get reverted. Replacing a link itself is
-a conflict; targets reached through an ancestor symlink are refused.
+a conflict. A target reached through a symlinked parent directory is compared
+through it while the link resolves inside the project; one resolving outside
+is refused.
 
 The preflight is repeated after confirmation and after creating the safety
 snapshot, before enabling restore/recovery. These checks are not an atomic

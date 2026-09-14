@@ -771,18 +771,19 @@ Options:
 HELP
 }
 
-_rollback_require_clean() {
+# Returns 1 on a conflict. A snapshot without a usable record only warns.
+# Usage: _rollback_check_targets <root> <snapshot> <backup-id>
+_rollback_check_targets() {
     backup_preflight "$1" "$2"
     case "$BACKUP_PREFLIGHT_STATUS" in
-        clean) return 0 ;;
         conflict)
             _backup_error "Rollback conflict: $BACKUP_PREFLIGHT_DETAIL changed after the operation; no targets were restored"
+            return 1
             ;;
-        *)
-            _backup_error "Snapshot $BACKUP_PREFLIGHT_DETAIL; no verified post-operation state, rollback refused"
+        unsealed)
+            echo "Warning: Backup $3 $BACKUP_PREFLIGHT_DETAIL; changes made after that operation cannot be detected." >&2
             ;;
     esac
-    return 1
 }
 
 cmd_rollback() {
@@ -864,7 +865,9 @@ cmd_rollback() {
 
     backup_load_targets "$root" "$snapshot" || return 1
 
-    _rollback_require_clean "$root" "$snapshot" || return 1
+    _rollback_check_targets "$root" "$snapshot" "$backup_id" || return 1
+    local sealed="false"
+    [[ "$BACKUP_PREFLIGHT_STATUS" != "clean" ]] || sealed="true"
 
     echo "Rollback plan:"
     echo "  Backup: $backup_id"
@@ -901,7 +904,9 @@ cmd_rollback() {
 
     # Do not arm automatic recovery until this final check succeeds: a refusal
     # must not itself restore the safety snapshot over a concurrent edit.
-    _rollback_require_clean "$root" "$snapshot" || return 1
+    if [[ "$sealed" == "true" ]]; then
+        _rollback_check_targets "$root" "$snapshot" "$backup_id" || return 1
+    fi
 
     ROLLBACK_ROOT="$root"
     ROLLBACK_SAFETY_PATH="$safety"

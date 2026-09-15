@@ -25,7 +25,7 @@ lib/helpers/tool_resolver.sh     → src/tool.rs, src/catalog.rs, src/payload.rs
 lib/helpers/profiles.sh          → src/profiles.rs         names, overlay dir, tools, active, rewrite_dest
 
 Tier 2
-lib/helpers/manifest.sh          → src/session.rs (record_write, was_touched, record_tree, may_prune), src/manifest.rs (load, drift, write)
+lib/helpers/manifest.sh          → src/session.rs (record_write, was_touched, record_tree, may_prune), src/manifest.rs (load, drift, write, update_entry (Phase 4f))
 lib/helpers/file_ops.sh          → src/file_ops.rs         ensure_dir, cleanup_path, copy_file, sync_dir, prune-vs-preserve
 
 Tier 3
@@ -57,7 +57,7 @@ lib/helpers/init.sh              → src/cli/{init,upgrade_config}.rs   upgrade_
 lib/helpers/refresh.sh           → src/cli/refresh.rs
 lib/helpers/dedupe.sh            → src/cli/dedupe.rs       Phase 4e, ported
 lib/helpers/migrate.sh           → src/cli/migrate.rs
-lib/helpers/adopt.sh             → src/cli/adopt.rs
+lib/helpers/adopt.sh             → src/cli/adopt.rs        Phase 4f, ported; Resolver serves init's adopt_file_quiet in 4i
 lib/helpers/doctor.sh            → src/cli/doctor.rs       exit 0/1/2 = clean/warnings/errors
 lib/helpers/add.sh               → src/cli/add.rs
 lib/helpers/export.sh            → src/cli/export.rs

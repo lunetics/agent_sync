@@ -429,6 +429,11 @@ cleanup has a list:
 32. `dedupe` ignores `AGENTSYNC_CONFIG_PATH`, even a missing one: it reads
     `shared.path` from and appends declined entries to `.ai/agent_sync.yaml`,
     else a root `agent_sync.yaml`.
+33. `adopt` of a merged rules file such as Zed's `.rules` answers that it is not
+    a recognised output; the merge refusal is reachable only for a file inside
+    a rules directory.
+34. `adopt --all` prints one `✓ adopted` line per destination, so two identical
+    edits of one source name it twice.
 
 ## Accepted deviations
 
@@ -490,6 +495,8 @@ Appended one line at a time as they are found, with the phase:
   `Error: Repository root not found: <path>` where Bash printed `cd`'s message;
   the status is 1 in both, as for the other ported commands that discover a
   project.
+- Phase 4f: `adopt`'s OpenCode refusal names a shipped settings file as
+  `/<agentsync>/lib/templates/...` where Bash printed the install directory.
 
 ## Risks
 

@@ -1669,7 +1669,7 @@ git commit -m "feat(native): port adopt"
 **Files:**
 - Modify: `docs/specs/2026-09-12-rust-migration-design.md`, `.ai/src/skills/native-port/references/module-map.md`, `.ai/.sync-manifest`
 
-- [ ] **Step 1: Spec**
+- [x] **Step 1: Spec**
 
 Append to "Known quirks":
 
@@ -1688,11 +1688,11 @@ Append to "Accepted deviations":
   `/<agentsync>/lib/templates/...` where Bash printed the install directory.
 ```
 
-- [ ] **Step 2: Module map and outputs**
+- [x] **Step 2: Module map and outputs**
 
 Set the `lib/helpers/adopt.sh` row to `→ src/cli/adopt.rs        Phase 4f, ported; Resolver serves init's adopt_file_quiet in 4i`, and add `update_entry (Phase 4f)` to the `lib/helpers/manifest.sh` row. Regenerate outputs with `AGENTSYNC_NATIVE=0 AGENTSYNC_HOME="$PWD" bash bin/agentsync.sh sync --force`.
 
-- [ ] **Step 3: Verify (outside the agent sandbox)**
+- [x] **Step 3: Verify (outside the agent sandbox)**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -4
@@ -1708,7 +1708,7 @@ done
 
 Expected: `223 passed`, `0`, `11`, `1`; lint exit 0; every line `bash=0 native=0`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/specs/2026-09-12-rust-migration-design.md .ai/src/skills/native-port/references/module-map.md .ai/.sync-manifest docs/plans/2026-09-15-rust-migration-phase-4f-adopt.md
@@ -1721,6 +1721,41 @@ git commit -m "docs(native): map the phase 4f modules and quirks"
 
 The plan is closed when every box is ticked, the files in Task 6 are green under both engines, the parity fixture passes, and a `## Completion receipt` records the fresh verification. The next plan is 4g, `migrate`.
 
+## Completion receipt
+
+### Decisions the review took
+
+Both as recommended, on 2026-09-15, under `/decide`.
+
+### Global Constraints
+
+| Constraint | Satisfied by |
+|---|---|
+| `adopt` writes only the mapped source and its manifest line, and nothing on a refusal, dry run, declined prompt, or missing `--yes` off a terminal | `src/cli/adopt.rs`; the parity fixture compares whole trees after each of those calls |
+| Three Bash changes, each in its own commit with a regression test | `a0de139`, `eec449c`, `e4f1ab6`, each adding one test to `tests/adopt.bats`; `git diff --stat 35e7359..HEAD -- lib` names only `lib/helpers/adopt.sh`; ShellCheck exit 0 |
+| Byte-for-byte parity | `tests/native_parity.bats`: `parity: adopt plans, refuses, writes, and records like Bash`; identical pty transcripts; identical source modes |
+| `unsafe_code = "forbid"`, fmt and clippy clean, no new dependency; `main.rs` alone reads terminal state | `Cargo.toml` unchanged; `prompts::is_tty` and `prompts::confirm` are called from `src/main.rs`; the umask reaches a new source through `OpenOptionsExt::mode` |
+| Disk-touching unit tests are `#[cfg(unix)]` | `src/cli/adopt.rs` test module; `one_entry_is_replaced_and_every_other_line_is_kept_as_bash_reads_it` in `src/manifest.rs` |
+| Expected values from the fixed Bash | `adopt_reference.out`, `adopt_tty.sh`, `update_entry_reference.sh`, `mode_probe.sh`, `opencode_probe.sh` |
+| Conventional Commits, at most 72 characters, no trailers | `a0de139` … the close commit |
+
+### Fresh verification, 2026-09-15, macOS arm64, outside the agent sandbox
+
+- `cargo test`: 223 passed (lib), 11 passed (cli), 1 passed (interrupt).
+- `cargo clippy --all-targets -- -D warnings`: exit 0. `cargo fmt --all --check`: exit 0.
+- `shellcheck -x -S warning -e SC1091 bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh`: exit 0.
+- bats, one file at a time, `AGENTSYNC_NATIVE=0` / `=1` failures: `adopt` 0/0 (29 cases), `baseline` 0/0 (11), `guard` 0/0 (18), `init` 0/0 (35), `init_flow` 0/0 (14), `tmp` 0/0 (15), `native_parity` 0/0 (51).
+- Each Bash fix: its new test failed before the fix (`not ok 1`) and passed after.
+- Mutation: `— adopt one explicitly` → `— adopt one` failed the fixture with both conflict lines; reverted, rebuilt.
+- Terminal, run against this tree: `adopt_tty.sh` (declined and accepted single adoption, accepted `--all`) gave identical 74-line transcripts for both engines. `mode_probe.sh`: `new=755 existing=600` in both.
+
+### Skipped, deferred, open
+
+- **`init` still adopts through Bash's `adopt_file_quiet`**; the `Resolver` is ready for it in 4i.
+- **The legacy-layout warning inside the OpenCode refusal** is ported through `payload::legacy_warning` but no fixture reaches it.
+- **Full-suite runs** stay off on this machine.
+- **Not pushed.**
+
 ## Run log
 
 ### 2026-09-15 — Phase 4f planned
@@ -1728,4 +1763,11 @@ The plan is closed when every box is ticked, the files in Task 6 are green under
 - Verified: the three Bash fixes were applied to a copy of the engine: each new test failed on the committed `adopt.sh` and passed on the copy (`adopt.bats` 29/29), and `init.bats` 35/35 and `init_flow.bats` 14/14 passed there. The Rust in Tasks 4–5 was drafted against that copy and removed from the tree: `cargo test` 223/0/11/1, clippy clean; `adopt_reference.sh` gave identical 517-line transcripts for the fixed Bash and the binary, and an `Updated .ai/.sync-manifest` mutation showed in the diff; with `adopt` in the copy's `_NATIVE_COMMANDS`, `adopt` 29/29, `baseline` 11/11, `guard` 18/18, and `tmp` 15/15 passed in both modes; the parity fixture passed and failed on a `— adopt one explicitly` mutation; `adopt_tty.sh` transcripts were identical; `mode_probe.sh` gave `new=755 existing=600` in both engines; `opencode_probe.sh` showed the shipped-path deviation.
 - Plan amended: none.
 - Next: Task 0 Step 1.
+- Blocker: none.
+
+### 2026-09-15 — Tasks 0–6 done, plan closed
+- Commits: `a0de139 fix(adopt): write into the source directories sync reads`; `eec449c fix(adopt): map a nested destination to its deepest target`; `e4f1ab6 fix(adopt): name the plan diff's files by project path`; `9893915 feat(native): port manifest_update_entry`; `b35710b feat(native): port adopt`; `docs(native): map the phase 4f modules and quirks`.
+- Verified: see the completion receipt; every file `bash=0 native=0`.
+- Plan amended: the two Bash comments are one line each instead of the draft's two; behaviour matches the verified copy.
+- Next: plan 4g, `migrate`.
 - Blocker: none.

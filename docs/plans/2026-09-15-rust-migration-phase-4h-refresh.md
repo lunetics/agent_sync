@@ -56,7 +56,7 @@ Reused: `TemplateManifest::{load, lookup, write}`, `template_manifest::hash`, `m
 
 **Files:** none changed.
 
-- [ ] **Step 1: Record the baseline**
+- [x] **Step 1: Record the baseline**
 
 ```bash
 git log --oneline -1
@@ -67,7 +67,7 @@ for f in refresh native_parity; do
 done
 ```
 
-Expected: this plan's commit; `232 passed`, `0 passed`, `11 passed`, `1 passed`; `0` for both files.
+Expected: the plan's latest commit; `232 passed`, `0 passed`, `11 passed`, `1 passed`; `0` for both files, with `native_parity` run outside the agent sandbox, which refuses the `diff -` stdin operand `src/cli/diff.rs` uses and so empties the `diff cursor hooks` hunks.
 
 ---
 
@@ -2318,4 +2318,11 @@ The plan is closed when every box is ticked, `tests/refresh.bats` and `tests/nat
 - Verified: the reference turned up no Bash bug; every branch of `cmd_refresh` was captured with `refresh_reference.sh` (59 scenarios) on a plain `init` seed. The Rust in Tasks 1–2 was drafted in the tree and removed after verification: `cargo test` 243/0/11/1, fmt and clippy clean; with `refresh` in `_NATIVE_COMMANDS`, `AGENTSYNC_NATIVE=1 bats tests/refresh.bats` 38/38 and the two parity fixtures passed, and failed on an `(auto-updated; untouched)` mutation; `refresh_reference.sh` gave 3658-line transcripts for both engines identical apart from 17 `.ai/.template-manifest` mode lines (Bash `0600` through BSD `sort -o`, native `0644` kept), with the restored `strip-ai-chars.sh` at `755` in both; `refresh_tty.sh` on a pty, outside the sandbox, gave identical 600-line transcripts for view, restore, unknown reply, skip, diff, update, quit, and colours, apart from 3 of the same mode lines. `diff -` on stdin is refused inside the sandbox, so `_refresh_show_diff` stages the template in a temporary file. Baseline `cargo test` 232/0/11/1; `refresh.bats` 38 and `native_parity.bats` 52 cases green in Bash.
 - Plan amended: none.
 - Next: Task 0 Step 1.
+- Blocker: none.
+
+### 2026-09-15 — Task 0 done
+- Commits: `docs(native): log run 2026-09-15` (this entry; Task 0 has no commit step).
+- Verified: `git log --oneline -1` → `6c037f3 docs(native): record the phase 4h decisions`, the plan's latest commit; `cargo test` 232/0/11/1; `cargo build --release` finished; `AGENTSYNC_NATIVE=0 bats tests/refresh.bats` 0 failures (38 cases); `AGENTSYNC_NATIVE=0 bats tests/native_parity.bats` 1 failure inside the agent sandbox (`parity: diff reports overrides and payload hunks like Bash`: the native `diff cursor hooks` printed no hunks because the sandbox refuses the `diff -` stdin operand `src/cli/diff.rs` uses), and that case passed when rerun outside the sandbox.
+- Plan amended: Task 0 Step 1's expected line now names the plan's latest commit and says `native_parity` runs outside the agent sandbox, for the reason above.
+- Next: Task 1 Step 1.
 - Blocker: none.

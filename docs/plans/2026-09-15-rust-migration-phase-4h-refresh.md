@@ -2311,6 +2311,44 @@ git commit -m "docs(native): map the phase 4h modules and quirks"
 
 The plan is closed when every box is ticked, `tests/refresh.bats` and `tests/native_parity.bats` are green under both engines, the two parity fixtures pass, and a `## Completion receipt` records the fresh verification. The next plan is 4i, `init`, the last of the `template_manifest` family.
 
+## Completion receipt
+
+### Decisions the review took
+
+All three as recommended, on 2026-09-15, under `/decide`; quirks 39 and 40 were confirmed against Bash before the call.
+
+### Global Constraints
+
+| Constraint | Satisfied by |
+|---|---|
+| `refresh` writes only the templates it adds, restores, auto-updates, or updates under the source base and `.ai/.template-manifest`; `--dry-run` and `--status` write nothing; a conflict is never overwritten off a terminal | `src/cli/refresh.rs` (`write_template`, the apply loops, the TTY gate); the two parity fixtures in `tests/native_parity.bats` compare whole trees after every call |
+| No Bash change; `lib/**/*.sh` and `bin/agentsync.sh` clean under ShellCheck | `git diff --stat 0a0a2e6..HEAD -- lib bin` names only `bin/agentsync.sh` (the `_NATIVE_COMMANDS` line); ShellCheck exit 0 |
+| Byte-for-byte parity except the accepted deviations | `tests/native_parity.bats`: `parity: refresh plans, adds, auto-updates, and skips conflicts like Bash` and `parity: refresh scopes, heals the manifest, and restores a script like Bash`; the reference and pty transcripts in Task 2 Step 5 |
+| `unsafe_code = "forbid"`, fmt and clippy clean, no new dependency; `main.rs` alone reads the environment and terminal state | `Cargo.toml` unchanged; `AGENTSYNC_REPO_ROOT`, `PWD`, and the terminal checks are read in `src/main.rs`; `refresh::Env` carries them in |
+| Disk-touching unit tests are `#[cfg(unix)]` | `src/cli/refresh.rs` and `src/template_manifest.rs` test modules |
+| No bats fixture reaches a prompt | every fixture call without `--yes` or `--dry-run` has a new file or a conflict pending; the prompts were driven on a pty by `refresh_tty.sh` |
+| Expected values captured from Bash | `refresh_reference.sh` (59 scenarios) and `refresh_tty.sh` (7 scenarios), reproduced in Task 2 Step 5 |
+| Conventional Commits, at most 72 characters, no trailers | `0a0a2e6`, `f30e3f2`, `69b6c32`, `96275b5`, and the close commit |
+| bats one file at a time | every recorded run |
+
+### Fresh verification, 2026-09-15, macOS 26.5 arm64, outside the agent sandbox where noted
+
+- `cargo test`: 243 passed (lib), 11 passed (cli), 1 passed (interrupt).
+- `cargo clippy --all-targets -- -D warnings`: exit 0. `cargo fmt --all --check`: exit 0.
+- `shellcheck -x -S warning -e SC1091 bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh`: exit 0.
+- bats, one file at a time, `AGENTSYNC_NATIVE=0` / `=1` failures: `refresh` 0/0 (38 cases), `native_parity` 0/0 (54 cases, outside the sandbox, which refuses the `diff -` stdin operand `src/cli/diff.rs` uses).
+- Mutation in Task 2 Step 5: `(auto-updated; you hadn't touched it)` → `(auto-updated; untouched)` failed the first fixture on that line; reverted, rebuilt, byte-identical to the verified draft.
+- Against this tree: `refresh_reference.sh` gave 3658-line transcripts for both engines with 34 differing lines, all the `.ai/.template-manifest` mode column (Bash `0600` through BSD `sort -o`, native `0644` kept: decision 2), and the restored `strip-ai-chars.sh` at `755` in 52 listings; `refresh_tty.sh` on a pty gave 600-line transcripts with no difference outside that column and 7 scenarios at `rc=0`.
+- `sync` and `check` are unchanged; no timings.
+
+### Skipped, deferred, open
+
+- **Full-suite runs** stay off on this machine.
+- **GNU `sort -o`** was not checked (no `gsort` installed); the deviation names BSD sort.
+- **Windows**: native bats runs stay off Windows until Phase 5; `cargo test` still runs there.
+- **`init`** (4i) will reuse `catalog::template_files`, `TemplateManifest::heal_from_match`, and the `#!` mode rule for its template copy.
+- **Not pushed.**
+
 ## Run log
 
 ### 2026-09-15 — Phase 4h planned
@@ -2346,4 +2384,11 @@ The plan is closed when every box is ticked, `tests/refresh.bats` and `tests/nat
 - Verified: `cargo test` 243/0/11/1; `cargo clippy --all-targets -- -D warnings` and `cargo fmt --all --check` clean; ShellCheck over `bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh` exit 0; `refresh` bash=0 native=0 across 38 cases; `native_parity` bash=0 native=0 across 54 cases, run outside the sandbox; `sync --force` regenerated the outputs outside the sandbox, which refuses writes under `.claude/`, and changed only `.ai/.sync-manifest` among tracked files.
 - Plan amended: none.
 - Next: close the plan with a `## Completion receipt`.
+- Blocker: none.
+
+### 2026-09-15 — plan closed
+- Commits: `docs(native): close phase 4h`.
+- Verified: see the completion receipt; `refresh` and `native_parity` both `bash=0 native=0`.
+- Plan amended: none.
+- Next: plan 4i, `init`.
 - Blocker: none.

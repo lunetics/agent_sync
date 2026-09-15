@@ -53,6 +53,21 @@ pub fn template_sources() -> Vec<String> {
     paths
 }
 
+/// `lib/prompts/migrate.md`, the upgrade prompt `agentsync migrate` prints.
+pub const MIGRATE_PROMPT: &str = include_str!("../lib/prompts/migrate.md");
+
+/// The engine-owned skills under `lib/templates/base-src/skills/`, in byte order.
+pub fn base_src_skills() -> Vec<String> {
+    TEMPLATES
+        .get_dir("base-src/skills")
+        .into_iter()
+        .flat_map(|dir| dir.dirs())
+        .filter_map(|dir| Some(dir.path().file_name()?.to_str()?.to_string()))
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
 /// `lib/config.yaml`, the install-dir global config `sync.sh` reads source defaults from.
 pub const GLOBAL_CONFIG: &str = include_str!("../lib/config.yaml");
 
@@ -117,6 +132,12 @@ mod tests {
         );
         assert_eq!(base_payload("hooks", "zed").map(|f| f.path()), None);
         assert!(base_payload("hooks", "claude-hub").is_none());
+    }
+
+    #[test]
+    fn the_engine_owns_the_agentsync_skill_and_ships_the_migrate_prompt() {
+        assert_eq!(base_src_skills(), ["agentsync"]);
+        assert!(MIGRATE_PROMPT.starts_with("I need you to safely migrate"));
     }
 
     #[test]

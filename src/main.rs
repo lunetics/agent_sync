@@ -50,6 +50,39 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
             &mut std::io::stderr(),
         );
     }
+    if args.first().and_then(|a| a.to_str()) == Some("migrate") {
+        let rest: Vec<String> = args[1..]
+            .iter()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        let prompt_root = match var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty()) {
+            Some(root) => root,
+            None => {
+                let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
+                paths::logical_root(None, &cwd, var("PWD").as_deref())
+            }
+        };
+        let path_var = var("PATH");
+        let mut env = cli::migrate::Env {
+            version: engine_version(),
+            prompt_root,
+            no_clipboard: var("AGENTSYNC_NO_CLIPBOARD").as_deref() == Some("1"),
+            stdout_tty: std::io::stdout().is_terminal(),
+            interactive: prompts::is_tty(),
+            confirm: &mut |question: &str, default_yes: bool| {
+                prompts::confirm(question, default_yes)
+            },
+            copy: &mut |text: &str| cli::migrate::copy_to_clipboard(text, path_var.as_deref()),
+        };
+        return cli::migrate::migrate(
+            &rest,
+            &Project::discover,
+            &Style::for_stdout(),
+            &mut env,
+            &mut std::io::stdout(),
+            &mut std::io::stderr(),
+        );
+    }
     if args.first().and_then(|a| a.to_str()) == Some("upgrade-config") {
         let root = project_root()?;
         return cli::upgrade_config::run(

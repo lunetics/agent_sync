@@ -856,3 +856,39 @@ assert_tree_parity() {
     printf 'tools:\n  enabled:\n    - claude\nsource:\n  tools: "../elsewhere"\n' > .ai/agent_sync.yaml
     assert_tree_parity adopt -y CLAUDE.md
 }
+
+# ── migrate ──────────────────────────────────────────────────────────────────
+
+@test "parity: migrate prints the prompt and retires legacy layouts like Bash" {
+    export AGENTSYNC_NO_CLIPBOARD=1
+    assert_tree_parity migrate
+    assert_tree_parity migrate --help
+    assert_tree_parity migrate --bogus extra
+    assert_tree_parity migrate --legacy --help
+    assert_tree_parity migrate --legacy --bogus
+    assert_tree_parity migrate --legacy
+    assert_tree_parity migrate --apply
+    mkdir -p .ai/src/hooks .ai/src/settings .ai/src/mcp .ai/src/tools/cursor .agent/rules
+    printf '{"hooks": {}}\n' > .ai/src/hooks/cursor.json
+    printf '{"taken": true}\n' > .ai/src/tools/cursor/settings.json
+    printf '{"s": 1}\n' > .ai/src/settings/cursor.json
+    printf '{"s": 2}\n' > .ai/src/settings/claude.json
+    printf 'noext\n' > .ai/src/settings/README
+    printf '{"mcpServers": {}}\n' | tee .ai/src/mcp/claude.json > .ai/src/mcp/cursor.json
+    printf '# old\n' > .agent/AGENTS.md
+    assert_tree_parity migrate --legacy
+    assert_tree_parity migrate --legacy --apply
+    assert_tree_parity migrate --apply --yes
+    printf '[x]\n' > .ai/src/mcp/codex.toml
+    assert_tree_parity migrate -y --apply
+    rm -rf .agent .ai/src/hooks .ai/src/settings .ai/src/mcp
+    mkdir -p .ai/src/skills
+    cp -R "$REPO_ROOT/lib/templates/base-src/skills/agentsync" .ai/src/skills/agentsync
+    printf 'tools:\n  enabled:\n    - claude\n' > .ai/agent_sync.yaml
+    assert_tree_parity migrate --legacy
+    assert_tree_parity migrate --apply
+    printf 'tools:\n  enabled: []\nsource:\n  tools: "../elsewhere"\n' > .ai/agent_sync.yaml
+    mkdir -p .ai/src/hooks
+    printf '{}\n' > .ai/src/hooks/claude.json
+    assert_tree_parity migrate --legacy --apply
+}

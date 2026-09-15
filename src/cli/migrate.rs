@@ -1,0 +1,1097 @@
+//! `agentsync migrate`: `cmd_migrate` of `lib/helpers/migrate.sh`, which prints
+//! an upgrade prompt or, with `--legacy`, retires pre-0.11 layouts.
+
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+
+use super::customize::put;
+use crate::project::Project;
+use crate::style::Style;
+use crate::template_manifest::{self, TemplateManifest};
+use crate::{Error, catalog, format_rev, yaml_edit, yaml_subset};
+
+type Discover<'a> = &'a dyn Fn() -> Result<Project, Error>;
+
+/// What `migrate` takes from the process and the terminal.
+pub struct Env<'a> {
+    pub version: &'a str,
+    /// `${AGENTSYNC_REPO_ROOT:-$(pwd)}` as the prompt reads it, unchecked.
+    pub prompt_root: String,
+    pub no_clipboard: bool,
+    pub stdout_tty: bool,
+    pub interactive: bool,
+    pub confirm: &'a mut dyn FnMut(&str, bool) -> bool,
+    /// The first clipboard tool's exit status, `None` when none is installed.
+    pub copy: &'a mut dyn FnMut(&str) -> Option<i32>,
+}
+
+pub fn migrate(
+    args: &[String],
+    discover: Discover,
+    style: &Style,
+    env: &mut Env,
+    out: &mut dyn Write,
+    err: &mut dyn Write,
+) -> Result<u8, Error> {
+    match args.first().map(String::as_str) {
+        Some("--legacy") => legacy(&args[1..], discover, style, env, out, err),
+        Some("--apply" | "--yes" | "-y") => legacy(args, discover, style, env, out, err),
+        _ => prompt(args, style, env, out, err),
+    }
+}
+
+/// `_cmd_migrate_prompt`.
+fn prompt(
+    args: &[String],
+    style: &Style,
+    env: &mut Env,
+    out: &mut dyn Write,
+    err: &mut dyn Write,
+) -> Result<u8, Error> {
+    match args.first().map(String::as_str) {
+        Some("--help" | "-h") => {
+            put(
+                out,
+                b"Usage: agentsync migrate\n       agentsync migrate --legacy [--apply] [--yes]\n\n  Prints an AI prompt for safely upgrading an existing AgentSync project to\n  the latest documented format and copies it to the system clipboard.\n\n  Legacy layout maintenance:\n    --legacy   Preview old flat-layout file moves without changing files\n    --apply    Apply those moves (backwards-compatible historical behavior)\n    --yes, -y  Accept safe legacy consolidation without prompting\n",
+            )?;
+            return Ok(0);
+        }
+        Some(flag) => {
+            put(
+                err,
+                format!(
+                    "{}: Unknown flag: {flag}\nUsage: agentsync migrate [--legacy [--apply] [--yes]]\n",
+                    style.red("Error")
+                )
+                .as_bytes(),
+            )?;
+            return Ok(1);
+        }
+        None => {}
+    }
+
+    let text = format!(
+        "## AgentSync migration context\n\n- AgentSync CLI that generated this prompt: {}\n- Project-pinned AgentSync version: {}\n\n---\n\n{}",
+        env.version,
+        project_version(&env.prompt_root),
+        catalog::MIGRATE_PROMPT.trim_end_matches('\n')
+    );
+    let status = if env.no_clipboard {
+        Some(3)
+    } else {
+        match (env.copy)(&text) {
+            None => Some(2),
+            Some(0) => Some(0),
+            Some(_) => None,
+        }
+    };
+
+    if env.stdout_tty {
+        put(
+            err,
+            format!(
+                "\n  {}\n\n",
+                style.dim("─── migration prompt below ────────────────────────────────")
+            )
+            .as_bytes(),
+        )?;
+    }
+    put(out, format!("{text}\n").as_bytes())?;
+    if env.stdout_tty {
+        put(
+            err,
+            format!(
+                "\n  {}\n\n",
+                style.dim("─── end of migration prompt ──────────────────────────────")
+            )
+            .as_bytes(),
+        )?;
+    }
+    let notice = match status {
+        Some(0) => format!(
+            "  {}\n",
+            style.green("Copied migration prompt to clipboard.")
+        ),
+        Some(2) => format!(
+            "  {} Prompt was printed to stdout.\n",
+            style.yellow("Clipboard tool not found.")
+        ),
+        Some(_) => String::new(),
+        None => format!(
+            "  {} Prompt was printed to stdout.\n",
+            style.yellow("Could not copy to clipboard.")
+        ),
+    };
+    put(err, notice.as_bytes())?;
+    Ok(0)
+}
+
+/// `_migrate_project_version`.
+fn project_version(root: &str) -> String {
+    let pinned = [
+        format!("{root}/.ai/agent_sync.yaml"),
+        format!("{root}/agent_sync.yaml"),
+    ]
+    .into_iter()
+    .find(|path| Path::new(path).is_file())
+    .and_then(|path| std::fs::read(path).ok())
+    .map(|bytes| yaml_subset::value(&String::from_utf8_lossy(&bytes), "agentsync_version"))
+    .unwrap_or_default();
+    if pinned.is_empty() {
+        "not detected".to_string()
+    } else {
+        pinned
+    }
+}
+
+/// `_migrate_copy_prompt`'s tool search and pipe: `None` when no clipboard
+/// tool is on `PATH`, else its exit status.
+pub fn copy_to_clipboard(text: &str, path_var: Option<&str>) -> Option<i32> {
+    let tools: [(&str, &[&str]); 5] = [
+        ("pbcopy", &[]),
+        ("wl-copy", &[]),
+        ("xclip", &["-selection", "clipboard"]),
+        ("xsel", &["--clipboard", "--input"]),
+        ("clip.exe", &[]),
+    ];
+    let (program, args) = tools
+        .iter()
+        .find_map(|(name, args)| on_path(name, path_var).map(|path| (path, *args)))?;
+    let Ok(mut child) = Command::new(program)
+        .args(args)
+        .stdin(Stdio::piped())
+        .spawn()
+    else {
+        return Some(126);
+    };
+    if let Some(mut stdin) = child.stdin.take() {
+        let _ = stdin.write_all(text.as_bytes());
+    }
+    Some(child.wait().ok().and_then(|s| s.code()).unwrap_or(1))
+}
+
+/// `command -v <name>` over `PATH`.
+fn on_path(name: &str, path_var: Option<&str>) -> Option<PathBuf> {
+    path_var?
+        .split(':')
+        .filter(|dir| !dir.is_empty())
+        .find_map(|dir| {
+            let candidate = Path::new(dir).join(name);
+            is_executable(&candidate).then_some(candidate)
+        })
+}
+
+#[cfg(unix)]
+fn is_executable(path: &Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::metadata(path)
+        .is_ok_and(|meta| meta.is_file() && meta.permissions().mode() & 0o111 != 0)
+}
+
+#[cfg(not(unix))]
+fn is_executable(path: &Path) -> bool {
+    path.is_file()
+}
+
+/// One `resource|tool|path|ext` line of `_migrate_scan_legacy`.
+struct Legacy {
+    resource: &'static str,
+    tool: String,
+    src: PathBuf,
+    ext: String,
+}
+
+struct Run<'a, 'b> {
+    project: &'a Project,
+    root: String,
+    style: &'a Style,
+    env: &'a mut Env<'b>,
+    out: &'a mut dyn Write,
+    err: &'a mut dyn Write,
+}
+
+impl Run<'_, '_> {
+    fn rel(&self, path: &Path) -> String {
+        let text = path.to_string_lossy();
+        text.strip_prefix(&format!("{}/", self.root))
+            .unwrap_or(&text)
+            .to_string()
+    }
+
+    fn dest(&self, entry: &Legacy) -> PathBuf {
+        self.project
+            .user_tools_dir()
+            .join(&entry.tool)
+            .join(format!("{}.{}", entry.resource, entry.ext))
+    }
+
+    fn say(&mut self, text: &str) -> Result<(), Error> {
+        put(self.out, text.as_bytes())
+    }
+}
+
+/// Non-hidden entries of a directory in byte order, as `printf '%s\0' dir/* | LC_ALL=C sort -z`.
+fn sorted_entries(dir: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut names: Vec<String> = entries
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| !name.starts_with('.'))
+        .collect();
+    names.sort();
+    names.into_iter().map(|name| dir.join(name)).collect()
+}
+
+/// `_migrate_scan_legacy`.
+fn scan_legacy(root: &Path) -> Vec<Legacy> {
+    let mut found = Vec::new();
+    for resource in ["hooks", "mcp", "settings"] {
+        for file in sorted_entries(&root.join(".ai/src").join(resource)) {
+            if !file.is_file() {
+                continue;
+            }
+            let base = file
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let (tool, ext) = match base.rfind('.') {
+                Some(dot) => (base[..dot].to_string(), base[dot + 1..].to_string()),
+                None => (base.clone(), base.clone()),
+            };
+            if tool.is_empty() || ext.is_empty() {
+                continue;
+            }
+            found.push(Legacy {
+                resource,
+                tool,
+                src: file,
+                ext,
+            });
+        }
+    }
+    found
+}
+
+/// `_migrate_mcp_consolidation_candidate`.
+fn consolidation_candidate(root: &Path) -> Option<PathBuf> {
+    let dir = root.join(".ai/src/mcp");
+    if !dir.is_dir() {
+        return None;
+    }
+    let mut files = Vec::new();
+    for file in sorted_entries(&dir) {
+        if !file.is_file() {
+            continue;
+        }
+        if file.extension().is_none_or(|ext| ext != "json") {
+            return None;
+        }
+        files.push(file);
+    }
+    let first = files.first()?.clone();
+    if root.join(".ai/src/mcp.json").is_file() {
+        return None;
+    }
+    let bytes = std::fs::read(&first).ok()?;
+    files[1..]
+        .iter()
+        .all(|other| std::fs::read(other).is_ok_and(|b| b == bytes))
+        .then_some(first)
+}
+
+/// `find <dir> -type f`.
+fn files_below(dir: &Path, found: &mut Vec<PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.filter_map(|entry| entry.ok()) {
+        let path = entry.path();
+        let Ok(meta) = std::fs::symlink_metadata(&path) else {
+            continue;
+        };
+        if meta.is_dir() {
+            files_below(&path, found);
+        } else if meta.is_file() {
+            found.push(path);
+        }
+    }
+}
+
+/// `_migrate_scan_base_skills`: each engine-owned skill the project copies, and
+/// whether every file still matches its recorded template hash.
+fn scan_base_skills(root: &Path) -> Result<Vec<(String, bool)>, Error> {
+    let manifest = TemplateManifest::load(root)?;
+    let src = root.join(".ai/src");
+    let mut copies = Vec::new();
+    for name in catalog::base_src_skills() {
+        let copy = src.join("skills").join(&name);
+        if !copy.is_dir() {
+            continue;
+        }
+        let mut files = Vec::new();
+        files_below(&copy, &mut files);
+        let edited = files.iter().any(|file| {
+            let rel = file
+                .strip_prefix(&src)
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let current = template_manifest::hash(file).unwrap_or_default();
+            manifest
+                .lookup(&rel)
+                .is_none_or(|recorded| recorded != current)
+        });
+        copies.push((name, edited));
+    }
+    Ok(copies)
+}
+
+/// `cp <src> <dst>` onto a missing destination: the source's mode under the umask.
+fn copy_new(src: &Path, dst: &Path) -> Result<(), Error> {
+    let bytes = std::fs::read(src).map_err(|e| Error::io(src, e))?;
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+        let mode = std::fs::metadata(src)
+            .map_err(|e| Error::io(src, e))?
+            .permissions()
+            .mode();
+        options.mode(mode & 0o7777);
+    }
+    options
+        .open(dst)
+        .and_then(|mut file| file.write_all(&bytes))
+        .map_err(|e| Error::io(dst, e))
+}
+
+/// `_cmd_migrate_legacy`.
+fn legacy(
+    args: &[String],
+    discover: Discover,
+    style: &Style,
+    env: &mut Env,
+    out: &mut dyn Write,
+    err: &mut dyn Write,
+) -> Result<u8, Error> {
+    let (mut apply, mut yes) = (false, false);
+    for arg in args {
+        match arg.as_str() {
+            "--apply" => apply = true,
+            "--yes" | "-y" => yes = true,
+            "--help" | "-h" => {
+                put(
+                    out,
+                    "Usage: agentsync migrate --legacy [--apply] [--yes]\n\n  Moves legacy flat-layout overrides to the canonical per-tool layout:\n    .ai/src/hooks/<tool>.<ext>    → .ai/src/tools/<tool>/hooks.<ext>\n    .ai/src/mcp/<tool>.<ext>      → .ai/src/tools/<tool>/mcp.<ext>\n    .ai/src/settings/<tool>.<ext> → .ai/src/tools/<tool>/settings.<ext>\n\n  When every legacy MCP file is byte-identical, migrate offers to consolidate\n  them into the shared .ai/src/mcp.json. Pass --yes to accept without prompt.\n\n  Dry-run by default — re-run with --apply to move files.\n".as_bytes(),
+                )?;
+                return Ok(0);
+            }
+            flag => {
+                put(
+                    err,
+                    format!(
+                        "{}: Unknown flag: {flag}\nUsage: agentsync migrate --legacy [--apply] [--yes]\n",
+                        style.red("Error")
+                    )
+                    .as_bytes(),
+                )?;
+                return Ok(1);
+            }
+        }
+    }
+
+    let project = discover()?;
+    let root_path = project.root.clone();
+    let mut run = Run {
+        project: &project,
+        root: root_path.to_string_lossy().into_owned(),
+        style,
+        env,
+        out,
+        err,
+    };
+
+    let legacy = scan_legacy(&root_path);
+    let agent_dir = root_path.join(".agent");
+    let has_agent_dir = agent_dir.is_dir();
+    let skills = scan_base_skills(&root_path)?;
+    let engine_rev = format_rev::engine();
+    let config = match &project.config_path {
+        Some(path) => Some(
+            std::fs::read(path)
+                .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+                .map_err(|e| Error::io(path, e))?,
+        ),
+        None => None,
+    };
+    let current_rev = config.as_deref().map_or(1, format_rev::project);
+
+    run.say(&format!(
+        "\n{}\n{}\n\n",
+        style.bold("  AgentSync Migrate"),
+        style.dim(&format!("  {}", run.root))
+    ))?;
+
+    if legacy.is_empty() && !has_agent_dir && skills.is_empty() && current_rev >= engine_rev {
+        run.say(&format!(
+            "{}\n{}\n\n",
+            style.green("  Nothing to migrate."),
+            style.dim(&format!(
+                "  Canonical layout, no engine-owned skill copies, format r{current_rev} is current."
+            ))
+        ))?;
+        return Ok(0);
+    }
+
+    if apply && !legacy.is_empty() && !project.tools_dir_in_project() {
+        return super::refuse_outside_tools_dir(&project, style, run.err);
+    }
+
+    if !skills.is_empty() {
+        run.say(&format!("  {}:\n", style.bold("Engine-owned skills")))?;
+        retire_base_skills(&mut run, apply, &skills)?;
+        run.say("\n")?;
+    }
+
+    if current_rev < engine_rev {
+        run.say(&format!(
+            "  {} {}:\n",
+            style.bold("Project format"),
+            style.dim(&format!("r{current_rev} → r{engine_rev}"))
+        ))?;
+        if let Some(path) = &project.config_path {
+            let shown = run.rel(path);
+            if apply {
+                yaml_edit::set_scalar(path, "format", &engine_rev.to_string())?;
+                run.say(&format!(
+                    "{}           format: {engine_rev} {}\n",
+                    style.green("  set"),
+                    style.dim(&format!("in {shown}"))
+                ))?;
+            } else {
+                run.say(&format!(
+                    "{}     format: {engine_rev} {}\n",
+                    style.cyan("  would set"),
+                    style.dim(&format!("in {shown}"))
+                ))?;
+            }
+        }
+        run.say("\n")?;
+    }
+
+    if legacy.is_empty() && !has_agent_dir {
+        if apply {
+            run.say(&format!("{}\n\n", style.green("  Migration complete.")))?;
+        } else {
+            run.say(&format!(
+                "{} {}{}\n\n",
+                style.dim("  Dry-run — re-run with"),
+                style.cyan("agentsync migrate --apply"),
+                style.dim(" to apply.")
+            ))?;
+        }
+        return Ok(0);
+    }
+
+    if has_agent_dir {
+        let mut listing = format!(
+            "  {}:\n    {} — orphan directory from before tool-specific outputs.\n",
+            style.bold("Legacy pre-v0.6 layout"),
+            style.yellow(".agent/")
+        );
+        for item in sorted_entries(&agent_dir) {
+            if item.exists() {
+                listing.push_str(&format!(
+                    "      · {}\n",
+                    item.file_name().unwrap_or_default().to_string_lossy()
+                ));
+            }
+        }
+        listing.push('\n');
+        run.say(&listing)?;
+
+        if apply {
+            let remove = if yes {
+                true
+            } else if run.env.interactive {
+                (run.env.confirm)("Remove .agent/ (review the listing above first)?", false)
+            } else {
+                run.say(&format!(
+                    "  {}\n\n",
+                    style.dim(
+                        "(non-interactive; .agent/ left in place — re-run with --yes to remove)"
+                    )
+                ))?;
+                false
+            };
+            if remove && agent_dir.is_dir() {
+                std::fs::remove_dir_all(&agent_dir).map_err(|e| Error::io(&agent_dir, e))?;
+                run.say(&format!(
+                    "{}\n",
+                    style.green("  removed .agent/ (pre-v0.6 layout)")
+                ))?;
+            }
+        } else {
+            run.say(&format!(
+                "{} {}{}\n\n",
+                style.dim("  Dry-run. Re-run with"),
+                style.cyan("agentsync migrate --apply"),
+                style.dim(" to remove .agent/.")
+            ))?;
+        }
+        if legacy.is_empty() {
+            return Ok(0);
+        }
+    }
+
+    let (mcp, other): (Vec<&Legacy>, Vec<&Legacy>) =
+        legacy.iter().partition(|entry| entry.resource == "mcp");
+    let candidate = consolidation_candidate(&root_path);
+
+    let mut plan = format!("  {}:\n", style.bold("Planned moves"));
+    let move_line = |run: &Run, entry: &Legacy| {
+        format!(
+            "  {}  →  {}\n",
+            run.rel(&entry.src),
+            run.rel(&run.dest(entry))
+        )
+    };
+    for entry in &other {
+        plan.push_str(&move_line(&run, entry));
+    }
+    if let Some(first) = &candidate {
+        plan.push_str(&format!(
+            "\n  {}:\n    All {} .ai/src/mcp/*.json are byte-identical — can consolidate into .ai/src/mcp.json.\n    {} {}\n",
+            style.bold("MCP consolidation"),
+            mcp.len(),
+            style.dim("Source file:"),
+            run.rel(first)
+        ));
+    } else {
+        for entry in &mcp {
+            plan.push_str(&move_line(&run, entry));
+        }
+    }
+    plan.push('\n');
+    run.say(&plan)?;
+
+    if !apply {
+        run.say(&format!(
+            "{} {}{}\n\n",
+            style.dim("  Dry-run. Re-run with"),
+            style.cyan("agentsync migrate --apply"),
+            style.dim(" to move files.")
+        ))?;
+        return Ok(0);
+    }
+
+    let (mut applied, mut skipped, mut consolidated) = (0, 0, false);
+    let mut count = |moved: bool| {
+        if moved {
+            applied += 1;
+        } else {
+            skipped += 1;
+        }
+    };
+
+    if let Some(first) = &candidate {
+        let consolidate = if yes {
+            true
+        } else if run.env.interactive {
+            let question = format!(
+                "Consolidate {} identical MCP files into .ai/src/mcp.json?",
+                mcp.len()
+            );
+            (run.env.confirm)(&question, true)
+        } else {
+            true
+        };
+        if consolidate {
+            copy_new(first, &root_path.join(".ai/src/mcp.json"))?;
+            for entry in &mcp {
+                match std::fs::remove_file(&entry.src) {
+                    Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+                        return Err(Error::io(&entry.src, e));
+                    }
+                    _ => {}
+                }
+                let text = format!(
+                    "{} {} → .ai/src/mcp.json\n",
+                    style.green("  consolidated"),
+                    run.rel(&entry.src)
+                );
+                run.say(&text)?;
+            }
+            for _ in &mcp {
+                count(true);
+            }
+            consolidated = true;
+        } else {
+            for entry in &mcp {
+                count(move_one(&mut run, entry)?);
+            }
+        }
+    } else {
+        for entry in &mcp {
+            count(move_one(&mut run, entry)?);
+        }
+    }
+    for entry in &other {
+        count(move_one(&mut run, entry)?);
+    }
+
+    for dir in ["hooks", "mcp", "settings"] {
+        let _ = std::fs::remove_dir(root_path.join(".ai/src").join(dir));
+    }
+
+    let mut summary = format!(
+        "\n{}\n{}\n",
+        style.green("  Migration complete."),
+        style.dim(&format!("    moved:        {applied}"))
+    );
+    if skipped > 0 {
+        summary.push_str(&format!(
+            "{}\n",
+            style.yellow(&format!(
+                "    skipped:      {skipped} (target already existed)"
+            ))
+        ));
+    }
+    if consolidated {
+        summary.push_str(&format!(
+            "{}\n",
+            style.dim("    consolidated: .ai/src/mcp.json")
+        ));
+    }
+    summary.push_str(&format!(
+        "\n{} {}{}\n\n",
+        style.dim("  Run"),
+        style.cyan("agentsync sync"),
+        style.dim(" to confirm outputs are unchanged.")
+    ));
+    run.say(&summary)?;
+    Ok(0)
+}
+
+/// `_migrate_move_one`: whether the file moved; an existing target is skipped.
+fn move_one(run: &mut Run, entry: &Legacy) -> Result<bool, Error> {
+    let dest = run.dest(entry);
+    if dest.is_file() {
+        let text = format!(
+            "{} {}\n",
+            run.style.yellow("  skipped (target already exists)"),
+            run.rel(&dest)
+        );
+        run.say(&text)?;
+        return Ok(false);
+    }
+    if let Some(parent) = dest.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| Error::io(parent, e))?;
+    }
+    std::fs::rename(&entry.src, &dest).map_err(|e| Error::io(&entry.src, e))?;
+    let text = format!(
+        "{} {} → {}\n",
+        run.style.green("  moved"),
+        run.rel(&entry.src),
+        run.rel(&dest)
+    );
+    run.say(&text)?;
+    Ok(true)
+}
+
+/// `_migrate_retire_base_skills`.
+fn retire_base_skills(run: &mut Run, apply: bool, skills: &[(String, bool)]) -> Result<(), Error> {
+    let style = run.style;
+    let root = PathBuf::from(&run.root);
+    let src = root.join(".ai/src");
+    let mut manifest = TemplateManifest::load(&root)?;
+    let mut removed = 0;
+    for (name, edited) in skills {
+        if *edited {
+            run.say(&format!(
+                "{}          .ai/src/skills/{name}/ {}\n",
+                style.yellow("  keep"),
+                style.dim("(edited — stays your override; delete it to follow the engine)")
+            ))?;
+            continue;
+        }
+        if !apply {
+            run.say(&format!(
+                "{}  .ai/src/skills/{name}/ {}\n",
+                style.cyan("  would remove"),
+                style.dim("(unedited — the engine supplies it)")
+            ))?;
+            continue;
+        }
+        let copy = src.join("skills").join(name);
+        let mut files = Vec::new();
+        files_below(&copy, &mut files);
+        for file in files {
+            if let Ok(rel) = file.strip_prefix(&src) {
+                manifest.remove(&rel.to_string_lossy());
+            }
+        }
+        std::fs::remove_dir_all(&copy).map_err(|e| Error::io(&copy, e))?;
+        run.say(&format!(
+            "{}       .ai/src/skills/{name}/ {}\n",
+            style.green("  removed"),
+            style.dim("(the engine supplies it now)")
+        ))?;
+        removed += 1;
+    }
+    if apply && removed > 0 {
+        manifest.write(&root)?;
+    }
+    Ok(())
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+
+    fn project(files: &[(&str, &str)]) -> (tempfile::TempDir, String) {
+        let dir = tempfile::tempdir().unwrap();
+        let root = std::fs::canonicalize(dir.path())
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        for (rel, text) in files {
+            let path = Path::new(&root).join(rel);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, text).unwrap();
+        }
+        (dir, root)
+    }
+
+    struct Outcome {
+        status: u8,
+        out: String,
+        err: String,
+        asked: Vec<String>,
+    }
+
+    fn call(
+        root: &str,
+        args: &[&str],
+        interactive: bool,
+        answer: bool,
+        copied: Option<i32>,
+    ) -> Outcome {
+        let args: Vec<String> = args.iter().map(|a| a.to_string()).collect();
+        let discover = || Project::at(root);
+        let mut asked = Vec::new();
+        let mut confirm = |question: &str, _default: bool| {
+            asked.push(question.to_string());
+            answer
+        };
+        let mut copy = |_: &str| copied;
+        let mut env = Env {
+            version: "9.9.9",
+            prompt_root: root.to_string(),
+            no_clipboard: false,
+            stdout_tty: false,
+            interactive,
+            confirm: &mut confirm,
+            copy: &mut copy,
+        };
+        let (mut out, mut err) = (Vec::new(), Vec::new());
+        let status = migrate(
+            &args,
+            &discover,
+            &Style::plain(),
+            &mut env,
+            &mut out,
+            &mut err,
+        )
+        .unwrap();
+        Outcome {
+            status,
+            out: String::from_utf8(out).unwrap(),
+            err: String::from_utf8(err).unwrap(),
+            asked,
+        }
+    }
+
+    fn tree(root: &str) -> Vec<String> {
+        let mut files = Vec::new();
+        files_below(Path::new(root), &mut files);
+        let mut rels: Vec<String> = files
+            .iter()
+            .map(|f| f.strip_prefix(root).unwrap().to_string_lossy().into_owned())
+            .collect();
+        rels.sort();
+        rels
+    }
+
+    #[test]
+    fn the_prompt_names_both_versions_and_reports_the_clipboard_like_bash() {
+        let (_dir, root) = project(&[(".ai/agent_sync.yaml", "agentsync_version: \"0.7.0\"\n")]);
+        let copied = call(&root, &[], false, false, Some(0));
+        assert_eq!(copied.status, 0);
+        assert!(copied.out.starts_with(
+            "## AgentSync migration context\n\n- AgentSync CLI that generated this prompt: 9.9.9\n- Project-pinned AgentSync version: 0.7.0\n\n---\n\nI need you to safely migrate"
+        ));
+        assert!(copied.out.ends_with(&format!(
+            "{}\n",
+            catalog::MIGRATE_PROMPT.trim_end_matches('\n')
+        )));
+        assert_eq!(copied.err, "  Copied migration prompt to clipboard.\n");
+        assert_eq!(
+            call(&root, &[], false, false, None).err,
+            "  Clipboard tool not found. Prompt was printed to stdout.\n"
+        );
+        assert_eq!(
+            call(&root, &[], false, false, Some(7)).err,
+            "  Could not copy to clipboard. Prompt was printed to stdout.\n"
+        );
+        std::fs::remove_file(Path::new(&root).join(".ai/agent_sync.yaml")).unwrap();
+        assert!(
+            call(&root, &[], false, false, Some(0))
+                .out
+                .contains("- Project-pinned AgentSync version: not detected\n")
+        );
+    }
+
+    #[test]
+    fn arguments_are_refused_with_the_bash_statuses() {
+        let (_dir, root) = project(&[(".ai/agent_sync.yaml", "format: 2\n")]);
+        let bogus = call(&root, &["--bogus", "extra"], false, false, None);
+        assert_eq!(
+            (bogus.status, bogus.out.as_str(), bogus.err.as_str()),
+            (
+                1,
+                "",
+                "Error: Unknown flag: --bogus\nUsage: agentsync migrate [--legacy [--apply] [--yes]]\n"
+            )
+        );
+        let legacy = call(&root, &["--legacy", "--bogus"], false, false, None);
+        assert_eq!(
+            (legacy.status, legacy.err.as_str()),
+            (
+                1,
+                "Error: Unknown flag: --bogus\nUsage: agentsync migrate --legacy [--apply] [--yes]\n"
+            )
+        );
+        assert!(
+            call(&root, &["-h"], false, false, None)
+                .out
+                .starts_with("Usage: agentsync migrate\n")
+        );
+        assert!(
+            call(&root, &["--legacy", "--help"], false, false, None)
+                .out
+                .starts_with(
+                    "Usage: agentsync migrate --legacy [--apply] [--yes]\n\n  Moves legacy"
+                )
+        );
+        assert_eq!(
+            call(&root, &["--apply"], false, false, None).out,
+            format!(
+                "\n  AgentSync Migrate\n  {root}\n\n  Nothing to migrate.\n  Canonical layout, no engine-owned skill copies, format r2 is current.\n\n"
+            )
+        );
+    }
+
+    const LEGACY: [(&str, &str); 9] = [
+        (
+            ".ai/agent_sync.yaml",
+            "format: 2\ntools:\n  enabled:\n    - claude\n",
+        ),
+        (".ai/src/hooks/cursor.json", "{\"hooks\": {}}\n"),
+        (".ai/src/tools/cursor/settings.json", "{\"taken\": true}\n"),
+        (".ai/src/settings/cursor.json", "{\"s\": 1}\n"),
+        (".ai/src/settings/claude.json", "{\"s\": 2}\n"),
+        (".ai/src/settings/README", "noext\n"),
+        (".ai/src/mcp/claude.json", "{\"mcpServers\": {}}\n"),
+        (".ai/src/mcp/cursor.json", "{\"mcpServers\": {}}\n"),
+        (".agent/AGENTS.md", "# old\n"),
+    ];
+
+    #[test]
+    fn legacy_files_are_planned_moved_consolidated_and_skipped_like_bash() {
+        let (_dir, root) = project(&LEGACY);
+        let header = format!(
+            "\n  AgentSync Migrate\n  {root}\n\n  Legacy pre-v0.6 layout:\n    .agent/ — orphan directory from before tool-specific outputs.\n      · AGENTS.md\n\n"
+        );
+        let plan = "  Planned moves:\n  .ai/src/hooks/cursor.json  →  .ai/src/tools/cursor/hooks.json\n  .ai/src/settings/README  →  .ai/src/tools/README/settings.README\n  .ai/src/settings/claude.json  →  .ai/src/tools/claude/settings.json\n  .ai/src/settings/cursor.json  →  .ai/src/tools/cursor/settings.json\n\n  MCP consolidation:\n    All 2 .ai/src/mcp/*.json are byte-identical — can consolidate into .ai/src/mcp.json.\n    Source file: .ai/src/mcp/claude.json\n\n";
+
+        let dry = call(&root, &["--legacy"], false, false, None);
+        assert_eq!(
+            dry.out,
+            format!(
+                "{header}  Dry-run. Re-run with agentsync migrate --apply to remove .agent/.\n\n{plan}  Dry-run. Re-run with agentsync migrate --apply to move files.\n\n"
+            )
+        );
+        assert_eq!(tree(&root).len(), LEGACY.len());
+
+        let applied = call(&root, &["--apply", "--yes"], false, false, None);
+        assert_eq!(
+            applied.out,
+            format!(
+                "{header}  removed .agent/ (pre-v0.6 layout)\n{plan}  consolidated .ai/src/mcp/claude.json → .ai/src/mcp.json\n  consolidated .ai/src/mcp/cursor.json → .ai/src/mcp.json\n  moved .ai/src/hooks/cursor.json → .ai/src/tools/cursor/hooks.json\n  moved .ai/src/settings/README → .ai/src/tools/README/settings.README\n  moved .ai/src/settings/claude.json → .ai/src/tools/claude/settings.json\n  skipped (target already exists) .ai/src/tools/cursor/settings.json\n\n  Migration complete.\n    moved:        5\n    skipped:      1 (target already existed)\n    consolidated: .ai/src/mcp.json\n\n  Run agentsync sync to confirm outputs are unchanged.\n\n"
+            )
+        );
+        assert_eq!(
+            tree(&root),
+            [
+                ".ai/agent_sync.yaml",
+                ".ai/src/mcp.json",
+                ".ai/src/settings/cursor.json",
+                ".ai/src/tools/README/settings.README",
+                ".ai/src/tools/claude/settings.json",
+                ".ai/src/tools/cursor/hooks.json",
+                ".ai/src/tools/cursor/settings.json",
+            ]
+        );
+    }
+
+    #[test]
+    fn prompts_decide_the_agent_dir_and_the_consolidation_off_the_flags() {
+        let (_dir, root) = project(&LEGACY);
+        let quiet = call(&root, &["--apply"], false, true, None);
+        assert!(quiet.asked.is_empty());
+        assert!(quiet.out.contains(
+            "  (non-interactive; .agent/ left in place — re-run with --yes to remove)\n\n"
+        ));
+        assert!(Path::new(&root).join(".agent/AGENTS.md").is_file());
+        assert!(Path::new(&root).join(".ai/src/mcp.json").is_file());
+
+        let (_dir, root) = project(&LEGACY);
+        let declined = call(&root, &["--apply"], true, false, None);
+        assert_eq!(
+            declined.asked,
+            [
+                "Remove .agent/ (review the listing above first)?",
+                "Consolidate 2 identical MCP files into .ai/src/mcp.json?"
+            ]
+        );
+        assert!(Path::new(&root).join(".agent/AGENTS.md").is_file());
+        assert!(
+            declined
+                .out
+                .contains("  moved .ai/src/mcp/claude.json → .ai/src/tools/claude/mcp.json\n")
+        );
+        assert!(!Path::new(&root).join(".ai/src/mcp.json").exists());
+    }
+
+    #[test]
+    fn a_json_mcp_set_with_another_config_moves_per_tool_and_an_outside_catalog_is_refused() {
+        let (_dir, root) = project(&[
+            (".ai/agent_sync.yaml", "format: 2\n"),
+            (".ai/src/mcp/claude.json", "{}\n"),
+            (".ai/src/mcp/cursor.json", "{}\n"),
+            (".ai/src/mcp/codex.toml", "[x]\n"),
+        ]);
+        let run = call(&root, &["--apply", "--yes"], false, false, None);
+        assert!(
+            run.out
+                .contains("  moved .ai/src/mcp/codex.toml → .ai/src/tools/codex/mcp.toml\n")
+        );
+        assert!(
+            Path::new(&root)
+                .join(".ai/src/tools/codex/mcp.toml")
+                .is_file()
+        );
+
+        let (_dir, root) = project(&[
+            (
+                ".ai/agent_sync.yaml",
+                "tools:\n  enabled: []\nsource:\n  tools: \"../elsewhere\"\n",
+            ),
+            (".ai/src/hooks/claude.json", "{}\n"),
+        ]);
+        let refused = call(&root, &["--legacy", "--apply"], false, false, None);
+        assert_eq!(refused.status, 1);
+        assert_eq!(refused.out, format!("\n  AgentSync Migrate\n  {root}\n\n"));
+        assert_eq!(
+            refused.err,
+            format!(
+                "Error: source.tools resolves outside the project: {root}/../elsewhere\nAgentSync only reads that catalog; edit its tool overrides where they live.\n"
+            )
+        );
+        assert!(Path::new(&root).join(".ai/src/hooks/claude.json").is_file());
+    }
+
+    #[test]
+    fn engine_owned_skill_copies_are_retired_unless_edited_and_the_format_is_recorded() {
+        let skill = |rel: &str| {
+            catalog::engine_files()
+                .into_iter()
+                .find(|(path, _)| path == &format!("lib/templates/base-src/skills/agentsync/{rel}"))
+                .map(|(_, bytes)| String::from_utf8(bytes.to_vec()).unwrap())
+                .unwrap()
+        };
+        let files = [
+            "SKILL.md",
+            "references/maintenance.md",
+            "references/writing-skills.md",
+        ];
+        let copies: Vec<(String, String)> = files
+            .iter()
+            .map(|rel| (format!(".ai/src/skills/agentsync/{rel}"), skill(rel)))
+            .collect();
+        let manifest: String = files
+            .iter()
+            .map(|rel| {
+                format!(
+                    "skills/agentsync/{rel}\t{}\n",
+                    crate::manifest::sha256_hex(skill(rel).as_bytes())
+                )
+            })
+            .chain(["rules/core.md\tabc\n".to_string()])
+            .collect();
+        let mut fixture: Vec<(&str, &str)> = copies
+            .iter()
+            .map(|(p, t)| (p.as_str(), t.as_str()))
+            .collect();
+        fixture.push((".ai/agent_sync.yaml", "tools:\n  enabled:\n    - claude\n"));
+        fixture.push((".ai/.template-manifest", &manifest));
+
+        let (_dir, root) = project(&fixture);
+        let dry = call(&root, &["--legacy"], false, false, None);
+        assert_eq!(
+            dry.out,
+            format!(
+                "\n  AgentSync Migrate\n  {root}\n\n  Engine-owned skills:\n  would remove  .ai/src/skills/agentsync/ (unedited — the engine supplies it)\n\n  Project format r1 → r2:\n  would set     format: 2 in .ai/agent_sync.yaml\n\n  Dry-run — re-run with agentsync migrate --apply to apply.\n\n"
+            )
+        );
+        let applied = call(&root, &["--apply"], false, false, None);
+        assert!(
+            applied.out.contains(
+                "  removed       .ai/src/skills/agentsync/ (the engine supplies it now)\n"
+            )
+        );
+        assert!(applied.out.ends_with(
+            "  set           format: 2 in .ai/agent_sync.yaml\n\n  Migration complete.\n\n"
+        ));
+        assert_eq!(
+            tree(&root),
+            [".ai/.template-manifest", ".ai/agent_sync.yaml"]
+        );
+        assert_eq!(
+            std::fs::read_to_string(Path::new(&root).join(".ai/.template-manifest")).unwrap(),
+            "rules/core.md\tabc\n"
+        );
+        assert_eq!(
+            std::fs::read_to_string(Path::new(&root).join(".ai/agent_sync.yaml")).unwrap(),
+            "tools:\n  enabled:\n    - claude\nformat: 2\n"
+        );
+
+        let (_dir, root) = project(&fixture);
+        std::fs::write(
+            Path::new(&root).join(".ai/src/skills/agentsync/SKILL.md"),
+            "edited\n",
+        )
+        .unwrap();
+        let kept = call(&root, &["--apply"], false, false, None);
+        assert!(kept.out.contains("  keep          .ai/src/skills/agentsync/ (edited — stays your override; delete it to follow the engine)\n"));
+        assert!(
+            Path::new(&root)
+                .join(".ai/src/skills/agentsync/SKILL.md")
+                .is_file()
+        );
+    }
+}

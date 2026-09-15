@@ -5,6 +5,7 @@ pub mod dedupe;
 pub mod diff;
 pub mod enable;
 pub mod list;
+pub mod migrate;
 pub mod profile;
 pub mod resolve;
 pub mod rollback;

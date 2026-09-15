@@ -551,7 +551,7 @@ git commit -m "feat(native): port the format revision and template manifest file
   - `pub fn migrate::copy_to_clipboard(text: &str, path_var: Option<&str>) -> Option<i32>`
   - `pub fn migrate::migrate(args: &[String], discover: &dyn Fn() -> Result<Project, Error>, style: &Style, env: &mut Env, out: &mut dyn Write, err: &mut dyn Write) -> Result<u8, Error>`
 
-- [ ] **Step 1: Parity fixture, Bash side**
+- [x] **Step 1: Parity fixture, Bash side**
 
 Append to `tests/native_parity.bats`:
 
@@ -597,7 +597,7 @@ Append to `tests/native_parity.bats`:
 Run: `bats --tap -f 'migrate prints' tests/native_parity.bats`
 Expected: `ok` (the native side still runs Bash).
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Add to `src/catalog.rs`'s tests module:
 
@@ -965,7 +965,7 @@ mod tests {
 Run: `cargo test --lib 2>&1 | grep -E '^error' | sort -u | head -8`
 Expected: compile errors naming the missing `migrate`, `Env`, `files_below`, `MIGRATE_PROMPT`, and `base_src_skills`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 In `src/catalog.rs`, before `GLOBAL_CONFIG`:
 
@@ -1781,7 +1781,7 @@ In `src/main.rs`, before the `upgrade-config` block:
 
 In `bin/agentsync.sh:280` append `migrate`.
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo fmt --all
@@ -1795,7 +1795,7 @@ bats --tap -f 'migrate prints' tests/native_parity.bats
 
 Expected: `232 passed`, `0`, `11`, `1`; `0` for each file; `ok`.
 
-- [ ] **Step 5: Prove the fixture bites, check the terminal and the clipboard, lint, commit**
+- [x] **Step 5: Prove the fixture bites, check the terminal and the clipboard, lint, commit**
 
 Change `"  consolidated"` to `"  folded"` in `src/cli/migrate.rs`, rebuild, rerun the fixture: `not ok` with both consolidation lines in the diff; revert and rebuild.
 

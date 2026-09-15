@@ -41,7 +41,7 @@ jobs:
         shell: bash
         run: |
           if [[ "$RUNNER_OS" == "Linux" ]]; then
-            sudo apt-get install -y bats parallel
+            sudo apt-get install -y bats parallel gawk mawk
           else
             brew install bats-core parallel
           fi
@@ -50,6 +50,19 @@ jobs:
         env:
           TERM: xterm
         run: bats --jobs 4 tests/ --tap
+      - name: Compare MCP library parser with strict JSON reference
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            for parser in gawk mawk; do
+              parser_bin=$(mktemp -d)
+              ln -s "$(command -v "$parser")" "$parser_bin/awk"
+              PATH="$parser_bin:$PATH" python3 tests/mcp_library_probe.py
+            done
+          else
+            # Exercise the native macOS awk and Bash, not Homebrew replacements.
+            PATH="/usr/bin:/bin:$PATH" python3 tests/mcp_library_probe.py
+          fi
 
   # git-bash can't run bats --jobs (no flock; GNU parallel hangs for hours) and
   # the full suite runs serially in ~58m. Shard the files across jobs instead:

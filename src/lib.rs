@@ -9,6 +9,7 @@ pub mod edit_paths;
 pub mod error;
 pub mod file_ops;
 pub mod filters;
+pub mod format_rev;
 pub mod gitignore;
 pub mod interrupt;
 pub mod log;

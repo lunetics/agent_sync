@@ -28,24 +28,11 @@ impl Manifest {
         Ok(Some(Self::parse(&bytes)))
     }
 
-    /// `IFS=$'\t' read -r rel hash` per line: tabs around the line are dropped,
-    /// the hash is the rest after the first run of tabs, and comments and
-    /// entries without a hash are skipped.
+    /// The manifest's `hashed_lines`.
     pub fn parse(bytes: &[u8]) -> Self {
-        let text = String::from_utf8_lossy(bytes);
-        let mut entries = Vec::new();
-        for line in text.split('\n') {
-            let line = line.trim_matches('\t');
-            let (rel, hash) = match line.find('\t') {
-                Some(tab) => (&line[..tab], line[tab..].trim_start_matches('\t')),
-                None => (line, ""),
-            };
-            if rel.is_empty() || rel.starts_with('#') || hash.is_empty() {
-                continue;
-            }
-            entries.push((rel.to_string(), hash.to_string()));
+        Self {
+            entries: hashed_lines(bytes),
         }
-        Self { entries }
     }
 
     pub fn paths(&self) -> BTreeSet<String> {
@@ -93,6 +80,26 @@ pub fn update_entry(root: &str, rel: &str, hash: &str) -> Result<(), Error> {
     let mut text = lines.into_iter().collect::<Vec<_>>().join("\n");
     text.push('\n');
     staging::write_beside(&path, text.as_bytes())
+}
+
+/// `IFS=$'\t' read -r rel hash` per line: tabs around the line are dropped, the
+/// hash is the rest after the first run of tabs, and comments and entries
+/// without a hash are skipped.
+pub(crate) fn hashed_lines(bytes: &[u8]) -> Vec<(String, String)> {
+    let text = String::from_utf8_lossy(bytes);
+    let mut entries = Vec::new();
+    for line in text.split('\n') {
+        let line = line.trim_matches('\t');
+        let (rel, hash) = match line.find('\t') {
+            Some(tab) => (&line[..tab], line[tab..].trim_start_matches('\t')),
+            None => (line, ""),
+        };
+        if rel.is_empty() || rel.starts_with('#') || hash.is_empty() {
+            continue;
+        }
+        entries.push((rel.to_string(), hash.to_string()));
+    }
+    entries
 }
 
 pub fn sha256_hex(bytes: &[u8]) -> String {

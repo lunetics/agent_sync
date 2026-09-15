@@ -318,7 +318,7 @@ git commit -m "fix(migrate): list legacy files in byte order"
   - `pub const template_manifest::REL: &str`, `pub struct TemplateManifest` with `load(root: &Path) -> Result<Self, Error>`, `lookup(&self, rel: &str) -> Option<&str>`, `remove(&mut self, rel: &str)`, `write(&self, root: &Path) -> Result<(), Error>`
   - `pub(crate) fn manifest::hashed_lines(bytes: &[u8]) -> Vec<(String, String)>`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `src/format_rev.rs` with its tests module only, and add `pub mod format_rev;` to `src/lib.rs`:
 
@@ -375,7 +375,7 @@ Append to the `tests` module of `src/template_manifest.rs`:
 Run: `cargo test --lib 2>&1 | grep -E '^error\[E04(25|33)\]' | sort -u`
 Expected: errors naming the missing `engine`, `project`, `TemplateManifest`, and `REL`.
 
-- [ ] **Step 2: Write the implementation**
+- [x] **Step 2: Write the implementation**
 
 Prepend to `src/format_rev.rs`:
 
@@ -518,7 +518,7 @@ impl TemplateManifest {
 
 ```
 
-- [ ] **Step 3: Run the tests, confirm green**
+- [x] **Step 3: Run the tests, confirm green**
 
 ```bash
 cargo fmt --all
@@ -528,7 +528,7 @@ cargo clippy --all-targets -- -D warnings
 
 Expected: `225 passed`, `0`, `11`, `1`; clippy exit 0.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/format_rev.rs src/lib.rs src/template_manifest.rs src/manifest.rs docs/plans/2026-09-15-rust-migration-phase-4g-migrate.md

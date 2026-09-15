@@ -81,7 +81,7 @@ Expected: the plan's latest commit; `232 passed`, `0 passed`, `11 passed`, `1 pa
   - `pub fn catalog::template_files() -> Vec<(String, &'static [u8])>`; `catalog::template_sources()` keeps its signature and becomes the paths of `template_files`
   - `TemplateManifest::record(&mut self, rel: &str, hash: &str)`, `TemplateManifest::is_empty(&self) -> bool`, `TemplateManifest::heal_from_match<'a>(&mut self, templates: impl IntoIterator<Item = (&'a str, &'a [u8])>, user_base: &Path)`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to the `tests` module of `src/catalog.rs`, before `the_template_sources_are_the_set_dedupe_loads`:
 
@@ -170,7 +170,7 @@ Append to the `tests` module of `src/template_manifest.rs`:
 Run: `cargo test --lib 2>&1 | grep -E '^error\[E0(425|599)\]' | sort -u`
 Expected: errors naming the missing `template_files`, `record`, `is_empty`, and `heal_from_match`.
 
-- [ ] **Step 2: Write the implementation**
+- [x] **Step 2: Write the implementation**
 
 In `src/catalog.rs`, replace `template_sources` and its doc comment with:
 
@@ -248,7 +248,7 @@ In `src/template_manifest.rs`, replace `remove` and its doc comment with:
     }
 ```
 
-- [ ] **Step 3: Run the tests, confirm green**
+- [x] **Step 3: Run the tests, confirm green**
 
 ```bash
 cargo fmt --all
@@ -258,7 +258,7 @@ cargo clippy --all-targets -- -D warnings
 
 Expected: `235 passed`, `0`, `11`, `1`; clippy exit 0.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/catalog.rs src/template_manifest.rs docs/plans/2026-09-15-rust-migration-phase-4h-refresh.md
@@ -2325,4 +2325,11 @@ The plan is closed when every box is ticked, `tests/refresh.bats` and `tests/nat
 - Verified: `git log --oneline -1` → `6c037f3 docs(native): record the phase 4h decisions`, the plan's latest commit; `cargo test` 232/0/11/1; `cargo build --release` finished; `AGENTSYNC_NATIVE=0 bats tests/refresh.bats` 0 failures (38 cases); `AGENTSYNC_NATIVE=0 bats tests/native_parity.bats` 1 failure inside the agent sandbox (`parity: diff reports overrides and payload hunks like Bash`: the native `diff cursor hooks` printed no hunks because the sandbox refuses the `diff -` stdin operand `src/cli/diff.rs` uses), and that case passed when rerun outside the sandbox.
 - Plan amended: Task 0 Step 1's expected line now names the plan's latest commit and says `native_parity` runs outside the agent sandbox, for the reason above.
 - Next: Task 1 Step 1.
+- Blocker: none.
+
+### 2026-09-15 — Task 1 done
+- Commits: `feat(native): port the template manifest record and heal`.
+- Verified: Step 1's `cargo test --lib` compile errors named exactly `template_files` (E0425) and `heal_from_match`, `is_empty`, `record` (E0599); Step 3's `cargo fmt --all`, `cargo test` 235/0/11/1, and `cargo clippy --all-targets -- -D warnings` clean; `src/catalog.rs` and `src/template_manifest.rs` match the verified draft byte for byte.
+- Plan amended: none.
+- Next: Task 2 Step 1.
 - Blocker: none.

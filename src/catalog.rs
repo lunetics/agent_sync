@@ -32,13 +32,14 @@ pub fn base_payload(resource: &str, slug: &str) -> Option<&'static File<'static>
     matches.first().copied()
 }
 
-/// `_dedupe_load_template_set`: the shipped `AGENTS.md`, the `*.md` files of
-/// `rules`, `commands`, and `agents`, and every file below `skills` whose name
-/// does not start with `.`, as paths below `.ai/src/` in byte order.
-pub fn template_sources() -> Vec<String> {
-    let mut paths: Vec<String> = engine_files()
+/// The template set `refresh` and `dedupe` walk: the shipped `AGENTS.md`, the
+/// `*.md` files of `rules`, `commands`, and `agents`, and every file below
+/// `skills` whose name does not start with `.`, as `(path below .ai/src/,
+/// bytes)` in byte order.
+pub fn template_files() -> Vec<(String, &'static [u8])> {
+    let mut files: Vec<(String, &'static [u8])> = engine_files()
         .into_iter()
-        .filter_map(|(path, _)| {
+        .filter_map(|(path, bytes)| {
             let rel = path.strip_prefix("lib/templates/")?;
             let (dir, name) = rel.rsplit_once('/').unwrap_or(("", rel));
             let shipped = match dir {
@@ -46,11 +47,16 @@ pub fn template_sources() -> Vec<String> {
                 "rules" | "commands" | "agents" => name.ends_with(".md") && !name.starts_with('.'),
                 _ => (dir == "skills" || dir.starts_with("skills/")) && !name.starts_with('.'),
             };
-            shipped.then(|| rel.to_string())
+            shipped.then(|| (rel.to_string(), bytes))
         })
         .collect();
-    paths.sort();
-    paths
+    files.sort_by(|a, b| a.0.cmp(&b.0));
+    files
+}
+
+/// `_dedupe_load_template_set`: the paths of `template_files`.
+pub fn template_sources() -> Vec<String> {
+    template_files().into_iter().map(|(path, _)| path).collect()
 }
 
 /// `lib/prompts/migrate.md`, the upgrade prompt `agentsync migrate` prints.
@@ -138,6 +144,29 @@ mod tests {
     fn the_engine_owns_the_agentsync_skill_and_ships_the_migrate_prompt() {
         assert_eq!(base_src_skills(), ["agentsync"]);
         assert!(MIGRATE_PROMPT.starts_with("I need you to safely migrate"));
+    }
+
+    #[test]
+    fn template_files_carry_the_bytes_refresh_hashes_and_copies() {
+        let files = template_files();
+        assert_eq!(
+            files
+                .iter()
+                .map(|(path, _)| path.clone())
+                .collect::<Vec<_>>(),
+            template_sources()
+        );
+        let script = files
+            .iter()
+            .find(|(path, _)| path == "skills/humanizer/scripts/strip-ai-chars.sh")
+            .map(|(_, bytes)| *bytes)
+            .expect("shipped");
+        assert!(script.starts_with(b"#!"));
+        assert!(
+            files
+                .iter()
+                .all(|(path, bytes)| path == "AGENTS.md" || !bytes.is_empty())
+        );
     }
 
     #[test]

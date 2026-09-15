@@ -45,9 +45,45 @@ impl TemplateManifest {
             .map(|(_, hash)| hash.as_str())
     }
 
+    /// `template_manifest_record`: the first entry for `rel` takes `hash`, or
+    /// one is appended; an empty path or hash is ignored.
+    pub fn record(&mut self, rel: &str, hash: &str) {
+        if rel.is_empty() || hash.is_empty() {
+            return;
+        }
+        match self.entries.iter_mut().find(|(key, _)| key == rel) {
+            Some((_, recorded)) => *recorded = hash.to_string(),
+            None => self.entries.push((rel.to_string(), hash.to_string())),
+        }
+    }
+
     /// `template_manifest_remove`: every entry for `rel`.
     pub fn remove(&mut self, rel: &str) {
         self.entries.retain(|(key, _)| key != rel);
+    }
+
+    /// `${#TEMPLATE_MANIFEST_KEYS[@]} -eq 0`.
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    /// `template_manifest_heal_from_match`: records the shipped hash of every
+    /// template whose copy under `user_base` matches it byte for byte, whatever
+    /// the scope of the run.
+    pub fn heal_from_match<'a>(
+        &mut self,
+        templates: impl IntoIterator<Item = (&'a str, &'a [u8])>,
+        user_base: &Path,
+    ) {
+        for (rel, bytes) in templates {
+            let Some(current) = hash(&user_base.join(rel)) else {
+                continue;
+            };
+            let shipped = sha256_hex(bytes);
+            if current == shipped {
+                self.record(rel, &shipped);
+            }
+        }
     }
 
     /// `template_manifest_write`: `sort -u` lines, or no file when empty.
@@ -115,5 +151,58 @@ mod tests {
         manifest.remove("z.md");
         manifest.write(dir.path()).unwrap();
         assert!(!dir.path().join(REL).exists());
+    }
+
+    #[test]
+    fn record_updates_the_first_entry_or_appends_and_ignores_blanks() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai")).unwrap();
+        std::fs::write(dir.path().join(REL), "a.md\t1\na.md\t2\n").unwrap();
+        let mut manifest = TemplateManifest::load(dir.path()).unwrap();
+        assert!(!manifest.is_empty());
+        manifest.record("a.md", "3");
+        manifest.record("b.md", "4");
+        manifest.record("", "5");
+        manifest.record("c.md", "");
+        assert_eq!(manifest.lookup("a.md"), Some("3"));
+        assert_eq!(manifest.lookup("c.md"), None);
+        manifest.write(dir.path()).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join(REL)).unwrap(),
+            "a.md\t2\na.md\t3\nb.md\t4\n"
+        );
+        assert!(TemplateManifest::default().is_empty());
+    }
+
+    #[test]
+    fn heal_records_only_the_copies_that_match_their_template() {
+        let dir = tempfile::tempdir().unwrap();
+        let base = dir.path().join(".ai/src");
+        std::fs::create_dir_all(base.join("rules")).unwrap();
+        std::fs::create_dir_all(base.join("skills/a")).unwrap();
+        std::fs::write(base.join("AGENTS.md"), "agents\n").unwrap();
+        std::fs::write(base.join("rules/same.md"), "same\n").unwrap();
+        std::fs::write(base.join("rules/edited.md"), "mine\n").unwrap();
+        std::fs::write(base.join("skills/a/SKILL.md"), "skill\n").unwrap();
+        let templates: [(&str, &[u8]); 5] = [
+            ("AGENTS.md", b"agents\n"),
+            ("rules/same.md", b"same\n"),
+            ("rules/edited.md", b"theirs\n"),
+            ("rules/missing.md", b"new\n"),
+            ("skills/a/SKILL.md", b"skill\n"),
+        ];
+        let mut manifest = TemplateManifest::default();
+        manifest.record("rules/edited.md", "old");
+        manifest.heal_from_match(templates, &base);
+        manifest.write(dir.path()).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join(REL)).unwrap(),
+            format!(
+                "AGENTS.md\t{}\nrules/edited.md\told\nrules/same.md\t{}\nskills/a/SKILL.md\t{}\n",
+                sha256_hex(b"agents\n"),
+                sha256_hex(b"same\n"),
+                sha256_hex(b"skill\n")
+            )
+        );
     }
 }

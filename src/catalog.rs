@@ -32,6 +32,27 @@ pub fn base_payload(resource: &str, slug: &str) -> Option<&'static File<'static>
     matches.first().copied()
 }
 
+/// `_dedupe_load_template_set`: the shipped `AGENTS.md`, the `*.md` files of
+/// `rules`, `commands`, and `agents`, and every file below `skills` whose name
+/// does not start with `.`, as paths below `.ai/src/` in byte order.
+pub fn template_sources() -> Vec<String> {
+    let mut paths: Vec<String> = engine_files()
+        .into_iter()
+        .filter_map(|(path, _)| {
+            let rel = path.strip_prefix("lib/templates/")?;
+            let (dir, name) = rel.rsplit_once('/').unwrap_or(("", rel));
+            let shipped = match dir {
+                "" => rel == "AGENTS.md",
+                "rules" | "commands" | "agents" => name.ends_with(".md") && !name.starts_with('.'),
+                _ => (dir == "skills" || dir.starts_with("skills/")) && !name.starts_with('.'),
+            };
+            shipped.then(|| rel.to_string())
+        })
+        .collect();
+    paths.sort();
+    paths
+}
+
 /// `lib/config.yaml`, the install-dir global config `sync.sh` reads source defaults from.
 pub const GLOBAL_CONFIG: &str = include_str!("../lib/config.yaml");
 
@@ -96,5 +117,33 @@ mod tests {
         );
         assert_eq!(base_payload("hooks", "zed").map(|f| f.path()), None);
         assert!(base_payload("hooks", "claude-hub").is_none());
+    }
+
+    #[test]
+    fn the_template_sources_are_the_set_dedupe_loads() {
+        assert_eq!(
+            template_sources(),
+            [
+                "AGENTS.md",
+                "agents/code-reviewer.md",
+                "commands/fix-issue.md",
+                "commands/review.md",
+                "rules/comments.md",
+                "rules/core.md",
+                "rules/git.md",
+                "skills/comments/SKILL.md",
+                "skills/commit/SKILL.md",
+                "skills/debug/SKILL.md",
+                "skills/humanizer/SKILL.md",
+                "skills/humanizer/references/wikipedia_signs_of_ai_writing.md",
+                "skills/humanizer/scripts/strip-ai-chars.sh",
+                "skills/prompt-engineering/SKILL.md",
+                "skills/prompt-engineering/references/agent-persona.md",
+                "skills/prompt-engineering/references/metaprompting.md",
+                "skills/prompt-engineering/references/snippets.md",
+                "skills/refactor/SKILL.md",
+                "skills/review/SKILL.md",
+            ]
+        );
     }
 }

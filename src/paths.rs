@@ -123,6 +123,40 @@ pub fn ai_dir_enclosing_root(dir: &str) -> Option<String> {
     shallowest.map(|ai| parent(&ai))
 }
 
+/// `find_parent_ai_src`: the nearest ancestor's `.ai/src` above a logical
+/// directory, never the directory's own and never outside its git repository.
+pub fn find_parent_ai_src(start: &str) -> Option<String> {
+    if !Path::new(start).is_dir() {
+        return None;
+    }
+    let mut git_root = None;
+    let mut probe = start.to_string();
+    while !probe.is_empty() && probe != "/" {
+        let dot_git = Path::new(&probe).join(".git");
+        if dot_git.is_dir() || dot_git.is_file() {
+            git_root = Some(probe);
+            break;
+        }
+        probe = parent(&probe);
+    }
+    let mut current = start.to_string();
+    let mut up = parent(&current);
+    while up != current {
+        if let Some(root) = &git_root
+            && !is_within(&up, root)
+        {
+            return None;
+        }
+        let candidate = format!("{up}/.ai/src");
+        if Path::new(&candidate).is_dir() {
+            return Some(candidate);
+        }
+        current = up;
+        up = parent(&current);
+    }
+    None
+}
+
 /// `find_workspace_ai_dirs`: every `.ai` directory below `root` holding `src/`
 /// or `agent_sync.yaml`, deepest first and then in byte order. `.git` and
 /// `node_modules` are not entered, nor is a `.ai` once found, nor a symlink.
@@ -739,6 +773,34 @@ mod tests {
         let file = format!("{base}/outside/rules/o.md");
         p.trust_external_roots(Some(&file));
         assert!(!p.is_trusted_external(&file));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_parent_ai_src_is_the_nearest_ancestors_inside_the_git_repository() {
+        let dir = tempfile::tempdir().unwrap();
+        let t = disk_canonical(&dir.path().to_string_lossy()).unwrap();
+        for sub in [
+            "a/.ai/src",
+            "a/b/c/.ai/src",
+            "a/repo/.git",
+            "a/repo/d",
+            "a/sub/.git",
+            "a/sub/.ai/src",
+            "a/sub/e",
+            "a/worktree/f",
+        ] {
+            std::fs::create_dir_all(format!("{t}/{sub}")).unwrap();
+        }
+        std::fs::write(format!("{t}/a/worktree/.git"), "gitdir: elsewhere\n").unwrap();
+        let found = |start: &str| find_parent_ai_src(&format!("{t}/{start}"));
+        assert_eq!(found("a/b/c"), Some(format!("{t}/a/.ai/src")));
+        assert_eq!(found("a/b"), Some(format!("{t}/a/.ai/src")));
+        assert_eq!(found("a"), None);
+        assert_eq!(found("a/repo/d"), None);
+        assert_eq!(found("a/sub/e"), Some(format!("{t}/a/sub/.ai/src")));
+        assert_eq!(found("a/worktree/f"), None);
+        assert_eq!(found("a/missing"), None);
     }
 
     #[cfg(unix)]

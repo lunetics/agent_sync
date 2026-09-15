@@ -159,7 +159,7 @@ git commit -m "fix(dedupe): list flat-category duplicates in byte order"
   - `pub fn catalog::template_sources() -> Vec<String>` — paths below `.ai/src/`, byte order
   - `pub fn paths::find_parent_ai_src(start: &str) -> Option<String>` — `start` is a logical absolute directory
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `src/template_manifest.rs` with its tests module only, and add `pub mod template_manifest;` to `src/lib.rs`:
 
@@ -249,12 +249,12 @@ Insert into the `tests` module of `src/paths.rs`, before `a_source_link_escaping
 
 ```
 
-- [ ] **Step 2: Run the tests, confirm they fail**
+- [x] **Step 2: Run the tests, confirm they fail**
 
 Run: `cargo test --lib 2>&1 | grep -E '^error\[E0425\]' | sort -u`
 Expected: `cannot find function` errors for `hash`, `template_sources`, and `find_parent_ai_src`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Prepend to `src/template_manifest.rs`:
 
@@ -342,7 +342,7 @@ pub fn find_parent_ai_src(start: &str) -> Option<String> {
 
 ```
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo fmt --all
@@ -352,7 +352,7 @@ cargo clippy --all-targets -- -D warnings
 
 Expected: `214 passed`, `0`, `11`, `1`; clippy exit 0.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/template_manifest.rs src/lib.rs src/catalog.rs src/paths.rs docs/plans/2026-09-15-rust-migration-phase-4e-dedupe.md

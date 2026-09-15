@@ -27,6 +27,7 @@ pub mod session;
 pub mod snapshot;
 pub mod staging;
 pub mod style;
+pub mod template_manifest;
 pub mod text;
 pub mod tool;
 pub mod version;

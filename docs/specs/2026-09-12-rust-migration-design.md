@@ -440,6 +440,15 @@ cleanup has a list:
     to `.ai/src/tools/README/settings.README`.
 37. Off a terminal without `--yes`, `migrate --apply` consolidates identical MCP
     files but leaves `.agent/` in place.
+38. `refresh` heals `.ai/.template-manifest` with every shipped template that
+    matches its copy, including categories outside `--only` and `AGENTS.md`
+    without `--include-agents-md`.
+39. Off a terminal without `--yes`, `refresh` applies pending auto-updates,
+    because the TTY gate looks only at new files and conflicts; with
+    `--include-deleted` and nothing else pending it prints each RESTORE prompt
+    on stderr and declines it.
+40. `refresh` reads `template_overrides` from `.ai/agent_sync.yaml`, else a
+    root `agent_sync.yaml`, ignoring `AGENTSYNC_CONFIG_PATH`.
 
 ## Accepted deviations
 
@@ -505,6 +514,18 @@ Appended one line at a time as they are found, with the phase:
   `/<agentsync>/lib/templates/...` where Bash printed the install directory.
 - Phase 4g: `migrate` prints the embedded `lib/prompts/migrate.md` where Bash
   read the install directory's copy.
+- Phase 4h: `refresh` prints `Templates: /<agentsync>/lib/templates` and
+  compares against the embedded templates where Bash printed and read
+  `$AGENTSYNC_HOME/lib/templates`.
+- Phase 4h: a template `refresh` creates is executable when it starts with
+  `#!`, the mode the shipped scripts carry, where Bash's `cp` copied the
+  checkout's mode; an existing file keeps its mode in both engines.
+- Phase 4h: `refresh` and `migrate` keep an existing `.ai/.template-manifest`
+  mode, as `TemplateManifest::write` has since Phase 4g, where Bash's
+  `template_manifest_write` lets `sort -o` rewrite the file, which BSD sort
+  does through a new `0600` inode.
+- Phase 4h: a `refresh` prompt whose terminal device cannot be opened declines
+  silently where Bash also printed the shell's `/dev/tty` open error.
 
 ## Risks
 

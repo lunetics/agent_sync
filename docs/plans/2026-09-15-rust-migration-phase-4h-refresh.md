@@ -2245,7 +2245,7 @@ git commit -m "feat(native): port refresh"
 **Files:**
 - Modify: `docs/specs/2026-09-12-rust-migration-design.md`, `.ai/src/skills/native-port/references/module-map.md`, `.ai/.sync-manifest`
 
-- [ ] **Step 1: Spec**
+- [x] **Step 1: Spec**
 
 Append to "Known quirks":
 
@@ -2278,11 +2278,11 @@ Append to "Accepted deviations":
   silently where Bash also printed the shell's `/dev/tty` open error.
 ```
 
-- [ ] **Step 2: Module map and outputs**
+- [x] **Step 2: Module map and outputs**
 
 Set the `lib/helpers/refresh.sh` row to `→ src/cli/refresh.rs      Phase 4h, ported` and the `lib/helpers/template_manifest.sh` row to `→ src/template_manifest.rs   hash (4e); load, lookup, remove, write (4g); record and heal (4h)`. Regenerate outputs with `AGENTSYNC_NATIVE=0 AGENTSYNC_HOME="$PWD" bash bin/agentsync.sh sync --force`.
 
-- [ ] **Step 3: Verify (outside the agent sandbox)**
+- [x] **Step 3: Verify (outside the agent sandbox)**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -4
@@ -2298,7 +2298,7 @@ done
 
 Expected: `243 passed`, `0`, `11`, `1`; lint exit 0; both lines `bash=0 native=0` (`refresh` 38 cases, `native_parity` 54).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/specs/2026-09-12-rust-migration-design.md .ai/src/skills/native-port/references/module-map.md .ai/.sync-manifest docs/plans/2026-09-15-rust-migration-phase-4h-refresh.md
@@ -2339,4 +2339,11 @@ The plan is closed when every box is ticked, `tests/refresh.bats` and `tests/nat
 - Verified: Step 1's parity fixtures `ok 1`, `ok 2` with Bash on both sides; Step 2's compile errors named `refresh`, `Env`, `sha256_hex`, `catalog`, `template_manifest`, `Path`, and `Style`; Step 4's `cargo test` 243/0/11/1, `cargo build --release`, `AGENTSYNC_NATIVE=1 bats tests/refresh.bats` 0 failures across 38 cases, parity fixtures `ok 1`, `ok 2`; Step 5's `(auto-updated; untouched)` mutation failed the fixture on the auto-update line and the revert is byte-identical to the verified draft; `refresh_reference.sh` gave 3658-line transcripts with 34 differing lines, 0 outside the manifest mode, and the restored script at `755` in 52 listings; `refresh_tty.sh` outside the sandbox gave 600-line transcripts with 0 differences outside the manifest mode and 7 scenarios at `rc=0`; ShellCheck, `cargo fmt --all --check`, and clippy clean. Every changed file matches the draft byte for byte.
 - Plan amended: none.
 - Next: Task 3 Step 1.
+- Blocker: none.
+
+### 2026-09-15 — Task 3 done
+- Commits: `docs(native): map the phase 4h modules and quirks`.
+- Verified: `cargo test` 243/0/11/1; `cargo clippy --all-targets -- -D warnings` and `cargo fmt --all --check` clean; ShellCheck over `bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh` exit 0; `refresh` bash=0 native=0 across 38 cases; `native_parity` bash=0 native=0 across 54 cases, run outside the sandbox; `sync --force` regenerated the outputs outside the sandbox, which refuses writes under `.claude/`, and changed only `.ai/.sync-manifest` among tracked files.
+- Plan amended: none.
+- Next: close the plan with a `## Completion receipt`.
 - Blocker: none.

@@ -346,3 +346,13 @@ teardown() { teardown_test_project; }
     grep -q "Edited." .ai/src/commands/go.md
     [ ! -e .ai/src/rules/workflows ]
 }
+
+@test "adopt: the plan's diff names source and destination by project path" {
+    enable_tools claude
+    AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync >/dev/null
+    echo "## Manual addition" >> .claude/rules/core.md
+
+    run env AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" adopt --dry-run .claude/rules/core.md
+    [ "$status" -eq 0 ]
+    [[ "$output" == *$'    --- .ai/src/rules/core.md\n    +++ .claude/rules/core.md\n'* ]]
+}

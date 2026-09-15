@@ -693,7 +693,8 @@ EOF
         echo ""
     elif command -v diff >/dev/null 2>&1; then
         local diff_output
-        diff_output=$(diff -u "$_ADOPT_SOURCE_ABS" "$_ADOPT_DEST_ABS" 2>/dev/null | head -n 40 || true)
+        diff_output=$(diff -u --label "$_ADOPT_SOURCE_REL" --label "$_ADOPT_DEST_REL" \
+            "$_ADOPT_SOURCE_ABS" "$_ADOPT_DEST_ABS" 2>/dev/null | head -n 40 || true)
         if [[ -n "$diff_output" ]]; then
             echo "$diff_output" | sed 's/^/    /'
             echo ""

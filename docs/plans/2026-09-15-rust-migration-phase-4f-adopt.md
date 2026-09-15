@@ -232,7 +232,7 @@ git commit -m "fix(adopt): map a nested destination to its deepest target"
 
 **Interfaces:** none.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/adopt.bats`:
 
@@ -252,14 +252,14 @@ Append to `tests/adopt.bats`:
 Run: `bats --tap -f 'by project path' tests/adopt.bats`
 Expected: `not ok 1`.
 
-- [ ] **Step 2: Label the diff**
+- [x] **Step 2: Label the diff**
 
 ```bash
         diff_output=$(diff -u --label "$_ADOPT_SOURCE_REL" --label "$_ADOPT_DEST_REL" \
             "$_ADOPT_SOURCE_ABS" "$_ADOPT_DEST_ABS" 2>/dev/null | head -n 40 || true)
 ```
 
-- [ ] **Step 3: Run the tests, confirm green**
+- [x] **Step 3: Run the tests, confirm green**
 
 ```bash
 bats --tap tests/adopt.bats | grep -c '^ok'
@@ -268,7 +268,7 @@ shellcheck -x -S warning -e SC1091 lib/helpers/adopt.sh
 
 Expected: `29`; ShellCheck exit 0.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add lib/helpers/adopt.sh tests/adopt.bats docs/plans/2026-09-15-rust-migration-phase-4f-adopt.md

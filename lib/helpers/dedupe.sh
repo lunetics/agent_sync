@@ -167,7 +167,7 @@ _dedupe_collect() {
     local rel cf pf ch ph cat f
     for cat in rules commands agents; do
         [[ -d "$parent_src/$cat" ]] || continue
-        for f in "$parent_src/$cat"/*.md; do
+        while IFS= read -r -d '' f; do
             [[ -f "$f" ]] || continue
             rel="$cat/$(basename "$f")"
             cf="$child_src/$rel"
@@ -180,7 +180,7 @@ _dedupe_collect() {
             else
                 _DEDUPE_DIVERGENT+=("$rel|$cf|$pf")
             fi
-        done
+        done < <(printf '%s\0' "$parent_src/$cat"/*.md | LC_ALL=C sort -z)
     done
 
     if [[ -d "$parent_src/skills" ]]; then

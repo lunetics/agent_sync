@@ -252,3 +252,19 @@ EOF
     [ "$status" -ne 0 ]
     [[ "$output" == *"mutually exclusive"* ]]
 }
+
+@test "dedupe lists duplicates in byte order whatever the locale" {
+    locale -a 2>/dev/null | grep -qix 'en_US.utf-\{0,1\}8' || skip "en_US.UTF-8 locale not installed"
+    local parent_dir="$TEST_PROJECT/parent"
+    local child_dir="$parent_dir/child"
+    local name
+    mkdir -p "$parent_dir/.ai/src/rules" "$child_dir/.ai/src/rules"
+    for name in a _x B; do
+        printf '%s\n' "$name" > "$parent_dir/.ai/src/rules/$name.md"
+        cp "$parent_dir/.ai/src/rules/$name.md" "$child_dir/.ai/src/rules/$name.md"
+    done
+
+    run bash -c "cd '$child_dir' && LC_ALL=en_US.UTF-8 AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' dedupe --yes"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"rules/B.md (deleted)"*"rules/_x.md (deleted)"*"rules/a.md (deleted)"* ]]
+}

@@ -21,6 +21,8 @@
 
 ## Decisions for the review
 
+Taken on 2026-09-15 under the maintainer's `/decide`: all three as recommended.
+
 1. **The `template_manifest` family is planned in five slices,** by dependency: 4e `dedupe` with the template hash and set; 4f `adopt`; 4g `migrate`; 4h `refresh`; 4i `init`, which needs `adopt`. **Recommended:** this order, recorded in the spec's Phase 4 note by Task 4. Alternative: one plan for the family, about 3,700 lines of Bash in one review.
 2. **Fix Bash's locale-dependent order before porting.** `_dedupe_collect` walks `rules`, `commands`, and `agents` with a glob, which Bash sorts by `LC_COLLATE`: under `en_US.UTF-8` the duplicates `B.md`, `_x.md`, `a.md` print as `_x, a, B`, under `C` as `B, _x, a`. The skills walk already sorts with `LC_ALL=C sort -z`. **Recommended:** Task 1 sorts the glob the same way, as `91d5dc3` did for `.gitignore`; the `native-port` triage puts a locale-dependent reference first. Alternative: cite the Phase 2 deviation for globs and port the byte order without touching Bash, leaving Bash users with an order that depends on their locale.
 3. **Quirks and deviations.** Record as known quirks 31–32: `dedupe` removes an emptied category directory such as `.ai/src/rules/`, not only emptied skill folders; `dedupe` ignores `AGENTSYNC_CONFIG_PATH`, even a missing one. Record as accepted deviations: the template set comes from the embedded templates where Bash read `$AGENTSYNC_HOME/lib/templates`; an `AGENTSYNC_REPO_ROOT` that does not exist reports `Error: Repository root not found: <path>` where Bash printed `cd`'s message, with status 1 in both, as every ported command already does. **Recommended:** as listed.
@@ -73,7 +75,7 @@ Expected: this plan's commit; `211 passed`, `0 passed`, `11 passed`, `1 passed`;
 
 **Interfaces:** none; `_dedupe_collect` keeps its arrays and their order becomes byte order.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/dedupe.bats`:
 
@@ -96,12 +98,12 @@ Append to `tests/dedupe.bats`:
 }
 ```
 
-- [ ] **Step 2: Run the test, confirm it fails**
+- [x] **Step 2: Run the test, confirm it fails**
 
 Run: `bats --tap -f 'byte order' tests/dedupe.bats`
 Expected: `not ok 1 dedupe lists duplicates in byte order whatever the locale`, failing on the `[[ "$output" == … ]]` line.
 
-- [ ] **Step 3: Sort the glob by bytes**
+- [x] **Step 3: Sort the glob by bytes**
 
 In `_dedupe_collect`, replace the flat-category loop body:
 
@@ -127,7 +129,7 @@ In `_dedupe_collect`, replace the flat-category loop body:
 
 The glob still skips dot files, and an unmatched `*.md` stays literal and fails `[[ -f ]]`, as before.
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 bats --tap tests/dedupe.bats | grep -c '^ok'
@@ -136,7 +138,7 @@ shellcheck -x -S warning -e SC1091 lib/helpers/dedupe.sh
 
 Expected: `12`; ShellCheck exit 0.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/helpers/dedupe.sh tests/dedupe.bats docs/plans/2026-09-15-rust-migration-phase-4e-dedupe.md

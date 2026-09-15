@@ -319,3 +319,16 @@ teardown() { teardown_test_project; }
     [ "$status" -eq 0 ]
     [[ "$output" != *"Manual edits detected"* ]]
 }
+
+@test "adopt: writes an edited rule into the source.rules directory sync reads" {
+    mkdir -p docs/rules
+    printf '# Team\n' > docs/rules/team.md
+    printf 'tools:\n  enabled:\n    - claude\nsource:\n  rules: "docs/rules"\n' > .ai/agent_sync.yaml
+    AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync >/dev/null
+    echo "## Edited" >> .claude/rules/team.md
+
+    run env AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" adopt --yes .claude/rules/team.md
+    [ "$status" -eq 0 ]
+    grep -q "Edited" docs/rules/team.md
+    [ ! -f .ai/src/rules/team.md ]
+}

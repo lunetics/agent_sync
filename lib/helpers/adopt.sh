@@ -94,6 +94,22 @@ _adopt_discover_sources() {
     elif [[ -d "$REPO_ROOT/.ai/agents" ]]; then
         SOURCE_SUBAGENTS=".ai/agents"
     fi
+
+    # sync.sh reads the project's source.<key> (or a root-level <key>) over this layout.
+    [[ -n "${PROJECT_CONFIG_PATH:-}" && -f "$PROJECT_CONFIG_PATH" ]] || return 0
+    local key override
+    for key in agents rules skills commands subagents; do
+        override=$(parse_yaml_value "$PROJECT_CONFIG_PATH" "source.$key") || true
+        [[ -n "$override" ]] || override=$(parse_yaml_value "$PROJECT_CONFIG_PATH" "$key") || true
+        [[ -n "$override" ]] || continue
+        case "$key" in
+            agents)    SOURCE_AGENTS="$override" ;;
+            rules)     SOURCE_RULES="$override" ;;
+            skills)    SOURCE_SKILLS="$override" ;;
+            commands)  SOURCE_COMMANDS="$override" ;;
+            subagents) SOURCE_SUBAGENTS="$override" ;;
+        esac
+    done
 }
 
 # Compute the dest abs path declared by a tool's targets.<key>.dest.

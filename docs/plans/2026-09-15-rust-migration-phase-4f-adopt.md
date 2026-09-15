@@ -21,6 +21,8 @@
 
 ## Decisions for the review
 
+Taken on 2026-09-15 under the maintainer's `/decide`: both as recommended.
+
 1. **Fix three Bash bugs before porting.** Each was reproduced on 0.36.0's `adopt.sh`, and each regression test fails there and passes with the fix; `adopt.bats`, `init.bats`, and `init_flow.bats` stay green on the fixed copy.
    - **`adopt` ignores `source.*`.** `_adopt_discover_sources` only looks for `.ai/src/<dir>`, while `sync` reads the project's `source.rules`. With `source.rules: docs/rules`, adopting `.claude/rules/team.md` wrote a new `.ai/src/rules/team.md`, and the next `sync` silently put the old `docs/rules` content back into the output. **Recommended:** apply `source.<key>` (or a root-level `<key>`) over the detected layout, as `resolve_source_override` in `lib/sync.sh` does. A path outside the project stays refused, because `adopt` registers no external roots.
    - **A nested destination maps to the wrong target.** Cline's `commands.dest` `.clinerules/workflows` lies inside `rules.dest` `.clinerules`, and rules are tried first, so an edited workflow was adopted into `.ai/src/rules/workflows/go.md`. **Recommended:** the deepest matching directory wins; equal lengths keep today's order.
@@ -77,7 +79,7 @@ Expected: this plan's commit; `217 passed`, `0 passed`, `11 passed`, `1 passed`;
 
 **Interfaces:** none; `SOURCE_*` now carry the project's `source.<key>` when it is set.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/adopt.bats`:
 
@@ -100,7 +102,7 @@ Append to `tests/adopt.bats`:
 Run: `bats --tap -f 'source.rules directory' tests/adopt.bats`
 Expected: `not ok 1 adopt: writes an edited rule into the source.rules directory sync reads`.
 
-- [ ] **Step 2: Apply the project's source keys**
+- [x] **Step 2: Apply the project's source keys**
 
 At the end of `_adopt_discover_sources`, after the `SOURCE_SUBAGENTS` detection:
 
@@ -123,7 +125,7 @@ At the end of `_adopt_discover_sources`, after the `SOURCE_SUBAGENTS` detection:
     done
 ```
 
-- [ ] **Step 3: Run the tests, confirm green**
+- [x] **Step 3: Run the tests, confirm green**
 
 ```bash
 for f in adopt init init_flow; do
@@ -134,7 +136,7 @@ shellcheck -x -S warning -e SC1091 lib/helpers/adopt.sh
 
 Expected: `adopt ok=27 notok=0`, `init ok=35 notok=0`, `init_flow ok=14 notok=0`; ShellCheck exit 0.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add lib/helpers/adopt.sh tests/adopt.bats docs/plans/2026-09-15-rust-migration-phase-4f-adopt.md

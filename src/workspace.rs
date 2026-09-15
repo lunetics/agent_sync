@@ -298,8 +298,8 @@ impl Workspace {
     }
 
     /// `chmod +x` as the default umask applies it; the in-memory tree has no modes.
+    #[cfg(unix)]
     pub fn make_executable(&mut self, path: &str) -> Result<(), Error> {
-        #[cfg(unix)]
         if self.writes_disk(path) {
             use std::os::unix::fs::PermissionsExt;
             let mut permissions = std::fs::metadata(path)
@@ -308,6 +308,11 @@ impl Workspace {
             permissions.set_mode(permissions.mode() | 0o111);
             return std::fs::set_permissions(path, permissions).map_err(|e| Error::io(path, e));
         }
+        Ok(())
+    }
+
+    #[cfg(not(unix))]
+    pub fn make_executable(&mut self, _path: &str) -> Result<(), Error> {
         Ok(())
     }
 

@@ -254,9 +254,14 @@ pub(crate) fn create_unique(dir: &str, prefix: &str, directory: bool) -> Result<
     loop {
         let path = PathBuf::from(format!("{dir}/{prefix}{pid}{attempt:04}"));
         let created = if directory {
-            let mut builder = std::fs::DirBuilder::new();
             #[cfg(unix)]
-            std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
+            let builder = {
+                let mut builder = std::fs::DirBuilder::new();
+                std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
+                builder
+            };
+            #[cfg(not(unix))]
+            let builder = std::fs::DirBuilder::new();
             builder.create(&path)
         } else {
             let mut options = OpenOptions::new();

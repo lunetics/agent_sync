@@ -94,11 +94,15 @@ pub fn logical_root(env_root: Option<&str>, cwd: &Path, pwd: Option<&str>) -> St
         _ => cwd_text,
     };
     let base = match env_root {
-        Some(root) if root.starts_with('/') => root.to_string(),
+        Some(root) if root.starts_with('/') || Path::new(root).is_absolute() => root.to_string(),
         Some(root) => format!("{logical_cwd}/{root}"),
         None => logical_cwd,
     };
-    normalize(&base)
+    if base.starts_with('/') {
+        normalize(&base)
+    } else {
+        base
+    }
 }
 
 /// `ai_dir_enclosing_root`: the parent of the shallowest `.ai` segment of a

@@ -385,7 +385,7 @@ main() {
         add)           _need add;                                      shift; cmd_add "$@" ;;
         customize)     _need yaml yaml_edit tool_resolver project_config paths customize;   shift; cmd_customize "$@" ;;
         simplify)      _need yaml yaml_edit tool_resolver project_config paths customize simplify;   shift; cmd_simplify "$@" ;;
-        migrate)       _need prompts yaml yaml_edit tool_resolver project_config template_manifest format migrate; shift; cmd_migrate "$@" ;;
+        migrate)       _need prompts yaml yaml_edit logging paths tool_resolver project_config template_manifest format migrate; shift; cmd_migrate "$@" ;;
         show)          _need yaml yaml_edit tool_resolver project_config snapshot customize;   shift; cmd_show "$@" ;;
         diff)          _need yaml yaml_edit tool_resolver project_config snapshot customize;   shift; cmd_diff "$@" ;;
         resolve)       _need yaml yaml_edit tool_resolver project_config snapshot customize resolve_cmd; shift; cmd_resolve "$@" ;;

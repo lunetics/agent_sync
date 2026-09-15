@@ -55,7 +55,7 @@ Reused: `Project::{discover, user_tools_dir, tools_dir_in_project}`, `yaml_edit:
 
 **Files:** none changed.
 
-- [ ] **Step 1: Record the baseline**
+- [x] **Step 1: Record the baseline**
 
 ```bash
 git log --oneline -1
@@ -141,7 +141,7 @@ git commit -m "fix(migrate): keep non-JSON MCP overrides out of consolidation"
 
 **Interfaces:** none.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `tests/migrate.bats`:
 
@@ -174,7 +174,7 @@ Append to `tests/migrate.bats`:
 Run: `bats --tap -f 'source.tools' tests/migrate.bats`
 Expected: `not ok 1 migrate --apply moves overrides into the source.tools directory` and `not ok 2 migrate --apply refuses a source.tools outside the project before changing anything`.
 
-- [ ] **Step 2: Resolve destinations through the tool override directory**
+- [x] **Step 2: Resolve destinations through the tool override directory**
 
 In both `_migrate_format_move` and `_migrate_move_one`, replace `local dest="$REPO_ROOT/.ai/src/tools/${tool}/${resource}.${ext}"` with:
 
@@ -199,7 +199,7 @@ In `bin/agentsync.sh:388`:
         migrate)       _need prompts yaml yaml_edit logging paths tool_resolver project_config template_manifest format migrate; shift; cmd_migrate "$@" ;;
 ```
 
-- [ ] **Step 3: Run the tests, confirm green**
+- [x] **Step 3: Run the tests, confirm green**
 
 ```bash
 for f in migrate format_migration doctor; do
@@ -210,7 +210,7 @@ shellcheck -x -S warning -e SC1091 bin/agentsync.sh lib/helpers/migrate.sh
 
 Expected: `migrate ok=21 notok=0`, `format_migration ok=11 notok=0`, `doctor ok=36 notok=0`; ShellCheck exit 0.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add lib/helpers/migrate.sh bin/agentsync.sh tests/migrate.bats docs/plans/2026-09-15-rust-migration-phase-4g-migrate.md

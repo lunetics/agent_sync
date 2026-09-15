@@ -243,3 +243,26 @@ teardown() { teardown_test_project; }
     grep -q 'mcp_servers' .ai/src/tools/codex/mcp.toml
     [ ! -f .ai/src/mcp.json ]
 }
+
+@test "migrate --apply moves overrides into the source.tools directory" {
+    mkdir -p .ai/src/hooks catalog
+    printf '{}\n' > .ai/src/hooks/cursor.json
+    printf 'format: 2\ntools:\n  enabled: []\nsource:\n  tools: "catalog"\n' > .ai/agent_sync.yaml
+
+    run run_agentsync migrate --apply --yes
+    [ "$status" -eq 0 ]
+    [ -f catalog/cursor/hooks.json ]
+    [ ! -e .ai/src/tools/cursor/hooks.json ]
+}
+
+@test "migrate --apply refuses a source.tools outside the project before changing anything" {
+    mkdir -p .ai/src/hooks
+    printf '{}\n' > .ai/src/hooks/cursor.json
+    printf 'tools:\n  enabled: []\nsource:\n  tools: "../elsewhere"\n' > .ai/agent_sync.yaml
+
+    run run_agentsync migrate --apply --yes
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"source.tools resolves outside the project"* ]]
+    [ -f .ai/src/hooks/cursor.json ]
+    ! grep -q '^format:' .ai/agent_sync.yaml
+}

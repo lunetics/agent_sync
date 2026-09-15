@@ -61,7 +61,8 @@ _migrate_format_move() {
     local tool="${line%%|*}"; line="${line#*|}"
     local src="${line%%|*}"; line="${line#*|}"
     local ext="$line"
-    local dest="$REPO_ROOT/.ai/src/tools/${tool}/${resource}.${ext}"
+    local dest
+    dest="$(tool_resolver_user_dir)/${tool}/${resource}.${ext}"
     printf '  %s  →  %s' "${src#"$REPO_ROOT/"}" "${dest#"$REPO_ROOT/"}"
 }
 
@@ -107,7 +108,8 @@ _migrate_move_one() {
     local tool="${line%%|*}"; line="${line#*|}"
     local src="${line%%|*}"; line="${line#*|}"
     local ext="$line"
-    local dest="$REPO_ROOT/.ai/src/tools/${tool}/${resource}.${ext}"
+    local dest
+    dest="$(tool_resolver_user_dir)/${tool}/${resource}.${ext}"
 
     if [[ -f "$dest" ]]; then
         _yellow "  skipped (target already exists)"; echo " ${dest#"$REPO_ROOT/"}"
@@ -308,6 +310,11 @@ USAGE
         _dim "  Canonical layout, no engine-owned skill copies, format r$current_rev is current."; echo ""
         echo ""
         return 0
+    fi
+
+    # Refuse before the first change: the moves below write into the tool override directory.
+    if [[ "$apply" == "true" && -n "$legacy" ]]; then
+        tool_resolver_require_project_user_dir
     fi
 
     if [[ -n "$base_skill_copies" ]]; then

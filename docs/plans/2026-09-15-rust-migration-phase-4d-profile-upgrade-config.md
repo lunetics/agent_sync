@@ -956,7 +956,7 @@ git commit -m "feat(native): port profile"
 **Files:**
 - Modify: `docs/specs/2026-09-12-rust-migration-design.md`, `.ai/src/skills/native-port/references/module-map.md`, `.ai/.sync-manifest`
 
-- [ ] **Step 1: Spec**
+- [x] **Step 1: Spec**
 
 Append to "Known quirks":
 
@@ -971,11 +971,11 @@ Append to "Known quirks":
     `AGENTSYNC_CONFIG_PATH`.
 ```
 
-- [ ] **Step 2: Module map and outputs**
+- [x] **Step 2: Module map and outputs**
 
 Set the `lib/helpers/profile.sh` row to `→ src/cli/profile.rs      Phase 4d, ported`, the `lib/helpers/init.sh` row to `→ src/cli/{init,upgrade_config}.rs   upgrade_config ported in Phase 4d; init waits for the template_manifest family`, and the `lib/helpers/profiles.sh` row's note to `names, overlay dir, tools, active, rewrite_dest`. Regenerate outputs with `AGENTSYNC_NATIVE=0 AGENTSYNC_HOME="$PWD" bash bin/agentsync.sh sync --force`.
 
-- [ ] **Step 3: Verify (outside the agent sandbox)**
+- [x] **Step 3: Verify (outside the agent sandbox)**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -4
@@ -991,7 +991,7 @@ done
 
 Expected: `209 passed`, `0`, `11`, `1`; lint exit 0; every line `bash=0 native=0`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/specs/2026-09-12-rust-migration-design.md .ai/src/skills/native-port/references/module-map.md .ai/.sync-manifest docs/plans/2026-09-15-rust-migration-phase-4d-profile-upgrade-config.md
@@ -1003,6 +1003,38 @@ git commit -m "docs(native): map the phase 4d modules and quirks"
 ## Completion
 
 The plan is closed when every box is ticked, `profiles.bats` is green under `AGENTSYNC_NATIVE=1`, the parity fixtures pass, the files in Task 3 pass in both modes, and a `## Completion receipt` records the fresh verification. With it the `yaml_edit` family is closed; the next plan is the `template_manifest` family.
+
+## Completion receipt
+
+### Decisions the review took
+
+Both as recommended, on 2026-09-15, under the maintainer's "Go".
+
+### Global Constraints
+
+| Constraint | Satisfied by |
+|---|---|
+| `profile` and `upgrade-config` write and delete only what Bash does | `src/cli/profile.rs`, `src/cli/upgrade_config.rs`; the parity fixtures compare whole trees after every call |
+| No Bash change | `git diff --stat cc72778..HEAD -- lib` is empty; ShellCheck exit 0 |
+| Byte-for-byte parity | `tests/native_parity.bats`: `parity: upgrade-config adds or rewrites the pin like Bash`, `parity: profile adds, lists, adopts, and removes like Bash` |
+| `unsafe_code = "forbid"`, fmt and clippy clean, no new dependency; `main.rs` alone reads terminal state | `Cargo.toml` unchanged; `prompts::is_tty` and `prompts::confirm` are called from `src/main.rs` |
+| Disk-touching unit tests are `#[cfg(unix)]` | `src/cli/profile.rs` test module; `src/cli/upgrade_config.rs` tests only `upgrade_text` |
+| Expected values from Bash | `profile_reference.out` |
+| Conventional Commits, at most 72 characters, no trailers | `bd90c8b` … the close commit |
+
+### Fresh verification, 2026-09-15, macOS arm64, outside the agent sandbox
+
+- `cargo test`: 209 passed (lib), 11 passed (cli), 1 passed (interrupt); 210 (lib) after `299a069`.
+- `cargo clippy --all-targets -- -D warnings`: exit 0. `cargo fmt --all --check`: exit 0.
+- `shellcheck -x -S warning -e SC1091 bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh`: exit 0.
+- bats, one file at a time, `AGENTSYNC_NATIVE=0` / `=1` failures: `profiles` 0/0 (20 cases), `guard` 0/0 (18), `outputs_mode` 0/0 (10), `source_overrides` 0/0 (28), `doctor` 0/0 (36), `format_migration` 0/0 (11), `version_pin` 0/0 (13), `native_parity` 0/0 (49).
+- Mutations: `Updated` → `Rewrote` in `upgrade-config` and `variants.join(",")` → `join(", ")` in `profile` each failed their fixture with that diff; reverted, rebuilt.
+
+### Skipped, deferred, open
+
+- **The `profile remove` confirmation prompt** had no test in the plan: every unit test passed `interactive: false`, and bats never has a terminal. `299a069` adds `a_declined_remove_prompt_cancels_like_bash` (red with the condition inverted). `scratchpad/phase4/decline_reference.sh` declined the prompt under `script` in both engines: identical `Proceed? [y/N]`, `Cancelled.`, config unchanged. The accepted-prompt branch on a terminal was not run.
+- **Full-suite runs** stay off on this machine.
+- **Not pushed.**
 
 ## Run log
 
@@ -1025,4 +1057,11 @@ The plan is closed when every box is ticked, `profiles.bats` is green under `AGE
 - Verified: `cargo test` 209/0/11/1; fmt and clippy clean; `AGENTSYNC_NATIVE=1` profiles, guard, outputs_mode, source_overrides `0`; the `profile adds` fixture `ok`, and `not ok` with `variants.join(",")` mutated to `join(", ")` (diff on the `tools:` list). The fixture ran outside the agent sandbox.
 - Plan amended: none.
 - Next: Task 3 Step 1.
+- Blocker: none.
+
+### 2026-09-15 — Task 3 done, plan closed
+- Commits: `299a069 test(native): cover the declined profile remove prompt`; `docs(native): map the phase 4d modules and quirks`.
+- Verified: see the completion receipt; every file `bash=0 native=0`.
+- Plan amended: none; the receipt records the prompt test added outside the plan's steps.
+- Next: Phase 4 plan for the `template_manifest` family (init, refresh, dedupe, migrate, adopt).
 - Blocker: none.

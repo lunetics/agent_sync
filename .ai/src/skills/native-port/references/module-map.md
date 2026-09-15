@@ -22,7 +22,7 @@ lib/helpers/project_config.sh    → src/project_config.rs   project_config_path
 lib/helpers/format.sh            → src/format_rev.rs       project format revision, pending notes
 lib/helpers/paths.sh             → src/paths.rs            normalise, containment (lexical for check, through the disk for sync), repo-relative, ai_dir_enclosing_root, find_workspace_ai_dirs; explicit source roots trusted through AGENTSYNC_EXTERNAL_SOURCE_ROOTS, escaping source-link scan
 lib/helpers/tool_resolver.sh     → src/tool.rs, src/catalog.rs, src/payload.rs; source.tools as Session::tools_dir
-lib/helpers/profiles.sh          → src/profiles.rs         names, overlay dir, tools, active; profile_rewrite_dest waits for `profile`
+lib/helpers/profiles.sh          → src/profiles.rs         names, overlay dir, tools, active, rewrite_dest
 
 Tier 2
 lib/helpers/manifest.sh          → src/session.rs (record_write, was_touched, record_tree, may_prune), src/manifest.rs (load, drift, write)
@@ -52,8 +52,8 @@ lib/helpers/enable.sh            → src/cli/enable.rs       Phase 4a, ported
 lib/helpers/customize.sh         → src/cli/{customize,show,diff}.rs   Phase 4b, ported; diff -u spawned for payload hunks
 lib/helpers/simplify.sh          → src/cli/simplify.rs     Phase 4c, ported
 lib/helpers/resolve_cmd.sh       → src/cli/resolve.rs      Phase 4c, ported
-lib/helpers/profile.sh           → src/cli/profile.rs
-lib/helpers/init.sh              → src/cli/{init,upgrade_config}.rs   Phase 4, template_manifest family
+lib/helpers/profile.sh           → src/cli/profile.rs      Phase 4d, ported
+lib/helpers/init.sh              → src/cli/{init,upgrade_config}.rs   upgrade_config ported in Phase 4d; init waits for the template_manifest family
 lib/helpers/refresh.sh           → src/cli/refresh.rs
 lib/helpers/dedupe.sh            → src/cli/dedupe.rs
 lib/helpers/migrate.sh           → src/cli/migrate.rs

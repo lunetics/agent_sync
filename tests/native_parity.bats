@@ -770,3 +770,39 @@ assert_tree_parity() {
     rm .ai/agent_sync.yaml
     assert_tree_parity profile add x
 }
+
+# ── dedupe ───────────────────────────────────────────────────────────────────
+
+@test "parity: dedupe deletes, declines, prunes, and refuses like Bash" {
+    mkdir -p .git .ai/src/skills/foo/ref child/.ai/src/rules child/.ai/src/skills/foo/ref empty
+    printf 'tools:\n  enabled: []\n' > child/.ai/agent_sync.yaml
+    cp .ai/src/rules/comments.md child/.ai/src/rules/comments.md
+    printf 'shared rule\n' | tee .ai/src/rules/shared.md > child/.ai/src/rules/shared.md
+    printf 'parent\n' > .ai/src/rules/diverge.md
+    printf 'child\n' > child/.ai/src/rules/diverge.md
+    printf 'skill\n' | tee .ai/src/skills/foo/SKILL.md > child/.ai/src/skills/foo/SKILL.md
+    printf 'ref\n' | tee .ai/src/skills/foo/ref/a.md > child/.ai/src/skills/foo/ref/a.md
+    printf '.x\n' | tee .ai/src/skills/foo/.x > child/.ai/src/skills/foo/.x
+    PARITY_CWD=child assert_tree_parity dedupe --yes
+    PARITY_CWD=child assert_tree_parity dedupe
+    PARITY_CWD=child assert_tree_parity dedupe --against .. -y
+    PARITY_CWD=child assert_tree_parity dedupe --against=../.ai/src -y
+    PARITY_CWD=child assert_tree_parity dedupe --against ../nope -y
+    PARITY_CWD=child assert_tree_parity dedupe --against ../.ai -y
+    PARITY_CWD=empty assert_tree_parity dedupe --workspace -y
+    assert_tree_parity dedupe --workspace --yes
+    assert_tree_parity dedupe --bogus
+    assert_tree_parity dedupe extra
+    assert_tree_parity dedupe --against
+    assert_tree_parity dedupe --workspace --against x
+    assert_tree_parity dedupe -h
+    printf '\nshared:\n  path: ".."\n  inherit: rules\n' >> child/.ai/agent_sync.yaml
+    rm .ai/src/rules/diverge.md
+    mkdir child/.git
+    PARITY_CWD=child assert_tree_parity dedupe -y
+    rm child/.ai/agent_sync.yaml
+    printf 'tools:\n  enabled: []\n' > child/agent_sync.yaml
+    PARITY_CWD=child assert_tree_parity dedupe -y
+    rm -rf child/.ai/src
+    PARITY_CWD=child assert_tree_parity dedupe -y
+}

@@ -52,7 +52,7 @@ Reused: `overlay::shared_parent_src`, `paths::{find_workspace_ai_dirs, parent, l
 
 **Files:** none changed.
 
-- [ ] **Step 1: Record the baseline**
+- [x] **Step 1: Record the baseline**
 
 ```bash
 git log --oneline -1
@@ -371,7 +371,7 @@ git commit -m "feat(native): port the template hash, template set, and parent wa
 - Consumes: Task 2's `template_manifest::hash`, `catalog::template_sources`, `paths::find_parent_ai_src`.
 - Produces: `pub fn dedupe<'a>(args: &[String], cwd: &str, root: &dyn Fn() -> Result<String, Error>, style: &'a Style, terminal: Option<&'a mut dyn FnMut() -> String>, out: &'a mut dyn Write, err: &'a mut dyn Write) -> Result<u8, Error>` — `terminal` is `Some` only when stdin and stdout are terminals, and yields one typed line per call.
 
-- [ ] **Step 1: Parity fixture, Bash side**
+- [x] **Step 1: Parity fixture, Bash side**
 
 Append to `tests/native_parity.bats`:
 
@@ -417,7 +417,7 @@ Append to `tests/native_parity.bats`:
 Run: `bats --tap -f 'dedupe deletes' tests/native_parity.bats`
 Expected: `ok` (the native side still runs Bash).
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Create `src/cli/dedupe.rs` with the tests module only; add `pub mod dedupe;` to `src/cli/mod.rs`:
 
@@ -621,7 +621,7 @@ mod tests {
 Run: `cargo test --lib cli::dedupe 2>&1 | grep -E '^error\[E0425\]' | sort -u`
 Expected: `cannot find function `dedupe``.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Prepend to `src/cli/dedupe.rs`:
 
@@ -1287,7 +1287,7 @@ In `src/main.rs`, before the `upgrade-config` block:
 
 In `bin/agentsync.sh:280` append `dedupe`.
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo fmt --all
@@ -1301,7 +1301,7 @@ bats --tap -f 'dedupe deletes' tests/native_parity.bats
 
 Expected: `217 passed`, `0`, `11`, `1`; `0` for each file; `ok`.
 
-- [ ] **Step 5: Prove the fixture bites, check the terminal, lint, commit**
+- [x] **Step 5: Prove the fixture bites, check the terminal, lint, commit**
 
 Change `(from shared.path)` to `(from shared)` in `src/cli/dedupe.rs`, rebuild, rerun the fixture: `not ok` with the `Parent:` line in the diff; revert and rebuild.
 

@@ -33,6 +33,23 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
     ) {
         return print_version();
     }
+    if args.first().and_then(|a| a.to_str()) == Some("dedupe") {
+        let rest: Vec<String> = args[1..]
+            .iter()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
+        let cwd = paths::logical_root(None, &cwd, var("PWD").as_deref());
+        return cli::dedupe::dedupe(
+            &rest,
+            &cwd,
+            &project_root,
+            &Style::for_stdout(),
+            prompts::is_tty().then_some(&mut prompts::read_terminal as &mut dyn FnMut() -> String),
+            &mut std::io::stdout(),
+            &mut std::io::stderr(),
+        );
+    }
     if args.first().and_then(|a| a.to_str()) == Some("upgrade-config") {
         let root = project_root()?;
         return cli::upgrade_config::run(

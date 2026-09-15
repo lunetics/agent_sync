@@ -231,3 +231,15 @@ teardown() { teardown_test_project; }
     [[ "$output" == *"Legacy pre-v0.6"* ]]
     [[ "$output" == *"Planned moves"* ]]
 }
+
+@test "migrate --apply keeps a non-JSON MCP override next to identical JSON ones" {
+    mkdir -p .ai/src/mcp
+    printf '{"mcpServers": {}}\n' > .ai/src/mcp/claude.json
+    cp .ai/src/mcp/claude.json .ai/src/mcp/cursor.json
+    printf '[mcp_servers]\n' > .ai/src/mcp/codex.toml
+
+    run run_agentsync migrate --apply --yes
+    [ "$status" -eq 0 ]
+    grep -q 'mcp_servers' .ai/src/tools/codex/mcp.toml
+    [ ! -f .ai/src/mcp.json ]
+}

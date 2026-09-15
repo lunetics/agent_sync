@@ -77,8 +77,10 @@ _migrate_mcp_consolidation_candidate() {
 
     local -a files=()
     local f
-    for f in "$mcp_dir"/*.json; do
+    for f in "$mcp_dir"/*; do
         [[ -f "$f" ]] || continue
+        # Only JSON folds into mcp.json; any other MCP config moves per tool.
+        [[ "$f" == *.json ]] || return 1
         files+=("$f")
     done
     [[ ${#files[@]} -ge 1 ]] || return 1

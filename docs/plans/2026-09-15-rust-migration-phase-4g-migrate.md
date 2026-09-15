@@ -22,6 +22,8 @@
 
 ## Decisions for the review
 
+Taken on 2026-09-15 under the maintainer's `/decide`: both as recommended.
+
 1. **Fix three Bash bugs before porting.** Each was reproduced on the committed `migrate.sh`, each regression test fails there and passes with the fix, and `migrate.bats`, `format_migration.bats`, and `doctor.bats` stay green on the fixed copy.
    - **Consolidation deletes a non-JSON MCP override.** `_migrate_mcp_consolidation_candidate` compares only `mcp/*.json`, but consolidation removes every legacy MCP file. With identical `claude.json` and `cursor.json` next to `codex.toml`, `migrate --apply --yes` reported `consolidated .ai/src/mcp/codex.toml → .ai/src/mcp.json`, left only the JSON in `mcp.json`, and deleted `codex.toml`. **Recommended:** any non-JSON MCP file rules consolidation out, so every file moves per tool.
    - **Moves ignore `source.tools`.** Destinations are hard-coded to `.ai/src/tools/`, while `sync` reads the tool override directory. With `source.tools: catalog`, a migrated `hooks/cursor.json` landed where `sync` no longer read it, and the next sync dropped the custom hooks from `.cursor/hooks.json`. **Recommended:** move into `tool_resolver_user_dir`, and refuse with `tool_resolver_require_project_user_dir` before the first change when that directory lies outside the project, as the other commands that write tool config do. The router's `_need` list for `migrate` gains `logging paths`, which that check calls.
@@ -76,7 +78,7 @@ Expected: this plan's commit; `223 passed`, `0 passed`, `11 passed`, `1 passed`;
 
 **Interfaces:** none.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/migrate.bats`:
 
@@ -98,7 +100,7 @@ Append to `tests/migrate.bats`:
 Run: `bats --tap -f 'non-JSON MCP' tests/migrate.bats`
 Expected: `not ok 1 migrate --apply keeps a non-JSON MCP override next to identical JSON ones`.
 
-- [ ] **Step 2: Rule out consolidation when any MCP file is not JSON**
+- [x] **Step 2: Rule out consolidation when any MCP file is not JSON**
 
 Replace the collection loop of `_migrate_mcp_consolidation_candidate`:
 
@@ -113,7 +115,7 @@ Replace the collection loop of `_migrate_mcp_consolidation_candidate`:
     done
 ```
 
-- [ ] **Step 3: Run the tests, confirm green**
+- [x] **Step 3: Run the tests, confirm green**
 
 ```bash
 bats --tap tests/migrate.bats | grep -c '^ok'
@@ -122,7 +124,7 @@ shellcheck -x -S warning -e SC1091 lib/helpers/migrate.sh
 
 Expected: `19`; ShellCheck exit 0.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add lib/helpers/migrate.sh tests/migrate.bats docs/plans/2026-09-15-rust-migration-phase-4g-migrate.md

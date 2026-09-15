@@ -191,8 +191,8 @@ _adopt_try_tool() {
         return 0
     fi
 
-    # Directory targets — dest must live inside.
-    local key dir
+    # The deepest target wins: Cline's .clinerules/workflows/ is commands, not rules.
+    local key dir best_key="" best_dir=""
     for key in rules skills commands subagents; do
         case "$key" in
             rules)     dir="$tool_rules" ;;
@@ -201,12 +201,16 @@ _adopt_try_tool() {
             subagents) dir="$tool_subagents" ;;
         esac
         [[ -z "$dir" ]] && continue
-        if [[ "$target_abs" == "$dir/"* ]]; then
-            _ADOPT_TOOL="$tool"; _ADOPT_RESOURCE="$key"
-            _adopt_resolve_dir_source "$tool" "$key" "$dir"
-            return 0
+        if [[ "$target_abs" == "$dir/"* ]] && [[ ${#dir} -gt ${#best_dir} ]]; then
+            best_key="$key"
+            best_dir="$dir"
         fi
     done
+    if [[ -n "$best_key" ]]; then
+        _ADOPT_TOOL="$tool"; _ADOPT_RESOURCE="$best_key"
+        _adopt_resolve_dir_source "$tool" "$best_key" "$best_dir"
+        return 0
+    fi
 
     return 1
 }

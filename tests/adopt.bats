@@ -332,3 +332,17 @@ teardown() { teardown_test_project; }
     grep -q "Edited" docs/rules/team.md
     [ ! -f .ai/src/rules/team.md ]
 }
+
+@test "adopt: a Cline workflow goes to commands, not the rules directory around it" {
+    enable_tools cline
+    mkdir -p .ai/src/commands
+    printf -- '---\ndescription: Go\n---\nGo.\n' > .ai/src/commands/go.md
+    AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync >/dev/null
+    echo "Edited." >> .clinerules/workflows/go.md
+
+    run env AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" adopt --yes .clinerules/workflows/go.md
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"resource: commands"* ]]
+    grep -q "Edited." .ai/src/commands/go.md
+    [ ! -e .ai/src/rules/workflows ]
+}

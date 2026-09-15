@@ -56,7 +56,7 @@ Reused: `Project::{discover, user_override_tools, user_tool_file, tools_dir_in_p
 
 **Files:** none changed.
 
-- [ ] **Step 1: Record the baseline**
+- [x] **Step 1: Record the baseline**
 
 ```bash
 git log --oneline -1
@@ -153,7 +153,7 @@ git commit -m "fix(adopt): write into the source directories sync reads"
 
 **Interfaces:** none.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/adopt.bats`:
 
@@ -177,7 +177,7 @@ Append to `tests/adopt.bats`:
 Run: `bats --tap -f 'Cline workflow' tests/adopt.bats`
 Expected: `not ok 1 adopt: a Cline workflow goes to commands, not the rules directory around it`.
 
-- [ ] **Step 2: Pick the deepest directory**
+- [x] **Step 2: Pick the deepest directory**
 
 Replace the directory-target loop of `_adopt_try_tool`:
 
@@ -204,7 +204,7 @@ Replace the directory-target loop of `_adopt_try_tool`:
     fi
 ```
 
-- [ ] **Step 3: Run the tests, confirm green**
+- [x] **Step 3: Run the tests, confirm green**
 
 ```bash
 for f in adopt init init_flow; do
@@ -215,7 +215,7 @@ shellcheck -x -S warning -e SC1091 lib/helpers/adopt.sh
 
 Expected: `adopt ok=28 notok=0`, `init ok=35 notok=0`, `init_flow ok=14 notok=0`; ShellCheck exit 0.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add lib/helpers/adopt.sh tests/adopt.bats docs/plans/2026-09-15-rust-migration-phase-4f-adopt.md

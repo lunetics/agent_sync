@@ -1,6 +1,6 @@
 use std::ffi::OsString;
 use std::io::{IsTerminal, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use agentsync::cli::{self, Cli, Command};
@@ -32,6 +32,16 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
         Some("--version" | "-v")
     ) {
         return print_version();
+    }
+    if args.first().and_then(|a| a.to_str()) == Some("upgrade-config") {
+        let root = project_root()?;
+        return cli::upgrade_config::run(
+            Path::new(&root),
+            engine_version(),
+            &Style::for_stdout(),
+            &mut std::io::stdout(),
+            &mut std::io::stderr(),
+        );
     }
     // These parse their arguments as their Bash `cmd_*` do; clap would consume a leading `--`.
     if let Some(

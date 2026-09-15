@@ -717,3 +717,18 @@ assert_tree_parity() {
     assert_tree_parity resolve nope
     assert_tree_parity resolve --bogus
 }
+
+# ── profile / upgrade-config ─────────────────────────────────────────────────
+
+@test "parity: upgrade-config adds or rewrites the pin like Bash" {
+    assert_tree_parity upgrade-config
+    printf '# head\n\n# more\nformat: 2\nagentsync_version: "0.1"\nagentsync_version: "0.2"' > .ai/agent_sync.yaml
+    assert_tree_parity upgrade-config
+    printf '# only comments\n  \n' > .ai/agent_sync.yaml
+    assert_tree_parity upgrade-config
+    rm .ai/agent_sync.yaml
+    printf 'tools:\n  enabled: []\n' > agent_sync.yaml
+    assert_tree_parity upgrade-config
+    rm agent_sync.yaml
+    assert_tree_parity upgrade-config
+}

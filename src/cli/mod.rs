@@ -8,6 +8,7 @@ pub mod rollback;
 pub mod show;
 pub mod simplify;
 pub mod sync;
+pub mod upgrade_config;
 pub mod workspace;
 
 use std::io::Write;

@@ -50,7 +50,7 @@ Reused: `profiles::{names, overlay_dir, tools, is_active}`, `render::TARGET_KEYS
 
 **Files:** none changed.
 
-- [ ] **Step 1: Record the baseline**
+- [x] **Step 1: Record the baseline**
 
 ```bash
 git log --oneline -1
@@ -76,7 +76,7 @@ Expected: this plan's commit; `205 passed`, `0 passed`, `11 passed`, `1 passed`;
   - `pub fn upgrade_text(text: &str, version: &str) -> (String, bool)` — the rewritten config and whether the line was added
   - `pub fn run(root: &Path, version: &str, style: &Style, out: &mut dyn Write, err: &mut dyn Write) -> Result<u8, Error>`
 
-- [ ] **Step 1: Parity fixture, Bash side**
+- [x] **Step 1: Parity fixture, Bash side**
 
 Append to `tests/native_parity.bats`:
 
@@ -100,7 +100,7 @@ Append to `tests/native_parity.bats`:
 Run: `bats --tap -f 'upgrade-config adds' tests/native_parity.bats`
 Expected: `ok`.
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 Create `src/cli/upgrade_config.rs` with the tests module only; add `pub mod upgrade_config;`:
 
@@ -140,7 +140,7 @@ mod tests {
 Run: `cargo test --lib cli::upgrade_config 2>&1 | grep -E '^error' | sort | uniq -c`
 Expected: `cannot find function 'upgrade_text'`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Above the tests module:
 
@@ -243,7 +243,7 @@ In `src/main.rs`, before the raw-dispatch block:
 
 adding `use std::path::Path;` next to the `PathBuf` import (`use std::path::{Path, PathBuf};`). In `bin/agentsync.sh:280` append `upgrade-config`.
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -4
@@ -256,7 +256,7 @@ bats --tap -f 'upgrade-config adds' tests/native_parity.bats
 
 Expected: `206 passed`, `0`, `11`, `1`; `0` for each file; `ok`.
 
-- [ ] **Step 5: Prove the fixture bites, lint, commit**
+- [x] **Step 5: Prove the fixture bites, lint, commit**
 
 Change `"Updated"` to `"Rewrote"`, rebuild, rerun the fixture: `not ok` with that diff; revert and rebuild.
 
@@ -1011,4 +1011,11 @@ The plan is closed when every box is ticked, `profiles.bats` is green under `AGE
 - Verified: `scratchpad/phase4/profile_reference.sh` ran every `profile` subcommand and `upgrade-config` in Bash (output in `profile_reference.out`).
 - Plan amended: none.
 - Next: Task 0 Step 1.
+- Blocker: none.
+
+### 2026-09-15 — Tasks 0 and 1 done
+- Commits: `feat(native): port upgrade-config`.
+- Verified: baseline `bash=0` for all eight files; `cargo test` 206/0/11/1; fmt and clippy clean; `AGENTSYNC_NATIVE=1` doctor, format_migration, version_pin `0`; the `upgrade-config adds` fixture `ok`, and `not ok` with `Updated` mutated to `Rewrote`. The fixture ran outside the agent sandbox.
+- Plan amended: none.
+- Next: Task 2 Step 1.
 - Blocker: none.

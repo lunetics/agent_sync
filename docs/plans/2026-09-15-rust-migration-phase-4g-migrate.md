@@ -1814,7 +1814,7 @@ git commit -m "feat(native): port migrate"
 **Files:**
 - Modify: `docs/specs/2026-09-12-rust-migration-design.md`, `.ai/src/skills/native-port/references/module-map.md`, `.ai/.sync-manifest`
 
-- [ ] **Step 1: Spec**
+- [x] **Step 1: Spec**
 
 Append to "Known quirks":
 
@@ -1834,11 +1834,11 @@ Append to "Accepted deviations":
   read the install directory's copy.
 ```
 
-- [ ] **Step 2: Module map and outputs**
+- [x] **Step 2: Module map and outputs**
 
 Set the `lib/helpers/migrate.sh` row to `→ src/cli/migrate.rs      Phase 4g, ported`, the `lib/helpers/format.sh` row to `→ src/format_rev.rs       engine and project revision (Phase 4g); pending notes wait for doctor`, and the `lib/helpers/template_manifest.sh` row to `→ src/template_manifest.rs   hash (4e); load, lookup, remove, write (4g); record and heal wait for refresh and init`. Regenerate outputs with `AGENTSYNC_NATIVE=0 AGENTSYNC_HOME="$PWD" bash bin/agentsync.sh sync --force`.
 
-- [ ] **Step 3: Verify (outside the agent sandbox)**
+- [x] **Step 3: Verify (outside the agent sandbox)**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -4
@@ -1854,7 +1854,7 @@ done
 
 Expected: `232 passed`, `0`, `11`, `1`; lint exit 0; every line `bash=0 native=0`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/specs/2026-09-12-rust-migration-design.md .ai/src/skills/native-port/references/module-map.md .ai/.sync-manifest docs/plans/2026-09-15-rust-migration-phase-4g-migrate.md
@@ -1867,6 +1867,42 @@ git commit -m "docs(native): map the phase 4g modules and quirks"
 
 The plan is closed when every box is ticked, the files in Task 6 are green under both engines, the parity fixture passes, and a `## Completion receipt` records the fresh verification. The next plan is 4h, `refresh`.
 
+## Completion receipt
+
+### Decisions the review took
+
+Both as recommended, on 2026-09-15, under `/decide`.
+
+### Global Constraints
+
+| Constraint | Satisfied by |
+|---|---|
+| The prompt writes only the clipboard; `--legacy --apply` moves, consolidates, removes, and sets only what Bash does; a dry run writes nothing | `src/cli/migrate.rs`; the parity fixture compares whole trees after every call |
+| Three Bash changes, each in its own commit with a regression test | `48309a6`, `7015b8c`, `5a12867`, adding four tests to `tests/migrate.bats`; `git diff --stat e344902..HEAD -- lib bin` names only `lib/helpers/migrate.sh` and `bin/agentsync.sh`; ShellCheck exit 0 |
+| Byte-for-byte parity | `tests/native_parity.bats`: `parity: migrate prints the prompt and retires legacy layouts like Bash`; identical reference, pty, and mode transcripts |
+| `unsafe_code = "forbid"`, fmt and clippy clean, no new dependency; `main.rs` alone reads the environment and terminal state | `Cargo.toml` unchanged; `PATH`, `AGENTSYNC_NO_CLIPBOARD`, `AGENTSYNC_REPO_ROOT`, and the terminal checks are read in `src/main.rs` |
+| Disk-touching unit tests are `#[cfg(unix)]` | `src/cli/migrate.rs` and `src/template_manifest.rs` test modules |
+| Nothing touches the developer's clipboard | every run set `AGENTSYNC_NO_CLIPBOARD=1` or put the `pbcopy` shim first on `PATH`; unit tests inject the copy closure |
+| Expected values from the fixed Bash | `cmp_bash.out`, `migrate_tty.sh`, `no_clipboard_reference.sh`, `format_reference.sh`, `tm_reference.sh`, `mode_probe.sh` |
+| Conventional Commits, at most 72 characters, no trailers | `48309a6` … the close commit |
+
+### Fresh verification, 2026-09-15, macOS arm64, outside the agent sandbox
+
+- `cargo test`: 232 passed (lib), 11 passed (cli), 1 passed (interrupt).
+- `cargo clippy --all-targets -- -D warnings`: exit 0. `cargo fmt --all --check`: exit 0.
+- `shellcheck -x -S warning -e SC1091 bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh`: exit 0.
+- bats, one file at a time, `AGENTSYNC_NATIVE=0` / `=1` failures: `migrate` 0/0 (22 cases; the locale case ran), `format_migration` 0/0 (11), `doctor` 0/0 (36), `native_parity` 0/0 (52).
+- Each Bash fix: its new tests failed before the fix and passed after; `migrate.sh` matches the verified copy byte for byte.
+- Mutation: `"  consolidated"` → `"  folded"` failed the fixture with both consolidation lines; reverted, rebuilt.
+- Against this tree: `migrate_reference.sh` gave identical 530-line transcripts for both engines, including the clipboard shim's success and failure; `migrate_tty.sh` gave identical 73-line transcripts (`.agent/` removal and consolidation, declined and accepted, and the prompt banners); `mode_probe.sh`: `mcp.json=644` in both.
+
+### Skipped, deferred, open
+
+- **`format_pending_notes`** stays in Bash until `doctor` is ported.
+- **`clip.exe`, `wl-copy`, `xclip`, and `xsel`** are searched in Bash's order but only `pbcopy` was exercised; the Windows `PATH` separator is not handled, as native bats runs stay off Windows until Phase 5.
+- **Full-suite runs** stay off on this machine.
+- **Not pushed.**
+
 ## Run log
 
 ### 2026-09-15 — Phase 4g planned
@@ -1874,4 +1910,11 @@ The plan is closed when every box is ticked, the files in Task 6 are green under
 - Verified: the three Bash fixes were applied to a copy of the engine: the four new tests failed on the committed `migrate.sh` and router and passed on the copy (`migrate.bats` 22/22), with `format_migration.bats` 11/11 and `doctor.bats` 36/36. The first placement of the `source.tools` refusal ran after the skill retirement and was moved before the first change when the reference showed a partial run. The Rust in Tasks 4–5 was drafted against that copy and removed from the tree: `cargo test` 232/0/11/1, clippy clean; `migrate_reference.sh` gave identical 530-line transcripts for the fixed Bash and the binary, including the `pbcopy` shim's success and failure, and a `Nothing to migrate.` mutation showed in the diff; with `migrate` in the copy's `_NATIVE_COMMANDS`, `migrate` 22/22, `format_migration` 11/11, and `doctor` 36/36 passed in both modes; the parity fixture passed and failed on a `consolidated` mutation; `migrate_tty.sh` transcripts (declined and accepted `.agent/` removal, declined and accepted consolidation, prompt banners) were identical; `mode_probe.sh` gave `mcp.json=644` in both engines.
 - Plan amended: none.
 - Next: Task 0 Step 1.
+- Blocker: none.
+
+### 2026-09-15 — Tasks 0–6 done, plan closed
+- Commits: `48309a6 fix(migrate): keep non-JSON MCP overrides out of consolidation`; `7015b8c fix(migrate): move overrides into the tool override directory`; `5a12867 fix(migrate): list legacy files in byte order`; `238c94d feat(native): port the format revision and template manifest file`; `d856afe feat(native): port migrate`; `docs(native): map the phase 4g modules and quirks`.
+- Verified: see the completion receipt; every file `bash=0 native=0`.
+- Plan amended: none; every file landed byte for byte as the verified draft.
+- Next: plan 4h, `refresh`.
 - Blocker: none.

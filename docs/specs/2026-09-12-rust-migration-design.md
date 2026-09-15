@@ -434,6 +434,12 @@ cleanup has a list:
     a rules directory.
 34. `adopt --all` prints one `✓ adopted` line per destination, so two identical
     edits of one source name it twice.
+35. `migrate --apply --yes` prints `removed .agent/ (pre-v0.6 layout)` with no
+    blank line before `Planned moves:`.
+36. A legacy file without an extension, such as `.ai/src/settings/README`, moves
+    to `.ai/src/tools/README/settings.README`.
+37. Off a terminal without `--yes`, `migrate --apply` consolidates identical MCP
+    files but leaves `.agent/` in place.
 
 ## Accepted deviations
 
@@ -497,6 +503,8 @@ Appended one line at a time as they are found, with the phase:
   project.
 - Phase 4f: `adopt`'s OpenCode refusal names a shipped settings file as
   `/<agentsync>/lib/templates/...` where Bash printed the install directory.
+- Phase 4g: `migrate` prints the embedded `lib/prompts/migrate.md` where Bash
+  read the install directory's copy.
 
 ## Risks
 

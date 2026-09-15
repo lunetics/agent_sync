@@ -19,7 +19,7 @@ lib/helpers/resolve.sh           → (none)                  engine dir lookup; 
 Tier 1
 lib/helpers/version.sh           → src/version.rs          version_pin mode, mismatch error and hint; engine_version stays in src/lib.rs
 lib/helpers/project_config.sh    → src/project_config.rs   project_config_path_r over an is_file probe; shared by sync, check, list
-lib/helpers/format.sh            → src/format_rev.rs       project format revision, pending notes
+lib/helpers/format.sh            → src/format_rev.rs       engine and project revision (Phase 4g); pending notes wait for doctor
 lib/helpers/paths.sh             → src/paths.rs            normalise, containment (lexical for check, through the disk for sync), repo-relative, ai_dir_enclosing_root, find_workspace_ai_dirs, find_parent_ai_src; explicit source roots trusted through AGENTSYNC_EXTERNAL_SOURCE_ROOTS, escaping source-link scan
 lib/helpers/tool_resolver.sh     → src/tool.rs, src/catalog.rs, src/payload.rs; source.tools as Session::tools_dir
 lib/helpers/profiles.sh          → src/profiles.rs         names, overlay dir, tools, active, rewrite_dest
@@ -37,7 +37,7 @@ lib/helpers/gitignore.sh         → src/gitignore.rs        managed block betwe
 lib/helpers/backup.sh            → src/backup.rs           same on-disk layout; create, restore, latest, list, prune; backup.retention (configure, Retention), validated before sync and rollback write
 lib/helpers/backup_state.sh      → src/witness.rs          after.tsv post-state-v2: print, seal, preflight, first difference
 lib/helpers/yaml_edit.sh         → src/yaml_edit.rs        set_scalar, list_append, list_remove, find_key_line (Phase 4a), remove_key (Phase 4c); rename_key waits for a caller
-lib/helpers/template_manifest.sh → src/template_manifest.rs   hash (Phase 4e); load, record, write, heal wait for refresh and init
+lib/helpers/template_manifest.sh → src/template_manifest.rs   hash (4e); load, lookup, remove, write (4g); record and heal wait for refresh and init
 lib/helpers/snapshot.sh          → src/snapshot.rs         read_pending_pairs, clear_pending (Phase 4c); save, diff, conflicts wait for update
 lib/helpers/prompts.sh           → src/prompts.rs          confirm on /dev/tty (Phase 3); multiselect waits for Phase 4
 lib/helpers/edit_paths.sh        → src/edit_paths.rs       block for enable (Phase 4a); checklist waits for doctor
@@ -56,7 +56,7 @@ lib/helpers/profile.sh           → src/cli/profile.rs      Phase 4d, ported
 lib/helpers/init.sh              → src/cli/{init,upgrade_config}.rs   upgrade_config ported in Phase 4d; init waits for the template_manifest family
 lib/helpers/refresh.sh           → src/cli/refresh.rs
 lib/helpers/dedupe.sh            → src/cli/dedupe.rs       Phase 4e, ported
-lib/helpers/migrate.sh           → src/cli/migrate.rs
+lib/helpers/migrate.sh           → src/cli/migrate.rs      Phase 4g, ported
 lib/helpers/adopt.sh             → src/cli/adopt.rs        Phase 4f, ported; Resolver serves init's adopt_file_quiet in 4i
 lib/helpers/doctor.sh            → src/cli/doctor.rs       exit 0/1/2 = clean/warnings/errors
 lib/helpers/add.sh               → src/cli/add.rs

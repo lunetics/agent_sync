@@ -806,3 +806,53 @@ assert_tree_parity() {
     rm -rf child/.ai/src
     PARITY_CWD=child assert_tree_parity dedupe -y
 }
+
+# ── adopt ────────────────────────────────────────────────────────────────────
+
+@test "parity: adopt plans, refuses, writes, and records like Bash" {
+    enable_tools claude cursor cline amazonq
+    mkdir -p .ai/src/commands .ai/src/skills/foo
+    printf -- '---\ndescription: Go\n---\nGo.\n' > .ai/src/commands/go.md
+    printf -- '---\nname: foo\n---\nSkill.\n' > .ai/src/skills/foo/SKILL.md
+    assert_tree_parity adopt
+    assert_tree_parity adopt --bogus
+    assert_tree_parity adopt a b
+    assert_tree_parity adopt --all CLAUDE.md
+    assert_tree_parity adopt --help
+    assert_tree_parity adopt CLAUDE.md
+    assert_tree_parity adopt --all
+    printf '# Before sync\n' > CLAUDE.md
+    assert_tree_parity adopt -y CLAUDE.md
+    rm CLAUDE.md
+    _bash_sync
+    assert_tree_parity adopt CLAUDE.md
+    printf '\nEdited.\n' >> CLAUDE.md
+    assert_tree_parity adopt CLAUDE.md
+    assert_tree_parity adopt --dry-run CLAUDE.md
+    assert_tree_parity adopt --yes CLAUDE.md
+    printf 'Workflow edited.\n' >> .clinerules/workflows/go.md
+    assert_tree_parity adopt -y .clinerules/workflows/go.md
+    assert_tree_parity adopt .cursor/rules/core.mdc
+    printf '{"edited": true}\n' > .claude/settings.json
+    assert_tree_parity adopt -y .claude/settings.json
+    assert_tree_parity adopt ../outside.md
+    assert_tree_parity adopt .claude/rules/nope.md
+    printf 'new\n' > .claude/rules/new.md
+    assert_tree_parity adopt -y .claude/rules/new.md
+    printf 'Claude edit.\n' >> .claude/rules/core.md
+    printf 'Amazon edit.\n' >> .amazonq/rules/core.md
+    printf 'Skill two.\n' >> .claude/skills/foo/SKILL.md
+    printf 'cursor edit\n' >> .cursor/rules/core.mdc
+    assert_tree_parity adopt --all
+    assert_tree_parity adopt --all --dry-run
+    assert_tree_parity adopt -a -y
+    mkdir -p docs/rules
+    printf '# Team\n' > docs/rules/team.md
+    printf 'tools:\n  enabled:\n    - claude\nsource:\n  rules: "docs/rules"\n' > .ai/agent_sync.yaml
+    _bash_sync --force
+    printf 'Docs edit.\n' >> .claude/rules/team.md
+    assert_tree_parity adopt -y .claude/rules/team.md
+    AGENTSYNC_CONFIG_PATH=missing.yaml assert_tree_parity adopt -y CLAUDE.md
+    printf 'tools:\n  enabled:\n    - claude\nsource:\n  tools: "../elsewhere"\n' > .ai/agent_sync.yaml
+    assert_tree_parity adopt -y CLAUDE.md
+}

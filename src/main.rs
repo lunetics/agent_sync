@@ -63,7 +63,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
     // These parse their arguments as their Bash `cmd_*` do; clap would consume a leading `--`.
     if let Some(
         command @ ("enable" | "disable" | "customize" | "show" | "diff" | "simplify" | "resolve"
-        | "profile"),
+        | "profile" | "adopt"),
     ) = args.first().and_then(|a| a.to_str())
     {
         let rest: Vec<String> = args[1..]
@@ -86,6 +86,15 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
                 cli::enable::disable(&rest, &Project::discover, &style, &mut out, &mut err)
             }
             "show" => cli::show::show(&rest, &Project::discover, &style, &mut out, &mut err),
+            "adopt" => cli::adopt::adopt(
+                &rest,
+                &Project::discover,
+                &style,
+                prompts::is_tty(),
+                &mut |question: &str| prompts::confirm(question, false),
+                &mut out,
+                &mut err,
+            ),
             "profile" => cli::profile::profile(
                 &rest,
                 &Project::discover,

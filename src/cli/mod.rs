@@ -1,3 +1,4 @@
+pub mod adopt;
 pub mod check;
 pub mod customize;
 pub mod dedupe;

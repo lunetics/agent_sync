@@ -391,7 +391,7 @@ git commit -m "feat(native): port manifest_update_entry"
   - `pub struct Resolver<'a>`, `Resolver::new(project: &'a Project, sources: Sources) -> Result<Self, Error>`, `Resolver::resolve(&mut self, raw: &str, err: &mut dyn Write) -> Result<Result<Adoption, String>, Error>`, for `init` in 4i
   - `pub fn adopt(args: &[String], discover: &dyn Fn() -> Result<Project, Error>, style: &Style, interactive: bool, confirm: &mut dyn FnMut(&str) -> bool, out: &mut dyn Write, err: &mut dyn Write) -> Result<u8, Error>`
 
-- [ ] **Step 1: Parity fixture, Bash side**
+- [x] **Step 1: Parity fixture, Bash side**
 
 Append to `tests/native_parity.bats`:
 
@@ -451,7 +451,7 @@ Append to `tests/native_parity.bats`:
 Run: `bats --tap -f 'adopt plans' tests/native_parity.bats`
 Expected: `ok` (the native side still runs Bash).
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Create `src/cli/adopt.rs` with the tests module only; add `pub mod adopt;` to `src/cli/mod.rs`:
 
@@ -753,7 +753,7 @@ mod tests {
 Run: `cargo test --lib cli::adopt 2>&1 | grep -E '^error' | sort -u | head -8`
 Expected: compile errors naming the missing `adopt`, `Resolver`, `discover_sources`, and `Sources`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Prepend to `src/cli/adopt.rs`:
 
@@ -1636,7 +1636,7 @@ In `src/main.rs`, add `| "adopt"` to the raw-argument command pattern and this a
 
 In `bin/agentsync.sh:280` append `adopt`.
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo fmt --all
@@ -1650,7 +1650,7 @@ bats --tap -f 'adopt plans' tests/native_parity.bats
 
 Expected: `223 passed`, `0`, `11`, `1`; `0` for each file; `ok`.
 
-- [ ] **Step 5: Prove the fixture bites, check the terminal and file modes, lint, commit**
+- [x] **Step 5: Prove the fixture bites, check the terminal and file modes, lint, commit**
 
 Change `— adopt one explicitly` to `— adopt one` in `src/cli/adopt.rs`, rebuild, rerun the fixture: `not ok` with the two conflict lines in the diff; revert and rebuild.
 

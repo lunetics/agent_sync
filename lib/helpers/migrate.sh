@@ -41,7 +41,7 @@ _migrate_scan_legacy() {
     local resource file base tool ext
     for resource in hooks mcp settings; do
         [[ -d "$root/$resource" ]] || continue
-        for file in "$root/$resource"/*; do
+        while IFS= read -r -d '' file; do
             [[ -f "$file" ]] || continue
             base=$(basename "$file")
             tool="${base%.*}"
@@ -49,7 +49,7 @@ _migrate_scan_legacy() {
             [[ -z "$tool" ]] && continue
             [[ -z "$ext" ]] && continue
             echo "${resource}|${tool}|${file}|${ext}"
-        done
+        done < <(printf '%s\0' "$root/$resource"/* | LC_ALL=C sort -z)
     done
 }
 
@@ -78,12 +78,12 @@ _migrate_mcp_consolidation_candidate() {
 
     local -a files=()
     local f
-    for f in "$mcp_dir"/*; do
+    while IFS= read -r -d '' f; do
         [[ -f "$f" ]] || continue
         # Only JSON folds into mcp.json; any other MCP config moves per tool.
         [[ "$f" == *.json ]] || return 1
         files+=("$f")
-    done
+    done < <(printf '%s\0' "$mcp_dir"/* | LC_ALL=C sort -z)
     [[ ${#files[@]} -ge 1 ]] || return 1
 
     # Shared target must not already exist; if it does, let per-tool moves
@@ -343,10 +343,10 @@ USAGE
         echo "  $(_bold "Legacy pre-v0.6 layout"):"
         echo "    $(_yellow ".agent/") — orphan directory from before tool-specific outputs."
         local item
-        for item in "$REPO_ROOT/.agent"/*; do
+        while IFS= read -r -d '' item; do
             [[ -e "$item" ]] || continue
             echo "      · ${item#"$REPO_ROOT/.agent/"}"
-        done
+        done < <(printf '%s\0' "$REPO_ROOT/.agent"/* | LC_ALL=C sort -z)
         echo ""
 
         if [[ "$apply" == "true" ]]; then

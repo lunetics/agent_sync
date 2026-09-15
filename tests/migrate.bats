@@ -266,3 +266,16 @@ teardown() { teardown_test_project; }
     [ -f .ai/src/hooks/cursor.json ]
     ! grep -q '^format:' .ai/agent_sync.yaml
 }
+
+@test "migrate --legacy lists legacy files in byte order whatever the locale" {
+    locale -a 2>/dev/null | grep -qix 'en_US.utf-\{0,1\}8' || skip "en_US.UTF-8 locale not installed"
+    mkdir -p .ai/src/settings
+    local name
+    for name in claude Zed _x; do
+        printf '{}\n' > ".ai/src/settings/$name.json"
+    done
+
+    run env LC_ALL=en_US.UTF-8 AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" migrate --legacy
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"settings/Zed.json"*"settings/_x.json"*"settings/claude.json"* ]]
+}

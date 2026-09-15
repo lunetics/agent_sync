@@ -227,7 +227,7 @@ git commit -m "fix(migrate): move overrides into the tool override directory"
 
 **Interfaces:** none.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/migrate.bats`:
 
@@ -250,7 +250,7 @@ Append to `tests/migrate.bats`:
 Run: `bats --tap -f 'byte order' tests/migrate.bats`
 Expected: `not ok 1 migrate --legacy lists legacy files in byte order whatever the locale`.
 
-- [ ] **Step 2: Sort the three globs by bytes**
+- [x] **Step 2: Sort the three globs by bytes**
 
 In `_migrate_scan_legacy`:
 
@@ -286,7 +286,7 @@ In the `.agent/` listing of `_cmd_migrate_legacy`:
         done < <(printf '%s\0' "$REPO_ROOT/.agent"/* | LC_ALL=C sort -z)
 ```
 
-- [ ] **Step 3: Run the tests, confirm green**
+- [x] **Step 3: Run the tests, confirm green**
 
 ```bash
 for f in migrate format_migration doctor; do
@@ -297,7 +297,7 @@ shellcheck -x -S warning -e SC1091 lib/helpers/migrate.sh
 
 Expected: `migrate ok=22 notok=0`, `format_migration ok=11 notok=0`, `doctor ok=36 notok=0`; ShellCheck exit 0.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add lib/helpers/migrate.sh tests/migrate.bats docs/plans/2026-09-15-rust-migration-phase-4g-migrate.md

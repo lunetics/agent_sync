@@ -83,6 +83,31 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
             &mut std::io::stderr(),
         );
     }
+    if args.first().and_then(|a| a.to_str()) == Some("refresh") {
+        let rest: Vec<String> = args[1..]
+            .iter()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        let root = match var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty()) {
+            Some(root) => root,
+            None => {
+                let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
+                paths::logical_root(None, &cwd, var("PWD").as_deref())
+            }
+        };
+        let mut env = cli::refresh::Env {
+            interactive: prompts::is_tty(),
+            read_line: &mut prompts::read_terminal,
+        };
+        return cli::refresh::refresh(
+            &rest,
+            &root,
+            &Style::for_stdout(),
+            &mut env,
+            &mut std::io::stdout(),
+            &mut std::io::stderr(),
+        );
+    }
     if args.first().and_then(|a| a.to_str()) == Some("upgrade-config") {
         let root = project_root()?;
         return cli::upgrade_config::run(

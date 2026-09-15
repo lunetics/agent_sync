@@ -892,3 +892,66 @@ assert_tree_parity() {
     printf '{}\n' > .ai/src/hooks/claude.json
     assert_tree_parity migrate --legacy --apply
 }
+
+# ── refresh ──────────────────────────────────────────────────────────────────
+# Every call runs off a terminal, so no fixture may reach a prompt: a call
+# without --yes or --dry-run needs a new file or a conflict pending, which the
+# TTY gate refuses first.
+
+# Forgets one template in the manifest, as one the project has never seen.
+_forget_template() {
+    grep -v "^$1"$'\t' .ai/.template-manifest > "$BATS_TEST_TMPDIR/manifest" || true
+    cp "$BATS_TEST_TMPDIR/manifest" .ai/.template-manifest
+}
+
+@test "parity: refresh plans, adds, auto-updates, and skips conflicts like Bash" {
+    assert_tree_parity refresh --help
+    assert_tree_parity refresh --bogus --help
+    assert_tree_parity refresh extra
+    assert_tree_parity refresh --yes --only
+    assert_tree_parity refresh --yes --only bogus
+    assert_tree_parity refresh --yes --only ,
+    assert_tree_parity refresh --yes
+    assert_tree_parity refresh --status
+    rm -f .ai/src/rules/comments.md .ai/src/commands/review.md
+    _forget_template rules/comments.md
+    printf 'USER LOCAL EDIT\n' >> .ai/src/rules/core.md
+    _forget_template rules/core.md
+    printf 'rules/core.md\t%s\n' "$(file_sha256 .ai/src/rules/core.md)" >> .ai/.template-manifest
+    printf 'EDIT\n' >> .ai/src/rules/git.md
+    _forget_template rules/git.md
+    printf 'EDIT\n' >> .ai/src/AGENTS.md
+    assert_tree_parity refresh --dry-run --include-deleted --include-agents-md
+    assert_tree_parity refresh
+    assert_tree_parity refresh --include-deleted
+    assert_tree_parity refresh --status
+    assert_tree_parity refresh --yes --include-deleted --review
+    assert_tree_parity refresh --yes
+    printf '\ntemplate_overrides:\n  declined:\n    - rules/git.md\n    - commands/review.md\n  pinned:\n    - AGENTS.md\n' >> .ai/agent_sync.yaml
+    assert_tree_parity refresh --yes --include-agents-md
+    assert_tree_parity refresh --status
+}
+
+@test "parity: refresh scopes, heals the manifest, and restores a script like Bash" {
+    rm -rf .ai/src/skills/humanizer/scripts .ai/src/skills/comments .ai/src/agents
+    rm -f .ai/.template-manifest
+    assert_tree_parity refresh --yes --only rules
+    assert_tree_parity refresh --yes "--only= skills , subagents ,skills"
+    [ -x "$BATS_TEST_TMPDIR/bash/.ai/src/skills/humanizer/scripts/strip-ai-chars.sh" ]
+    [ -x "$BATS_TEST_TMPDIR/native/.ai/src/skills/humanizer/scripts/strip-ai-chars.sh" ]
+    printf 'USER LOCAL EDIT\n' >> .ai/src/rules/core.md
+    assert_tree_parity refresh --review --dry-run
+    assert_tree_parity refresh --yes
+    mkdir -p legacy
+    mv .ai/src/* legacy/
+    rmdir .ai/src
+    mv legacy/* .ai/
+    rmdir legacy
+    assert_tree_parity refresh --yes
+    assert_tree_parity refresh --status
+    rm -rf .ai/rules .ai/skills .ai/commands
+    assert_tree_parity refresh --yes
+    assert_tree_parity refresh --yes --only commands
+    rm -rf .ai
+    assert_tree_parity refresh --yes
+}

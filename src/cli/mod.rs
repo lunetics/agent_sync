@@ -7,6 +7,7 @@ pub mod enable;
 pub mod list;
 pub mod migrate;
 pub mod profile;
+pub mod refresh;
 pub mod resolve;
 pub mod rollback;
 pub mod show;

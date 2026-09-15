@@ -279,7 +279,7 @@ git commit -m "feat(native): port the template manifest record and heal"
   - `pub struct refresh::Env<'a> { pub interactive: bool, pub read_line: &'a mut dyn FnMut() -> String }`
   - `pub fn refresh::refresh(args: &[String], root: &str, style: &Style, env: &mut Env, out: &mut dyn Write, err: &mut dyn Write) -> Result<u8, Error>`
 
-- [ ] **Step 1: Parity fixtures, Bash side**
+- [x] **Step 1: Parity fixtures, Bash side**
 
 Append to `tests/native_parity.bats`:
 
@@ -351,7 +351,7 @@ _forget_template() {
 Run: `bats --tap -f 'parity: refresh' tests/native_parity.bats`
 Expected: `ok 1` and `ok 2` (the native side still runs Bash).
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Create `src/cli/refresh.rs` with its tests module only, and add `pub mod refresh;` to `src/cli/mod.rs` after `pub mod profile;`:
 
@@ -911,7 +911,7 @@ mod tests {
 Run: `cargo test --lib 2>&1 | grep -E '^error' | sort -u | head -8`
 Expected: compile errors naming the missing `refresh`, `Env`, and the module's imports.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Prepend to `src/cli/refresh.rs`:
 
@@ -1934,7 +1934,7 @@ In `bin/agentsync.sh:280` append `refresh`:
 _NATIVE_COMMANDS=" version --version -v list ls check sync rollback enable disable customize show diff simplify resolve upgrade-config profile dedupe adopt migrate refresh "
 ```
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo fmt --all
@@ -1946,7 +1946,7 @@ bats --tap -f 'parity: refresh' tests/native_parity.bats
 
 Expected: `243 passed`, `0`, `11`, `1`; `0`; `ok 1` and `ok 2`.
 
-- [ ] **Step 5: Prove the fixture bites, check the prompts on a terminal, lint, commit**
+- [x] **Step 5: Prove the fixture bites, check the prompts on a terminal, lint, commit**
 
 Change `(auto-updated; you hadn't touched it)` to `(auto-updated; untouched)` in `src/cli/refresh.rs`, rebuild, rerun `bats --tap -f 'refresh plans' tests/native_parity.bats`: `not ok 1` with the auto-update line in the diff; revert and rebuild.
 
@@ -2332,4 +2332,11 @@ The plan is closed when every box is ticked, `tests/refresh.bats` and `tests/nat
 - Verified: Step 1's `cargo test --lib` compile errors named exactly `template_files` (E0425) and `heal_from_match`, `is_empty`, `record` (E0599); Step 3's `cargo fmt --all`, `cargo test` 235/0/11/1, and `cargo clippy --all-targets -- -D warnings` clean; `src/catalog.rs` and `src/template_manifest.rs` match the verified draft byte for byte.
 - Plan amended: none.
 - Next: Task 2 Step 1.
+- Blocker: none.
+
+### 2026-09-15 — Task 2 done
+- Commits: `feat(native): port refresh`.
+- Verified: Step 1's parity fixtures `ok 1`, `ok 2` with Bash on both sides; Step 2's compile errors named `refresh`, `Env`, `sha256_hex`, `catalog`, `template_manifest`, `Path`, and `Style`; Step 4's `cargo test` 243/0/11/1, `cargo build --release`, `AGENTSYNC_NATIVE=1 bats tests/refresh.bats` 0 failures across 38 cases, parity fixtures `ok 1`, `ok 2`; Step 5's `(auto-updated; untouched)` mutation failed the fixture on the auto-update line and the revert is byte-identical to the verified draft; `refresh_reference.sh` gave 3658-line transcripts with 34 differing lines, 0 outside the manifest mode, and the restored script at `755` in 52 listings; `refresh_tty.sh` outside the sandbox gave 600-line transcripts with 0 differences outside the manifest mode and 7 scenarios at `rc=0`; ShellCheck, `cargo fmt --all --check`, and clippy clean. Every changed file matches the draft byte for byte.
+- Plan amended: none.
+- Next: Task 3 Step 1.
 - Blocker: none.

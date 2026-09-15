@@ -65,6 +65,36 @@ impl Manifest {
     }
 }
 
+/// `manifest_update_entry`: the manifest rewritten with `<rel>\t<hash>` in place
+/// of any line for `rel`, every other line kept as `read` split it, `sort -u`.
+pub fn update_entry(root: &str, rel: &str, hash: &str) -> Result<(), Error> {
+    if rel.is_empty() || hash.is_empty() {
+        return Ok(());
+    }
+    let path = Path::new(root).join(REL);
+    let ai = Path::new(root).join(".ai");
+    std::fs::create_dir_all(&ai).map_err(|e| Error::io(&ai, e))?;
+    let mut lines = BTreeSet::new();
+    if path.is_file() {
+        let bytes = std::fs::read(&path).map_err(|e| Error::io(&path, e))?;
+        for line in String::from_utf8_lossy(&bytes).split('\n') {
+            let line = line.trim_matches('\t');
+            let (existing, existing_hash) = match line.find('\t') {
+                Some(tab) => (&line[..tab], line[tab..].trim_start_matches('\t')),
+                None => (line, ""),
+            };
+            if existing.is_empty() || existing == rel {
+                continue;
+            }
+            lines.insert(format!("{existing}\t{existing_hash}"));
+        }
+    }
+    lines.insert(format!("{rel}\t{hash}"));
+    let mut text = lines.into_iter().collect::<Vec<_>>().join("\n");
+    text.push('\n');
+    staging::write_beside(&path, text.as_bytes())
+}
+
 pub fn sha256_hex(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()
@@ -155,6 +185,31 @@ mod tests {
                 ("e.md".to_string(), "h\te".to_string()),
                 ("last".to_string(), "h9".to_string()),
             ]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn one_entry_is_replaced_and_every_other_line_is_kept_as_bash_reads_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().to_string_lossy().into_owned();
+        std::fs::create_dir_all(dir.path().join(".ai")).unwrap();
+        std::fs::write(
+            dir.path().join(REL),
+            "z.md\tzz\n# note\t\nb.md\told\n\ta.md\t\taa\t\nnohash\nb.md\tdup\n",
+        )
+        .unwrap();
+        update_entry(&root, "b.md", "new").unwrap();
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join(REL)).unwrap(),
+            "# note\t\na.md\taa\nb.md\tnew\nnohash\t\nz.md\tzz\n"
+        );
+        update_entry(&root, "", "x").unwrap();
+        update_entry(&root, "c.md", "").unwrap();
+        assert!(
+            std::fs::read_to_string(dir.path().join(REL))
+                .unwrap()
+                .ends_with("z.md\tzz\n")
         );
     }
 

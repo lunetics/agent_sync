@@ -285,7 +285,7 @@ git commit -m "fix(adopt): name the plan diff's files by project path"
 **Interfaces:**
 - Produces: `pub fn manifest::update_entry(root: &str, rel: &str, hash: &str) -> Result<(), Error>`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Insert into the `tests` module of `src/manifest.rs`, before `drift_is_a_changed_file_in_manifest_order_and_a_missing_file_is_not`:
 
@@ -321,7 +321,7 @@ Insert into the `tests` module of `src/manifest.rs`, before `drift_is_a_changed_
 Run: `cargo test --lib manifest 2>&1 | grep -E '^error\[E0425\]' | sort -u`
 Expected: `cannot find function `update_entry``.
 
-- [ ] **Step 2: Write the implementation**
+- [x] **Step 2: Write the implementation**
 
 Before `sha256_hex` in `src/manifest.rs`:
 
@@ -358,7 +358,7 @@ pub fn update_entry(root: &str, rel: &str, hash: &str) -> Result<(), Error> {
 
 ```
 
-- [ ] **Step 3: Run the tests, confirm green**
+- [x] **Step 3: Run the tests, confirm green**
 
 ```bash
 cargo fmt --all
@@ -368,7 +368,7 @@ cargo clippy --all-targets -- -D warnings
 
 Expected: `218 passed`, `0`, `11`, `1`; clippy exit 0.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/manifest.rs docs/plans/2026-09-15-rust-migration-phase-4f-adopt.md

@@ -1320,7 +1320,7 @@ git commit -m "feat(native): port dedupe"
 **Files:**
 - Modify: `docs/specs/2026-09-12-rust-migration-design.md`, `.ai/src/skills/native-port/references/module-map.md`, `.ai/.sync-manifest`
 
-- [ ] **Step 1: Spec**
+- [x] **Step 1: Spec**
 
 In the Phase 4 section, after the `template_manifest` family bullet, add: "Planned in five slices: 4e `dedupe` with the template hash, the template set, and the parent walk; 4f `adopt`; 4g `migrate`; 4h `refresh`; 4i `init`."
 
@@ -1344,11 +1344,11 @@ Append to "Accepted deviations":
   the status is 1 in both, as for every ported command since Phase 4a.
 ```
 
-- [ ] **Step 2: Module map and outputs**
+- [x] **Step 2: Module map and outputs**
 
 Set the `lib/helpers/template_manifest.sh` row to `→ src/template_manifest.rs   hash (Phase 4e); load, record, write, heal wait for refresh and init`, the `lib/helpers/dedupe.sh` row to `→ src/cli/dedupe.rs       Phase 4e, ported`, and add `find_parent_ai_src` after `find_workspace_ai_dirs` in the `lib/helpers/paths.sh` row. Regenerate outputs with `AGENTSYNC_NATIVE=0 AGENTSYNC_HOME="$PWD" bash bin/agentsync.sh sync --force`.
 
-- [ ] **Step 3: Verify (outside the agent sandbox)**
+- [x] **Step 3: Verify (outside the agent sandbox)**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -4
@@ -1364,7 +1364,7 @@ done
 
 Expected: `217 passed`, `0`, `11`, `1`; lint exit 0; every line `bash=0 native=0`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/specs/2026-09-12-rust-migration-design.md .ai/src/skills/native-port/references/module-map.md .ai/.sync-manifest docs/plans/2026-09-15-rust-migration-phase-4e-dedupe.md
@@ -1377,6 +1377,40 @@ git commit -m "docs(native): map the phase 4e modules and quirks"
 
 The plan is closed when every box is ticked, `dedupe.bats` and `doctor.bats` are green under both engines, the parity fixture passes, and a `## Completion receipt` records the fresh verification. The next plan is 4f, `adopt`.
 
+## Completion receipt
+
+### Decisions the review took
+
+All three as recommended, on 2026-09-15, under `/decide`.
+
+### Global Constraints
+
+| Constraint | Satisfied by |
+|---|---|
+| `dedupe` deletes, prunes, and declines only what Bash does | `src/cli/dedupe.rs`; the parity fixture compares whole trees after each call |
+| One Bash change, in its own commit with a regression test | `cfc311a`: `lib/helpers/dedupe.sh` and `dedupe lists duplicates in byte order whatever the locale` in `tests/dedupe.bats`; `git diff --stat 89298de..HEAD -- lib` names only `dedupe.sh`; ShellCheck exit 0 |
+| Byte-for-byte parity | `tests/native_parity.bats`: `parity: dedupe deletes, declines, prunes, and refuses like Bash`; the pty transcripts of both engines are identical |
+| `unsafe_code = "forbid"`, fmt and clippy clean, no new dependency; `main.rs` alone reads terminal state | `Cargo.toml` unchanged; `prompts::is_tty` and `prompts::read_terminal` are called from `src/main.rs` |
+| Disk-touching unit tests are `#[cfg(unix)]` | `src/template_manifest.rs`, `src/cli/dedupe.rs` test modules; `the_parent_ai_src_is_the_nearest_ancestors_inside_the_git_repository` in `src/paths.rs` |
+| Expected values from Bash | `dedupe_reference.out`, `dedupe_tty_streams.sh`, `find_parent_reference.sh`, `_dedupe_load_template_set` |
+| Conventional Commits, at most 72 characters, no trailers | `cfc311a` … the close commit |
+
+### Fresh verification, 2026-09-15, macOS arm64, outside the agent sandbox
+
+- `cargo test`: 217 passed (lib), 11 passed (cli), 1 passed (interrupt).
+- `cargo clippy --all-targets -- -D warnings`: exit 0. `cargo fmt --all --check`: exit 0.
+- `shellcheck -x -S warning -e SC1091 bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh`: exit 0.
+- bats, one file at a time, `AGENTSYNC_NATIVE=0` / `=1` failures: `dedupe` 0/0 (12 cases; the locale case ran, not skipped), `doctor` 0/0 (36), `native_parity` 0/0 (50).
+- Mutation: `(from shared.path)` → `(from shared)` failed the fixture with that `Parent:` line; reverted, rebuilt.
+- Terminal: `dedupe_tty_compare.sh` answered ` V `, `x`, `D`, empty, `v`, `s`, `q` on a pty; the 76-line transcripts of Bash and the binary are identical.
+
+### Skipped, deferred, open
+
+- **`doctor.sh` globs `*.md` the same way** in its cross-project section (`lib/helpers/doctor.sh:541`); whether its output order depends on the locale is checked with the `doctor` port, not here.
+- **The `diff` spawn for `[v]iew`** on a divergent file depends on a `diff` on `PATH`, as Bash does; the missing-`diff` message is unit-untested.
+- **Full-suite runs** stay off on this machine.
+- **Not pushed.**
+
 ## Run log
 
 ### 2026-09-15 — Phase 4e planned
@@ -1384,4 +1418,11 @@ The plan is closed when every box is ticked, `dedupe.bats` and `doctor.bats` are
 - Verified: the Rust in Tasks 2–3 was drafted and run before this plan was written, then removed from the tree. `cargo test` 217/0/11/1, clippy clean; `scratchpad/phase4/dedupe_compare.sh` (every non-interactive branch) and `dedupe_tty_compare.sh` (the prompts on a pty) gave identical transcripts and trees for Bash and the binary, and a `Done.` mutation showed in the diff; with `dedupe` added to `_NATIVE_COMMANDS` for the run, `dedupe.bats` 11/11 and `doctor.bats` 36/36 passed in both modes and the parity fixture passed and failed on a `(from shared.path)` mutation. Task 1's fix was tried on a copy of the engine: the new test failed on the current `dedupe.sh` and passed with the fix, 12/12, ShellCheck clean.
 - Plan amended: none.
 - Next: Task 0 Step 1.
+- Blocker: none.
+
+### 2026-09-15 — Tasks 0–4 done, plan closed
+- Commits: `cfc311a fix(dedupe): list flat-category duplicates in byte order`; `76cdb0e feat(native): port the template hash, template set, and parent walk`; `20af97d feat(native): port dedupe`; `docs(native): map the phase 4e modules and quirks`.
+- Verified: see the completion receipt; every file `bash=0 native=0`.
+- Plan amended: none; the spec's repo-root deviation says "the other ported commands that discover a project" instead of "every ported command since Phase 4a", which `list` in Phase 1 contradicts.
+- Next: plan 4f, `adopt`.
 - Blocker: none.

@@ -277,6 +277,8 @@ Grouped by the module they share, each group its own plan:
   `edit_paths`; 4b `customize`, `show`, and `diff`; 4c `simplify` and
   `resolve` with `snapshot`; 4d `profile` and `upgrade-config`.
 - `template_manifest` family: `init`, `refresh`, `dedupe`, `migrate`, `adopt`.
+  Planned in five slices: 4e `dedupe` with the template hash, the template
+  set, and the parent walk; 4f `adopt`; 4g `migrate`; 4h `refresh`; 4i `init`.
 - Standalone: `doctor` (keeps its tri-state exit code), `add`, `export`,
   `import`, `generate`, `shell-init`, `setup-hooks`.
 
@@ -422,6 +424,11 @@ cleanup has a list:
     into the overlay.
 30. `upgrade-config` rewrites every `agentsync_version:` line and ignores
     `AGENTSYNC_CONFIG_PATH`.
+31. `dedupe` removes a category directory it emptied, such as `.ai/src/rules/`,
+    not only emptied skill folders.
+32. `dedupe` ignores `AGENTSYNC_CONFIG_PATH`, even a missing one: it reads
+    `shared.path` from and appends declined entries to `.ai/agent_sync.yaml`,
+    else a root `agent_sync.yaml`.
 
 ## Accepted deviations
 
@@ -477,6 +484,12 @@ Appended one line at a time as they are found, with the phase:
   `tar` and `cp -pPR` recreated or reported; a FIFO is recreated with `mkfifo`.
 - Phase 4b: `customize`, `show`, and `diff` name shipped templates as
   `/<agentsync>/lib/templates/...` where Bash printed the install directory.
+- Phase 4e: `dedupe` takes the shipped template set from the embedded
+  templates where Bash walked `$AGENTSYNC_HOME/lib/templates`.
+- Phase 4e: an `AGENTSYNC_REPO_ROOT` that does not exist reports
+  `Error: Repository root not found: <path>` where Bash printed `cd`'s message;
+  the status is 1 in both, as for the other ported commands that discover a
+  project.
 
 ## Risks
 

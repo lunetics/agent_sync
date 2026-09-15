@@ -280,7 +280,7 @@ git commit -m "feat(native): port upgrade-config"
   - `profiles::rewrite_dest(base_dest: &str, home: &str) -> String`
   - `pub fn profile(args: &[String], discover: &dyn Fn() -> Result<Project, Error>, style: &Style, interactive: bool, confirm: &mut dyn FnMut(&str) -> bool, out: &mut dyn Write, err: &mut dyn Write) -> Result<u8, Error>`
 
-- [ ] **Step 1: Parity fixture, Bash side**
+- [x] **Step 1: Parity fixture, Bash side**
 
 ```bash
 @test "parity: profile adds, lists, adopts, and removes like Bash" {
@@ -325,7 +325,7 @@ git commit -m "feat(native): port upgrade-config"
 Run: `bats --tap -f 'profile adds' tests/native_parity.bats`
 Expected: `ok`.
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Append inside the tests module of `src/profiles.rs`:
 
@@ -429,7 +429,7 @@ mod tests {
 Run: `cargo test --lib 2>&1 | grep -E '^error' | sort | uniq -c`
 Expected: `cannot find function` for `rewrite_dest` and `profile`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `src/profiles.rs`, after `all_tools`:
 
@@ -926,7 +926,7 @@ In `src/main.rs`: add `"profile"` to the raw dispatch and the branch
 
 In `bin/agentsync.sh:280` append `profile`.
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -4
@@ -939,7 +939,7 @@ bats --tap -f 'profile adds' tests/native_parity.bats
 
 Expected: `209 passed`, `0`, `11`, `1`; `0` for each file; `ok`.
 
-- [ ] **Step 5: Prove the fixture bites, lint, commit**
+- [x] **Step 5: Prove the fixture bites, lint, commit**
 
 Change `variants.join(",")` to `variants.join(", ")`, rebuild, rerun the fixture: `not ok` with a tree diff in `.ai/agent_sync.yaml`; revert and rebuild.
 
@@ -1018,4 +1018,11 @@ The plan is closed when every box is ticked, `profiles.bats` is green under `AGE
 - Verified: baseline `bash=0` for all eight files; `cargo test` 206/0/11/1; fmt and clippy clean; `AGENTSYNC_NATIVE=1` doctor, format_migration, version_pin `0`; the `upgrade-config adds` fixture `ok`, and `not ok` with `Updated` mutated to `Rewrote`. The fixture ran outside the agent sandbox.
 - Plan amended: none.
 - Next: Task 2 Step 1.
+- Blocker: none.
+
+### 2026-09-15 — Task 2 done
+- Commits: `feat(native): port profile`.
+- Verified: `cargo test` 209/0/11/1; fmt and clippy clean; `AGENTSYNC_NATIVE=1` profiles, guard, outputs_mode, source_overrides `0`; the `profile adds` fixture `ok`, and `not ok` with `variants.join(",")` mutated to `join(", ")` (diff on the `tools:` list). The fixture ran outside the agent sandbox.
+- Plan amended: none.
+- Next: Task 3 Step 1.
 - Blocker: none.

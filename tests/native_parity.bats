@@ -732,3 +732,41 @@ assert_tree_parity() {
     rm agent_sync.yaml
     assert_tree_parity upgrade-config
 }
+
+@test "parity: profile adds, lists, adopts, and removes like Bash" {
+    enable_tools claude cursor
+    assert_tree_parity profile
+    assert_tree_parity profile --help
+    assert_tree_parity profile bogus
+    assert_tree_parity profile add
+    assert_tree_parity profile add 'bad name'
+    assert_tree_parity profile add hub --bogus
+    assert_tree_parity profile add hub extra
+    assert_tree_parity profile add hub --tools
+    assert_tree_parity profile add hub --tools 'claude, codex,nope'
+    _run_engine 0 profile add hub --tools 'claude,nope' >/dev/null
+    assert_tree_parity profile add hub
+    assert_tree_parity profile add work
+    _run_engine 0 profile add work >/dev/null
+    mkdir -p .claude-home/rules .claude-home/skills/s
+    printf 'r\n' > .claude-home/rules/r.md
+    printf 's\n' > .claude-home/skills/s/SKILL.md
+    printf '# home\n' > .claude-home/CLAUDE.md
+    printf '{}\n' > .claude-home/settings.json
+    assert_tree_parity profile add home --tools claude --adopt
+    _run_engine 0 profile add home --tools claude --adopt >/dev/null
+    assert_tree_parity profile list
+    assert_tree_parity profile ls extra
+    mkdir -p .claude-hub/rules .ai/src/tools/claude-hub
+    printf 'x\n' > .claude-hub/rules/x.md
+    printf '{}\n' > .ai/src/tools/claude-hub/mcp.json
+    assert_tree_parity profile remove
+    assert_tree_parity profile remove nope
+    assert_tree_parity profile remove hub --yes
+    _run_engine 0 profile remove hub --yes >/dev/null
+    _run_engine 0 profile remove work -y >/dev/null
+    assert_tree_parity profile remove home -y
+    AGENTSYNC_CONFIG_PATH=missing.yaml assert_tree_parity profile list
+    rm .ai/agent_sync.yaml
+    assert_tree_parity profile add x
+}

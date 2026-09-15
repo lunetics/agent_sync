@@ -79,6 +79,15 @@ pub fn all_tools(config: &str) -> Vec<String> {
     all
 }
 
+/// `profile_rewrite_dest`: drop the leading tool directory when there is one
+/// and re-root under the config home.
+pub fn rewrite_dest(base_dest: &str, home: &str) -> String {
+    let rel = base_dest
+        .split_once('/')
+        .map_or(base_dest, |(_, rest)| rest);
+    format!("{home}/{rel}")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -101,5 +110,13 @@ mod tests {
             all_tools(CONFIG),
             ["claude-hub", "claude-work", "codex-hub"]
         );
+    }
+
+    #[test]
+    fn a_dest_moves_under_the_config_home_without_its_tool_directory() {
+        assert_eq!(rewrite_dest(".claude/rules", ".h"), ".h/rules");
+        assert_eq!(rewrite_dest(".amazonq/rules/x.md", ".h"), ".h/rules/x.md");
+        assert_eq!(rewrite_dest("CLAUDE.md", ".h"), ".h/CLAUDE.md");
+        assert_eq!(rewrite_dest(".mcp.json", ".h"), ".h/.mcp.json");
     }
 }

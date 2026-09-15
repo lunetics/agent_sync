@@ -625,6 +625,38 @@ mod tests {
     }
 
     #[test]
+    fn a_declined_remove_prompt_cancels_like_bash() {
+        let (_dir, root) = project();
+        call(&root, &["add", "hub"]);
+        let config = format!("{root}/.ai/agent_sync.yaml");
+        let before = std::fs::read_to_string(&config).unwrap();
+        let discover = || Project::at(&root);
+        let mut questions = Vec::new();
+        let (mut out, mut err) = (Vec::new(), Vec::new());
+        let status = profile(
+            &["remove".to_string(), "hub".to_string()],
+            &discover,
+            &Style::plain(),
+            true,
+            &mut |question| {
+                questions.push(question.to_string());
+                false
+            },
+            &mut out,
+            &mut err,
+        )
+        .unwrap();
+        assert_eq!(status, 0);
+        assert_eq!(questions, ["Proceed?"]);
+        assert_eq!(
+            String::from_utf8(out).unwrap(),
+            "\n  Removing profile 'hub'\n    Deletes config-home output, variant tool files, and the profiles entry.\n    Overlay sources under .ai/profiles/hub/ are kept.\n\nCancelled.\n"
+        );
+        assert_eq!(std::fs::read_to_string(&config).unwrap(), before);
+        assert!(std::path::Path::new(&format!("{root}/.ai/src/tools/claude-hub.yaml")).is_file());
+    }
+
+    #[test]
     fn arguments_are_refused_with_the_bash_statuses() {
         let (_dir, root) = project();
         assert_eq!(

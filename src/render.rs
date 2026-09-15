@@ -1446,7 +1446,7 @@ mod tests {
     }
 
     #[test]
-    fn source_tools_moves_the_tool_overrides_and_a_refused_root_stops() {
+    fn source_tools_moves_the_tool_overrides() {
         let mut s = project();
         file(
             &mut s,
@@ -1457,7 +1457,11 @@ mod tests {
         assert_eq!(render(&mut s, &Env::default()), Ok(()));
         assert_eq!(s.tools_dir, "/proj/catalog");
         assert!(s.ws.is_file("/proj/CLAUDE.md"));
+    }
 
+    #[cfg(unix)]
+    #[test]
+    fn a_source_at_the_filesystem_root_stops() {
         let mut s = project();
         file(
             &mut s,

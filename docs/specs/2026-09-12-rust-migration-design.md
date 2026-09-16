@@ -463,6 +463,16 @@ cleanup has a list:
     key on line 2 reports only line 2.
 45. `doctor` never reports a line holding `${…}` anywhere, or `<…>` without
     `sk-`, however real the key beside the placeholder.
+46. `add mcp` re-emits only the `mcpServers` member of `.ai/src/mcp.json`,
+    dropping every other top-level member, and replaces a file without a
+    `"mcpServers"` substring with a fresh object holding the one server.
+47. `add mcp` takes the first `"mcpServers"` anywhere in the file as the
+    member, so a nested decoy makes the merge fail with `failed to update`.
+48. `add mcp` stops reading the server map at the first key that is not a
+    string and drops the servers after it.
+49. `add mcp` creates `.ai/src/mcp.json` with an empty server map before it
+    validates `--env`, so a bad pair leaves the file behind; `--args` and
+    `--env` read only the first line of their value.
 
 ## Accepted deviations
 
@@ -555,6 +565,9 @@ Appended one line at a time as they are found, with the phase:
 - Phase 4j: `doctor` lists skill directories, rules, overrides, and parent
   files in byte order (the Phase 2 deviation), so `skills/Zeta/` precedes
   `skills/empty-one/` where the locale's glob put it after.
+- Phase 4k: `add --force` onto a destination that is a directory reports the
+  Rust I/O error where Bash printed the shell's redirect message (`add.sh:
+  line N: <path>: Is a directory`); the status is unchanged.
 
 ## Risks
 

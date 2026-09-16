@@ -47,8 +47,9 @@ prompt_multiselect() {
     local options="$2"
     local preselected="$3"
 
-    # Non-TTY fast path.
-    if ! is_tty; then
+    # Callers capture stdout for the selection, so the terminal test is stdin
+    # and stderr: the list is drawn on stderr and the keys come from /dev/tty.
+    if [[ ! -t 0 ]] || [[ ! -t 2 ]]; then
         echo "$preselected"
         return 0
     fi

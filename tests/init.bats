@@ -184,6 +184,22 @@ teardown() {
     [ -f "subdir/.ai/src/AGENTS.md" ]
 }
 
+@test "init: the wizard draws its tool list on a terminal" {
+    command -v script >/dev/null 2>&1 || skip "script(1) not available"
+    # Enter through both lists, keep committed outputs, decline at Proceed.
+    local keys=$'\n\ny\nn\n'
+    if script --version >/dev/null 2>&1; then
+        run bash -c 'printf "%s" "$1" | script -q -c "AGENTSYNC_HOME=\"$2\" bash \"$3\" init" /dev/null' _ "$keys" "$REPO_ROOT" "$AGENTSYNC_BIN"
+    else
+        run bash -c 'printf "%s" "$1" | script -q /dev/null bash "$3" init' _ "$keys" "$REPO_ROOT" "$AGENTSYNC_BIN"
+    fi
+    [[ "$output" == *"Tools to enable"* ]]
+    [[ "$output" == *"(space: toggle"* ]]
+    [[ "$output" == *"Content sections:"* ]]
+    [[ "$output" == *"Cancelled."* ]]
+    [ ! -d ".ai" ]
+}
+
 @test "init names a missing target directory and fails" {
     run run_agentsync init missing-dir
     [ "$status" -eq 1 ]

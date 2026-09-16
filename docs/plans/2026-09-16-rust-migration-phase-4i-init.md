@@ -283,7 +283,7 @@ git commit -m "fix(init): adopt the first of two files that share a source"
 
 **Interfaces:** none.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `tests/init.bats`, before `init names a missing target directory and fails` (Task 4 adds the arrow):
 
@@ -308,7 +308,7 @@ Add to `tests/init.bats`, before `init names a missing target directory and fail
 Run outside the agent sandbox, which refuses `script`'s pseudo-terminal: `bats --tap -f 'wizard' tests/init.bats`
 Expected: `not ok 1 init: the wizard draws its tool list on a terminal`.
 
-- [ ] **Step 2: Test stdin and stderr**
+- [x] **Step 2: Test stdin and stderr**
 
 Replace the `# Non-TTY fast path.` block at the top of `prompt_multiselect` with:
 
@@ -321,7 +321,7 @@ Replace the `# Non-TTY fast path.` block at the top of `prompt_multiselect` with
     fi
 ```
 
-- [ ] **Step 3: Run the tests, confirm green**
+- [x] **Step 3: Run the tests, confirm green**
 
 ```bash
 bats --tap tests/init.bats | grep -c '^ok'
@@ -330,7 +330,7 @@ shellcheck -x -S warning -e SC1091 lib/helpers/prompts.sh
 
 Expected: `37`; ShellCheck exit 0.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add lib/helpers/prompts.sh tests/init.bats docs/plans/2026-09-16-rust-migration-phase-4i-init.md

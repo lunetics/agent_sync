@@ -2300,6 +2300,42 @@ git commit -m "docs(native): map the phase 4j modules and quirks"
 
 The plan is closed when every box is ticked, every bats file is green under both engines, the two parity fixtures pass, and a `## Completion receipt` records the fresh verification. The next plans cover the standalone commands the spec still names: `add`, `export`, `import`, `generate`, `shell-init`, and `setup-hooks`.
 
+## Completion receipt
+
+### Decisions the review took
+
+All three as recommended, on 2026-09-16, under the maintainer's standing instruction to run Phase 4 to its close; the Bash rule was reproduced on the committed engine before its fix, and the JSON verdicts were confirmed against `python3` 3.14.
+
+### Global Constraints
+
+| Constraint | Satisfied by |
+|---|---|
+| `doctor` writes nothing | `src/cli/doctor.rs` opens files read-only and calls no writer but `out` and `err`; the two parity fixtures in `tests/native_parity.bats` run `assert_parity`, which compares the report and the status |
+| One Bash change, in its own commit with a regression test; `lib/**/*.sh` and `bin/agentsync.sh` clean under ShellCheck | `5f0df1d` adds `doctor: the summary rule is indented and sixty characters wide` to `tests/doctor.bats`, which failed on the committed engine; ShellCheck exit 0 |
+| Byte-for-byte parity on stdout, stderr, and exit status, except the accepted deviations | `tests/native_parity.bats`: `parity: doctor reports layout, tools, overrides, drift, and advisories like Bash` and `parity: doctor fails on a bad config path, refused sources, and a missing layout like Bash`; the reference transcripts and probes in Task 3 Step 5 |
+| `unsafe_code = "forbid"`, fmt and clippy clean, no new dependency; `main.rs` alone reads the environment | `Cargo.toml` unchanged; `AGENTSYNC_EXTERNAL_SOURCE_ROOTS` and the version are read in `src/main.rs` and carried in `doctor::Env`; `doctor` takes `Project::discover` as a closure |
+| Disk-touching unit tests are `#[cfg(unix)]` | the three fixture tests in `src/cli/doctor.rs` and `the_checklist_glyphs_each_row_like_doctor` in `src/edit_paths.rs` |
+| Expected values captured from the fixed Bash | `doctor_reference.sh` (43 scenarios, 2064 lines), `legacy_probe.sh`, `minimal_probe.sh`, `helper_probe.sh`, `opencode_probe.sh`, reproduced in Task 3 Step 5 |
+| Conventional Commits, at most 72 characters, no trailers | `ca4ca11`, `5f0df1d`, `405cac1`, `37435b8`, the map commit, and the close commit |
+| bats one file at a time | every recorded run, including `native_suite.sh` |
+
+### Fresh verification, 2026-09-16, macOS 26.5 arm64, outside the agent sandbox where noted
+
+- `cargo test`: 263 passed (lib), 0 passed (doc), 11 passed (cli), 1 passed (interrupt).
+- `cargo clippy --all-targets -- -D warnings`: exit 0. `cargo fmt --all --check`: exit 0.
+- `shellcheck -x -S warning -e SC1091 bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh`: exit 0.
+- bats, one file at a time under both engines with `native_suite.sh` on the final tree and the release binary built from `37435b8`: 49 files, `TOTAL bash=0 native=0`, `native_parity` (58 cases) included and run outside the sandbox.
+- Mutation in Task 3 Step 5: `All checks passed.` → `All checks passed` failed the first fixture on the summary line; reverted, rebuilt, byte-identical to the verified draft.
+- Against the `37435b8` tree: `doctor_reference.sh` gave 2064-line transcripts for both engines with 2 differing lines, the `empty-skills` scenario's `skills/empty-one/` advisory before `skills/Zeta/` in Bash and after it in the binary (decision 3); `legacy_probe.sh` and `minimal_probe.sh` gave identical stdout and stderr, the legacy-layout warning on stderr once.
+- `sync` and `check` are unchanged; no timings.
+
+### Skipped, deferred, open
+
+- **Windows**: native bats runs stay off Windows until Phase 5; `cargo test` still runs there.
+- **`node` as the JSON validator** was not compared: the port answers as `python3` does (decision 2), and the machine has `python3`.
+- **`add`** (4k) is drafted in the tree behind this close: `src/cli/add.rs`, `catalog::content_template`, and the `main.rs` arm are uncommitted and kept out of the 4j commits.
+- **Not pushed.**
+
 ## Run log
 
 ### 2026-09-16 — Phase 4j planned
@@ -2307,4 +2343,11 @@ The plan is closed when every box is ticked, every bats file is green under both
 - Verified: every branch of `cmd_doctor` was captured with `doctor_reference.sh` (43 scenarios), the legacy-layout warning and the smallest fixtures with `legacy_probe.sh` and `minimal_probe.sh` (stdout and stderr apart), and the helper answers with `helper_probe.sh` and `opencode_probe.sh`. The reference turned up one Bash portability bug: the summary rule is built with `tr ' ' '─'`, which maps the indent too and garbles the rule under GNU `tr`; the regression test fails on the committed engine. The Rust in Tasks 2–3 was drafted in the tree: `cargo test` 263/0/11/1, fmt and clippy clean; the debug binary, called directly, gave a 2064-line transcript identical to Bash apart from the rule (Task 1) and the byte-order skills listing (decision 3), and identical stdout and stderr on both probes. Baseline `cargo test` 255/0/11/1; `doctor.bats` 36 and `native_parity.bats` 56 cases green in Bash; the 4i suite ran 49 files green under both engines on the tree the 4j draft sits on.
 - Plan amended: none.
 - Next: Task 0 Step 1.
+- Blocker: none.
+
+### 2026-09-16 — phase closed
+- Commits: `ace2fe7` docs(native): map the phase 4j modules and quirks; this commit, docs(native): close phase 4j.
+- Verified: `cargo test` 263/0/11/1; clippy, fmt, ShellCheck exit 0; `native_suite.sh both` over 49 bats files `TOTAL bash=0 native=0`; the reference and probe transcripts as recorded in Task 3 Step 5.
+- Plan amended: none.
+- Next: Phase 4k, `add`: write and commit its plan, then Task 0 Step 1.
 - Blocker: none.

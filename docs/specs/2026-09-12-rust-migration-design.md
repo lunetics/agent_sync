@@ -8,7 +8,9 @@ closed in `docs/plans/2026-09-14-rust-migration-phase-3-native-sync.md`.
 Phase 3b, release 0.36.0's Bash changes, is closed in four family plans ending
 with `docs/plans/2026-09-14-rust-migration-phase-3b-rollback-witness.md`.
 Phase 4 is closed in thirteen command-family plans, the last being
-`docs/plans/2026-09-16-rust-migration-phase-4m-tail.md`.
+`docs/plans/2026-09-16-rust-migration-phase-4m-tail.md`. Phase 5 is in
+progress in five slice plans, the first being
+`docs/plans/2026-09-16-rust-migration-phase-5a-entry.md`.
 
 ## Objective
 
@@ -301,11 +303,52 @@ Exit: `_NATIVE_COMMANDS` lists every command; the whole suite passes with
   pinning; the `agentsync_version` gate is unchanged.
 - `release` bumps `VERSION` and `Cargo.toml` together; the auto-tag workflow
   triggers the release build.
-- `bin/agentsync.sh` becomes a one-line shim, then the symlink points at the
-  binary.
+- The installed `agentsync` link points at the binary. `bin/agentsync.sh`
+  stays the dispatcher in the repository, the parity harness, until Phase 6
+  deletes it.
 - Windows: the binary is the entry point; the bats suite runs against it
   directly, without sharding. Terminal colour on legacy consoles is enabled
   with the `anstream` crate if needed.
+
+Planned in five slices, each its own plan, in this order because each one
+builds on the one before:
+
+- 5a `help` and the answers `bin/agentsync.sh` gives before it delegates: the
+  usage, the `--help` interception, and the unknown-command refusal.
+- 5b `release` with the crate version: `Cargo.toml` and `Cargo.lock` carry
+  `VERSION`, and `release` bumps the three together.
+- 5c the release build: cargo-dist, the five targets, the release workflow,
+  the installers, checksums, and attestations. A tag the auto-tag workflow
+  pushes with `GITHUB_TOKEN` starts no other workflow, so the auto-tag
+  workflow dispatches the release build. The repository is
+  `yelmuratoff/agent_sync`; `yelmuratoff/agent`, which `install.sh` and the
+  README still name, redirects to it, and no GitHub release exists yet.
+- 5d `update` and the update notice: the binary replaced from GitHub Releases,
+  `update <version>`, `--strict` conflicts from the catalogs embedded in the
+  old and the new binary, the changelog embedded, and `check_for_updates` with
+  the format notice moved into the binary.
+- 5e the cutover: installs link the binary, existing clone installs move to
+  it, Windows runs the suite against the binary without sharding, and the
+  README and `.ai/src/AGENTS.md` describe a single static binary.
+
+Decisions for Phase 5, taken on 2026-09-16 when the maintainer left them to
+the plan author:
+
+1. Downloads spawn `curl` and `tar`, as `import` does, and the checksum is
+   verified in-process with `sha2`; no HTTP crate is added. Windows 10 and
+   later ship both executables.
+2. A clone install moves to the binary through `update`: in a clone without a
+   binary, the cutover release's `agentsync update` downloads and verifies the
+   binary and re-links, and until then an interactive command prints a
+   one-line notice. The clone keeps running Bash meanwhile.
+3. A pin to a release older than the first binary still installs: `install.sh`
+   keeps its git-clone path for those tags until Phase 6, so it stays
+   hand-written (it downloads and verifies the binary otherwise) while the
+   cargo-dist installers ship alongside it. `update <tag>` from a binary
+   install refuses such a tag and prints the installer command that pins it.
+4. `bin/agentsync.sh` is not reduced to a shim in Phase 5: the parity suite
+   needs the Bash reference until Phase 6, and installs link the binary
+   directly.
 
 Exit: first binary release; README and `.ai/src/AGENTS.md` updated; the
 "pure Bash" claim replaced by "single static binary".

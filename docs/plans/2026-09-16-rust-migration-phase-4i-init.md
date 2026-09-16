@@ -405,7 +405,7 @@ git commit -m "fix(prompts): wait a whole second for an escape sequence"
   - `pub fn prompts::multiselect_on_terminal(title, options, preselected, style) -> Result<Vec<String>, Cancelled>`
   - `pub struct prompts::RawTerminal` with `open() -> Option<Self>`, `key(&mut self) -> Key`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to the `tests` module of `src/prompts.rs`:
 
@@ -480,7 +480,7 @@ Append to the `tests` module of `src/prompts.rs`:
 Run: `cargo test --lib 2>&1 | grep -E '^error\[E0(412|422|425|433)\]' | sort -u | head -6`
 Expected: errors naming the missing `Multiselect`, `Key`, `Cancelled`, and `multiselect`.
 
-- [ ] **Step 2: Write the implementation**
+- [x] **Step 2: Write the implementation**
 
 Replace the head of `src/prompts.rs`, down to and including the `use` lines, with:
 
@@ -753,7 +753,7 @@ fn stty(tty: &std::fs::File, args: &[&str]) -> Option<String> {
 }
 ```
 
-- [ ] **Step 3: Run the tests, confirm green**
+- [x] **Step 3: Run the tests, confirm green**
 
 ```bash
 cargo fmt --all
@@ -763,7 +763,7 @@ cargo clippy --all-targets -- -D warnings
 
 Expected: `245 passed`, `0`, `11`, `1`; clippy exit 0.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/prompts.rs docs/plans/2026-09-16-rust-migration-phase-4i-init.md

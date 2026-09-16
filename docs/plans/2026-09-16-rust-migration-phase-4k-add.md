@@ -1484,6 +1484,42 @@ git commit -m "docs(native): map the phase 4k modules and quirks"
 
 The plan is closed when every box is ticked, every bats file is green under both engines, the two parity fixtures pass, and a `## Completion receipt` records the fresh verification. The next plans cover the standalone commands the spec still names: `export` and `import`, then `generate`, `shell-init`, and `setup-hooks`.
 
+## Completion receipt
+
+### Decisions the review took
+
+All three as recommended, on 2026-09-16, under the maintainer's standing instruction to run Phase 4 to its close; the silent exit was reproduced on the committed engine before its fix, and every merge behaviour recorded as a quirk was reproduced with `add_reference.sh`.
+
+### Global Constraints
+
+| Constraint | Satisfied by |
+|---|---|
+| `add` writes one scaffold below `.ai/src/`, or `.ai/src/mcp.json`; nothing else | `src/cli/add.rs` (`add` writes `dest` alone; `add_mcp` writes the one file, through `staging::write_beside`); the two tree-parity fixtures in `tests/native_parity.bats` compare whole trees after every call |
+| One Bash change, in its own commit with a regression test; `lib/**/*.sh` and `bin/agentsync.sh` clean under ShellCheck | `72bc565` adds `add mcp names a flag that is missing its value` to `tests/add.bats`, which failed on the committed engine at `[ -n "$output" ]`; ShellCheck exit 0 |
+| Byte-for-byte parity on stdout, stderr, exit status, and the files left behind, except the accepted deviations | `tests/native_parity.bats`: `parity: add scaffolds each kind and refuses bad names like Bash` and `parity: add mcp creates, appends, escapes, and refuses like Bash`; the reference transcript in Task 2 Step 5 |
+| `unsafe_code = "forbid"`, fmt and clippy clean, no new dependency; `main.rs` alone reads the environment | `Cargo.toml` unchanged; `AGENTSYNC_REPO_ROOT` and `PWD` are read in `src/main.rs` and the logical root is handed to `add` |
+| Disk-touching unit tests are `#[cfg(unix)]` | `a_rule_is_scaffolded_once_like_cmd_add` and `a_server_is_added_once_like_cmd_add_mcp` in `src/cli/add.rs` |
+| Expected values captured from the fixed Bash | `add_reference.sh` (63 scenarios, 760 lines, each written file's mode and bytes), reproduced in Task 2 Step 5 |
+| Conventional Commits, at most 72 characters, no trailers | `0666f9f`, `72bc565`, `f5dc586`, the map commit, and the close commit |
+| bats one file at a time | every recorded run, including `native_suite.sh` |
+
+### Fresh verification, 2026-09-16, macOS 26.5 arm64, outside the agent sandbox where noted
+
+- `cargo test`: 271 passed (lib), 0 passed (doc), 11 passed (cli), 1 passed (interrupt).
+- `cargo clippy --all-targets -- -D warnings`: exit 0. `cargo fmt --all --check`: exit 0.
+- `shellcheck -x -S warning -e SC1091 bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh`: exit 0.
+- bats, one file at a time under both engines with `native_suite.sh` in a detached worktree at `f5dc586` (the port commit; the map commit that follows changes no code or test) with the release binary built there: 49 files, 48 at `bash=0 native=0` and `native_parity bash=1 native=0` on the first pass, while the main tree ran the same fixtures and a release build alongside; the runner kept only counts. `native_parity.bats` re-run alone in that worktree under `AGENTSYNC_NATIVE=0`: 60 cases, no `not ok`. The runner now keeps every `not ok` line with its diagnostics in `<out>.failures` for the next phases.
+- Mutation in Task 2 Step 5: `Created {kind}:` → `Created {kind}` failed the first fixture on the `Created rule:` line; reverted, rebuilt, byte-identical to the verified draft.
+- Against the `f5dc586` tree: `add_reference.sh` gave 760-line transcripts for both engines with 2 differing lines, the `dest-is-dir-force` scenario's message (Bash `add.sh: line 205: <root>/.ai/src/rules/dirname.md: Is a directory`, native `Error: <root>/.ai/src/rules/dirname.md: Is a directory (os error 21)`, decision 3).
+- `sync` and `check` are unchanged; no timings.
+
+### Skipped, deferred, open
+
+- **Windows**: native bats runs stay off Windows until Phase 5; `cargo test` still runs there.
+- **The bats anomaly** behind decision 1's test shape (a failing `[[ ]]` after a `run` whose child died on a top-level `shift` or `set -u` error is not detected under Bash 3.2 and bats 1.13) was reproduced, not explained; the affected tests assert with `[ ]` and `grep`.
+- **`export` and `import`** (4l) are drafted in the tree behind this close: `src/cli/bundle.rs`, the four Bash fixes, and `tests/bundle.bats` are uncommitted and kept out of the 4k commits.
+- **Not pushed.**
+
 ## Run log
 
 ### 2026-09-16 — Phase 4k planned
@@ -1491,4 +1527,11 @@ The plan is closed when every box is ticked, every bats file is green under both
 - Verified: every branch of `cmd_add` and `cmd_add_mcp` was captured with `add_reference.sh` (63 scenarios, each written file's mode and bytes included). The reference turned up one Bash bug: a value-taking flag without its value ends the run silently with status 1; the regression test fails on the committed engine. The Rust in Task 2 was drafted in the tree against the fixed behaviour: `cargo test` 271/0/11/1, fmt and clippy clean; the debug binary, called directly, gave a transcript identical to Bash apart from the fixed silence and the redirect message (decision 3). Baseline `cargo test` 263/0/11/1; `add.bats` 35 and `native_parity.bats` 58 cases green in Bash.
 - Plan amended: none.
 - Next: Task 0 Step 1.
+- Blocker: none.
+
+### 2026-09-16 — phase closed
+- Commits: `5fff6d1` docs(native): map the phase 4k modules and quirks; this commit, docs(native): close phase 4k.
+- Verified: `cargo test` 271/0/11/1; clippy, fmt, ShellCheck exit 0; `native_suite.sh both` over 49 bats files `TOTAL bash=0 native=0` in the worktree at `f5dc586`; the reference transcript as recorded in Task 2 Step 5.
+- Plan amended: Task 1 Step 1's test asserts with `[ ]` and `grep` instead of `[[ ]]`, with the reason recorded in the step.
+- Next: Phase 4l, `export` and `import`: write and commit its plan, then Task 0 Step 1.
 - Blocker: none.

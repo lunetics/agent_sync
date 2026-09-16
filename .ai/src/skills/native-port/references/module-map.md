@@ -19,7 +19,7 @@ lib/helpers/resolve.sh           → (none)                  engine dir lookup; 
 Tier 1
 lib/helpers/version.sh           → src/version.rs          version_pin mode, mismatch error and hint; engine_version stays in src/lib.rs
 lib/helpers/project_config.sh    → src/project_config.rs   project_config_path_r over an is_file probe; shared by sync, check, list
-lib/helpers/format.sh            → src/format_rev.rs       engine and project revision (Phase 4g); pending notes wait for doctor
+lib/helpers/format.sh            → src/format_rev.rs       engine and project revision (Phase 4g), read by doctor (4j); the terminal notice stays in the dispatcher
 lib/helpers/paths.sh             → src/paths.rs            normalise, containment (lexical for check, through the disk for sync), repo-relative, ai_dir_enclosing_root, find_workspace_ai_dirs, find_parent_ai_src; explicit source roots trusted through AGENTSYNC_EXTERNAL_SOURCE_ROOTS, escaping source-link scan
 lib/helpers/tool_resolver.sh     → src/tool.rs, src/catalog.rs, src/payload.rs; source.tools as Session::tools_dir
 lib/helpers/profiles.sh          → src/profiles.rs         names, overlay dir, tools, active, rewrite_dest
@@ -71,7 +71,7 @@ lib/helpers/release.sh           → src/cli/release.rs      Phase 5, bumps VERS
 
 ## Command closure and ownership
 
-`bin/agentsync.sh:298-352` is the dispatch. `_need` sources `lib/helpers/<mod>.sh` in-process; `cmd_engine` runs `lib/<script>.sh` as a subprocess. Always loaded: `cli_colors`, `resolve`, `update`, `tmp`.
+`bin/agentsync.sh:328-408` is the dispatch. `_need` sources `lib/helpers/<mod>.sh` in-process; `cmd_engine` runs `lib/<script>.sh` as a subprocess. Always loaded: `cli_colors`, `resolve`, `update`, `tmp`.
 
 ```
 command        _need / sourced modules                                              tty  external          writes
@@ -91,7 +91,7 @@ simplify       yaml yaml_edit tool_resolver customize simplify                  
 migrate        prompts yaml yaml_edit tool_resolver template_manifest format migrate yes clipboard find    only with --apply
 show / diff    yaml yaml_edit tool_resolver snapshot customize                      no   sed / diff        none
 resolve        yaml yaml_edit tool_resolver snapshot customize resolve_cmd          yes  sed               override YAML
-doctor         yaml tool_resolver edit_paths opencode format doctor (+ sourced)     no   python3|node find none
+doctor         yaml tool_resolver project_config edit_paths opencode format doctor  no   python3|node find none
 dedupe         yaml yaml_edit prompts paths template_manifest dedupe (+ sourced)    yes  diff find         deletes duplicates
 adopt          yaml tool_resolver paths logging filters file_ops prompts manifest   yes  diff sed find     .ai/src/*, manifest
 profile        yaml yaml_edit tool_resolver profiles paths logging prompts profile  yes  awk               variants, overlay, config
@@ -99,7 +99,7 @@ generate       prompts generate                                                 
 setup-hooks    setup_hooks.sh sources yaml                                          no   git diff date     .git hooks dir
 shell-init     logging shell_init                                                   no   command -v        none
 export         yaml export                                                          no   tar find          archive
-import         import (+ export constants)                                          yes  curl tar find     .ai/src/
+import         yaml export import                                                   yes  curl tar find     .ai/src/
 refresh        yaml export prompts template_manifest refresh                        yes  diff find         .ai/src/*, template manifest
 update         yaml snapshot (+ update)                                             no   git curl          install dir
 upgrade-config prompts yaml tool_resolver init                                      no   awk sed           agent_sync.yaml
@@ -113,51 +113,56 @@ Known gaps in the `_need` lists: `doctor` and `dedupe` omit `logging` although t
 ## bats ownership
 
 ```
+tests/native_parity.bats 65   Bash vs native per ported command (Phase 1 on)
 tests/sync.bats 55            sync end to end
 tests/refresh.bats 38         refresh
+tests/init.bats 37            init, add, customize, enable, sync
+tests/doctor.bats 37          doctor (+ init add customize dedupe enable list upgrade-config as fixtures)
 tests/files.bats 36           unit: cli_colors logging filters file_ops rule_operations format_conversion
-tests/add.bats 35             add, sync
-tests/init.bats 35            init, add, customize, enable, sync
-tests/doctor.bats 34          doctor (+ init add customize dedupe enable list upgrade-config as fixtures)
-tests/adopt.bats 26           adopt, sync
-tests/drift.bats 26           sync drift, --force, --dry-run, doctor
-tests/paths.bats 26           unit: paths.sh
+tests/add.bats 36             add, sync
+tests/rollback_preflight.bats 30  rollback refuses foreign changes, even with --yes
+tests/adopt.bats 29           adopt, sync
+tests/source_overrides.bats 28  source.* layouts outside .ai/src, external roots, doctor
+tests/drift.bats 28           sync drift, --force, --dry-run, doctor
+tests/paths.bats 27           unit: paths.sh
+tests/migrate.bats 22         migrate, check, doctor
 tests/profiles.bats 20        profile, sync --profile, check, enable
 tests/update_snapshot.bats 20 snapshot.sh
 tests/opencode.bats 19        sync OpenCode composition
 tests/resource_resolver.bats 19  resolution order via sync, customize, init
 tests/backup.bats 18          unit: paths.sh + backup.sh
 tests/guard.bats 18           guard output, adopt, doctor, init, profile
-tests/migrate.bats 18         migrate, check, doctor
+tests/backup_retention.bats 17  backup pruning by count and age through real commands
 tests/sync_options.bats 17    --only/--skip, check, disable
+tests/bundle.bats 16          export, import (archive, directory, curl stand-in)
 tests/simplify.bats 16        simplify, customize
 tests/hooks.bats 16           setup-hooks, init, sync
-tests/tmp.bats 15             unit: tmp.sh
+tests/enable.bats 15          enable, disable, add, customize
+tests/init_flow.bats 15       init first sync, check
 tests/shell_init.bats 15      shell-init, sync
-tests/init_flow.bats 14       init first sync, check
-tests/customize.bats 13       customize, show, diff, enable
-tests/enable.bats 13          enable, disable, add, customize
+tests/tmp.bats 15             unit: tmp.sh
 tests/changelog_render.bats 13  update changelog renderer
-tests/shared.bats 12          sync with shared:, init, enable
-tests/base_skills.bats 11     engine-owned skill layer: sync, check, init
-tests/dedupe.bats 11          dedupe
+tests/customize.bats 13       customize, show, diff, enable
+tests/shared.bats 13          sync with shared:, init, enable
+tests/version_pin.bats 13     pin across sync, check, init, update, upgrade-config
+tests/base_skills.bats 12     engine-owned skill layer: sync, check, init
+tests/dedupe.bats 12          dedupe
+tests/baseline.bats 11        first-sync replacement warning, adopt, rollback
 tests/format_migration.bats 11  migrate, init, doctor, sync, upgrade-config
-tests/baseline.bats 10        first-sync replacement warning, adopt, rollback
+tests/check.bats 10           check
 tests/outputs_mode.bats 10    init --outputs, sync, profile
 tests/release.bats 10         release
-tests/check.bats 8            check
 tests/cli.bats 8              help, version, unknown command, rollback --help
+tests/list.bats 8             list, ls, enable
+tests/native_dispatch.bats 8  dispatcher gating (Phase 1)
 tests/team_workflow.bats 8    committed vs local outputs
+tests/config_safety.bats 7    config selection fails closed before a write sync; doctor
 tests/generate.bats 7         generate
-tests/list.bats 7             list, ls, enable
+tests/gitignore.bats 7        unit: gitignore.sh
 tests/workspace.bats 7        sync --workspace
-tests/gitignore.bats 6        unit: gitignore.sh
 tests/install.bats 6          install.sh, update <version>
 tests/rollback.bats 6         rollback
 tests/update.bats 6           update
-tests/version_pin.bats 6      pin across sync, check, init, update, upgrade-config
-tests/native_dispatch.bats    dispatcher gating (Phase 1)
-tests/native_parity.bats      Bash vs native per ported command (Phase 1)
 ```
 
 Counts are `@test` cases at the time of writing; recount with `grep -c '^@test' tests/<file>` when it matters.

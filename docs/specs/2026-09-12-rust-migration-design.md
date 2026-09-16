@@ -283,6 +283,8 @@ Grouped by the module they share, each group its own plan:
   set, and the parent walk; 4f `adopt`; 4g `migrate`; 4h `refresh`; 4i `init`.
 - Standalone: `doctor` (keeps its tri-state exit code), `add`, `export`,
   `import`, `generate`, `shell-init`, `setup-hooks`.
+  Planned in four slices: 4j `doctor`; 4k `add`; 4l `export` and `import`;
+  4m `generate`, `shell-init`, and `setup-hooks`.
 
 `update` and `release` are rewritten in Phase 5 because their mechanics change.
 Exit: `_NATIVE_COMMANDS` lists every command; the whole suite passes with

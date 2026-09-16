@@ -82,6 +82,16 @@ def cases():
     data = manifest()
     data["connection"] = {"type": "http", "url": "https://example.invalid/mcp"}
     yield "http", json.dumps(data), True
+    data["schema_version"] = 2
+    yield "v2-http-without-guidance", json.dumps(data), True
+    data["alternatives"] = {"uvx": {
+        "connection": {"type": "stdio", "command": "uvx",
+                       "args": ["--from", "example-mcp==1.0.0", "example-mcp"]},
+        "requirements": {"binaries": ["uvx"], "inputs": []}}}
+    data["guidance"] = {"recommended": "default", "authority": "vendor",
+                        "source": "https://example.invalid/docs",
+                        "checked_at": "2026-09-16", "reason": "Synthetic fixture"}
+    yield "v2-guidance-and-local-alternative", json.dumps(data), True
     extension_base = base[:-1] + ',"extensions":{"example.invalid":EXT}}'
     yield "opaque-extension", extension_base.replace("EXT", '[null,true,false,1,-2.5e3,{"x":[{}]}]'), True
     for name, value in [
@@ -132,16 +142,40 @@ def main():
                 cwd=root, env=env, capture_output=True, timeout=15)
             accepted = proc.returncode == 0
             exact_show = None
+            exact_render = None
             if accepted and expected:
                 shown = subprocess.run(
                     ["bash", str(cli), "mcp", "show", "probe", "--library", str(catalog)],
                     cwd=root, env=env, capture_output=True, timeout=15)
                 exact_show = shown.returncode == 0 and shown.stdout == raw
+                decoded = strict_decode(raw)
+                variants = {"default": decoded["connection"]}
+                variants.update({name: value["connection"]
+                                 for name, value in decoded.get("alternatives", {}).items()})
+                if "guidance" in decoded:
+                    variants["recommended"] = variants[decoded["guidance"]["recommended"]]
+                exact_render = True
+                for variant, connection in variants.items():
+                    wanted = dict(connection)
+                    if wanted["type"] == "stdio":
+                        wanted.pop("type")
+                    rendered = subprocess.run(
+                        ["bash", str(cli), "mcp", "render", "probe@" + variant,
+                         "--library", str(catalog)], cwd=root, env=env,
+                        capture_output=True, timeout=15)
+                    try:
+                        actual = strict_decode(rendered.stdout)
+                    except (ValueError, UnicodeError):
+                        actual = None
+                    exact_render &= (rendered.returncode == 0 and
+                                     actual == {"mcpServers": {"probe": wanted}})
             after = sorted(str(p.relative_to(root)) for p in root.rglob("*"))
             unchanged = before == after and target.read_bytes() == raw
-            passed = accepted == expected and exact_show is not False and unchanged
+            passed = (accepted == expected and exact_show is not False and
+                      exact_render is not False and unchanged)
             row = {"case": name, "reference": reference, "accepted": accepted,
-                   "exact_show": exact_show, "unchanged": unchanged, "pass": passed}
+                   "exact_show": exact_show, "exact_render": exact_render,
+                   "unchanged": unchanged, "pass": passed}
             if args.compare_jq:
                 comparison = subprocess.run(["jq", "-e", "."], input=raw,
                                             capture_output=True, timeout=15)

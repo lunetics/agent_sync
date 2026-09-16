@@ -44,6 +44,38 @@ function display_text(value,    i, byte, output) {
     return output
 }
 
+# JSON output for the selected connection. This preserves valid Unicode bytes
+# while escaping JSON syntax and control bytes; it is never shell-quoted.
+function json_text(value,    i, byte, output) {
+    output = "\""
+    for (i = 1; i <= length(value); i++) {
+        byte = byte_value[substr(value, i, 1)]
+        if (byte == 34) output = output "\\\""
+        else if (byte == 92) output = output "\\\\"
+        else if (byte == 8) output = output "\\b"
+        else if (byte == 12) output = output "\\f"
+        else if (byte == 10) output = output "\\n"
+        else if (byte == 13) output = output "\\r"
+        else if (byte == 9) output = output "\\t"
+        else if (byte < 32 || byte == 127) output = output sprintf("\\u%04x", byte)
+        else if (byte == 194 && i < length(value) && byte_value[substr(value, i + 1, 1)] >= 128 && byte_value[substr(value, i + 1, 1)] <= 159) {
+            i++
+            output = output sprintf("\\u00%02x", byte_value[substr(value, i, 1)])
+        }
+        else output = output substr(value, i, 1)
+    }
+    return output "\""
+}
+
+function has_control(value,    i, byte) {
+    for (i = 1; i <= length(value); i++) {
+        byte = byte_value[substr(value, i, 1)]
+        if (byte < 32 || byte == 127) return 1
+        if (byte == 194 && i < length(value) && byte_value[substr(value, i + 1, 1)] >= 128 && byte_value[substr(value, i + 1, 1)] <= 159) return 1
+    }
+    return 0
+}
+
 function hex_value(value,    i, digit, output) {
     output = 0
     for (i = 1; i <= length(value); i++) {
@@ -334,6 +366,74 @@ function validate_connection(node,    allowed, type, command, args, url) {
     return 1
 }
 
+function validate_variant_id(value) {
+    return value ~ /^[A-Za-z0-9][A-Za-z0-9_-]*$/ && length(value) <= 64
+}
+
+function validate_date(value,    year, month, day, max_day, leap) {
+    if (value !~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/) return 0
+    year = substr(value, 1, 4) + 0
+    month = substr(value, 6, 2) + 0
+    day = substr(value, 9, 2) + 0
+    if (month < 1 || month > 12 || day < 1) return 0
+    max_day = 31
+    if (month == 4 || month == 6 || month == 9 || month == 11) max_day = 30
+    if (month == 2) {
+        leap = (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0))
+        max_day = leap ? 29 : 28
+    }
+    return day <= max_day
+}
+
+function validate_alternatives(node,    i, entry, id, allowed, description, connection, requirements) {
+    if (!require_kind(node, "object", "alternatives")) return 0
+    for (i = 1; i <= object_count[node]; i++) {
+        id = object_key[node SUBSEP i]
+        if (id == "default" || id == "recommended" || !validate_variant_id(id)) return fail("alternative id must be a safe non-reserved variant id: '" display_text(id) "'")
+        entry = object_value[node SUBSEP i]
+        if (!require_kind(entry, "object", "alternative '" display_text(id) "'")) return 0
+        allowed["description"] = allowed["connection"] = allowed["requirements"] = 1
+        if (!allow_only(entry, allowed, "alternative '" display_text(id) "'")) return 0
+        description = object_field(entry, "description")
+        if (description != 0 && !require_kind(description, "string", "alternative.description")) return 0
+        connection = require_field(entry, "connection", "alternative")
+        requirements = require_field(entry, "requirements", "alternative")
+        if (error != "") return 0
+        if (!validate_connection(connection) || !validate_requirements(requirements)) return 0
+        alternative_count++
+        alternative_id[alternative_count] = id
+        alternative_connection[alternative_count] = connection
+    }
+    return 1
+}
+
+function alternative_index(id,    i) {
+    for (i = 1; i <= alternative_count; i++) if (alternative_id[i] == id) return i
+    return 0
+}
+
+function validate_guidance(node,    allowed, recommended, authority, source, checked_at, reason) {
+    if (!require_kind(node, "object", "guidance")) return 0
+    allowed["recommended"] = allowed["authority"] = allowed["source"] = allowed["checked_at"] = allowed["reason"] = 1
+    if (!allow_only(node, allowed, "guidance")) return 0
+    recommended = require_field(node, "recommended", "guidance")
+    authority = require_field(node, "authority", "guidance")
+    source = require_field(node, "source", "guidance")
+    checked_at = require_field(node, "checked_at", "guidance")
+    reason = require_field(node, "reason", "guidance")
+    if (error != "") return 0
+    if (!require_kind(recommended, "string", "guidance.recommended") || !validate_variant_id(node_raw[recommended])) return fail("guidance.recommended must be 'default' or a safe variant id")
+    if (!require_kind(authority, "string", "guidance.authority") || (node_raw[authority] != "vendor" && node_raw[authority] != "maintainer")) return fail("guidance.authority must be 'vendor' or 'maintainer'")
+    if (!require_kind(source, "string", "guidance.source") || node_raw[source] !~ /^https:\/\/[A-Za-z0-9]/ || has_control(node_raw[source]) || node_raw[source] ~ /[[:space:]]/) return fail("guidance.source must be an https URL without control characters")
+    if (!require_kind(checked_at, "string", "guidance.checked_at") || !validate_date(node_raw[checked_at])) return fail("guidance.checked_at must be a valid YYYY-MM-DD date")
+    if (!require_kind(reason, "string", "guidance.reason") || node_raw[reason] == "") return fail("guidance.reason must be a non-empty string")
+    if (node_raw[recommended] != "default" && alternative_index(node_raw[recommended]) == 0) return fail("guidance.recommended names an unavailable alternative")
+    guidance_present = 1
+    guidance_recommended = node_raw[recommended]
+    guidance_authority = node_raw[authority]
+    return 1
+}
+
 function validate_requirements(node,    allowed, binaries, inputs) {
     if (!require_kind(node, "object", "requirements")) return 0
     allowed["binaries"] = allowed["inputs"] = 1
@@ -343,21 +443,23 @@ function validate_requirements(node,    allowed, binaries, inputs) {
     if (error != "") return 0
     if (!validate_string_array(binaries, "requirements.binaries")) return 0
     if (!validate_string_array(inputs, "requirements.inputs")) return 0
-    if (array_count[inputs] != 0) return fail("requirements.inputs is unsupported in MCP library schema v1; use an empty array")
+    if (array_count[inputs] != 0) return fail("requirements.inputs is unsupported in MCP library schema; use an empty array")
     return 1
 }
 
-function validate_manifest(root,    allowed, schema, id, title, description, provenance, connection, requirements, extensions) {
+function validate_manifest(root,    allowed, schema, version, id, title, description, provenance, connection, requirements, extensions, alternatives, guidance) {
     if (node_kind[root] != "object") return fail("manifest root must be an object")
-    allowed["schema_version"] = allowed["id"] = allowed["title"] = allowed["description"] = allowed["provenance"] = allowed["connection"] = allowed["requirements"] = allowed["extensions"] = 1
-    if (!allow_only(root, allowed, "top-level")) return 0
     schema = require_field(root, "schema_version", "manifest")
     id = require_field(root, "id", "manifest")
     title = require_field(root, "title", "manifest")
     connection = require_field(root, "connection", "manifest")
     requirements = require_field(root, "requirements", "manifest")
     if (error != "") return 0
-    if (node_kind[schema] != "number" || node_raw[schema] != "1") return fail("unsupported schema_version '" node_raw[schema] "'")
+    if (node_kind[schema] != "number" || (node_raw[schema] != "1" && node_raw[schema] != "2")) return fail("unsupported schema_version '" node_raw[schema] "'")
+    version = node_raw[schema]
+    allowed["schema_version"] = allowed["id"] = allowed["title"] = allowed["description"] = allowed["provenance"] = allowed["connection"] = allowed["requirements"] = allowed["extensions"] = 1
+    if (version == "2") allowed["alternatives"] = allowed["guidance"] = 1
+    if (!allow_only(root, allowed, "top-level")) return 0
     if (!require_kind(id, "string", "id") || node_raw[id] !~ /^[A-Za-z0-9][A-Za-z0-9_-]*$/ || length(node_raw[id]) > 64) return fail("id must match [A-Za-z0-9][A-Za-z0-9_-]{0,63}")
     if (!require_kind(title, "string", "title") || node_raw[title] == "") return fail("title must be a non-empty string")
     description = object_field(root, "description")
@@ -367,9 +469,58 @@ function validate_manifest(root,    allowed, schema, id, title, description, pro
     if (!validate_connection(connection) || !validate_requirements(requirements)) return 0
     extensions = object_field(root, "extensions")
     if (extensions != 0 && !validate_extensions(extensions)) return 0
+    if (version == "2") {
+        alternatives = object_field(root, "alternatives")
+        if (alternatives != 0 && !validate_alternatives(alternatives)) return 0
+        guidance = object_field(root, "guidance")
+        if (guidance != 0 && !validate_guidance(guidance)) return 0
+    }
     if (expected_id != "" && node_raw[id] != expected_id) return fail("manifest id '" node_raw[id] "' does not match requested id '" expected_id "'")
+    manifest_connection = connection
     manifest_id = node_raw[id]
     manifest_title = node_raw[title]
+    return 1
+}
+
+function serialize_string_array(node,    i, item, output) {
+    output = "["
+    for (i = 1; i <= array_count[node]; i++) {
+        item = array_item[node SUBSEP i]
+        if (i > 1) output = output ","
+        output = output json_text(node_raw[item])
+    }
+    return output "]"
+}
+
+function serialize_connection(node,    type, command, args, url) {
+    type = object_field(node, "type")
+    if (node_raw[type] == "stdio") {
+        command = object_field(node, "command")
+        args = object_field(node, "args")
+        return "{\"command\":" json_text(node_raw[command]) ",\"args\":" serialize_string_array(args) "}"
+    }
+    url = object_field(node, "url")
+    return "{\"type\":\"http\",\"url\":" json_text(node_raw[url]) "}"
+}
+
+function resolve_selected_variant(    requested, alternative_pos) {
+    requested = selected_variant
+    if (requested == "") requested = "default"
+    if (requested != "default" && requested != "recommended" && !validate_variant_id(requested)) return fail("requested variant must be 'default', 'recommended', or a safe variant id")
+    if (requested == "recommended") {
+        if (!guidance_present) return fail("requested variant 'recommended' requires guidance")
+        requested = guidance_recommended
+    }
+    if (requested == "default") {
+        resolved_variant = "default"
+        resolved_connection = manifest_connection
+    } else {
+        alternative_pos = alternative_index(requested)
+        if (alternative_pos == 0) return fail("requested variant '" display_text(requested) "' is unavailable")
+        resolved_variant = requested
+        resolved_connection = alternative_connection[alternative_pos]
+    }
+    resolved_authority = (guidance_present && resolved_variant == guidance_recommended) ? guidance_authority : "unknown"
     return 1
 }
 
@@ -412,4 +563,12 @@ BEGIN {
         exit 1
     }
     if (output_mode == "metadata") printf "%s\t%s\n", manifest_id, display_text(manifest_title)
+    else if (output_mode == "server" || output_mode == "selection") {
+        if (!resolve_selected_variant()) {
+            print error > "/dev/stderr"
+            exit 1
+        }
+        if (output_mode == "server") print serialize_connection(resolved_connection)
+        else printf "%s\t%s\t%s\n", resolved_variant, node_raw[object_field(resolved_connection, "type")], resolved_authority
+    }
 }

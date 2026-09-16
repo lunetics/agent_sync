@@ -1,8 +1,10 @@
-# MCP library v1 (read-only)
+# MCP library: inspect, choose, and prepare CLI sources
 
 AgentSync can read an explicitly selected local MCP catalog without running a
 server, accessing the network, or changing a project or catalog file. This is
 separate from `agentsync add mcp`, which continues to manage `.ai/src/mcp.json`.
+The explicit `use --apply` command can create a per-tool source for a later
+normal sync. It does not modify native client configuration itself.
 
 ## Select a catalog
 
@@ -46,9 +48,51 @@ then writes its original JSON bytes to standard output. `validate [id]` checks a
 single selected entry or the whole catalog; full-catalog validation also detects
 duplicate manifest IDs. Diagnostics go to standard error and return non-zero.
 
-All three commands are offline and read-only. They do not execute `stdio`
+These three inspection commands are offline and read-only. They do not execute `stdio`
 commands, contact HTTP endpoints, read credentials, write native client config,
 or run the normal CLI update check.
+
+## Prepare an explicitly selected CLI source
+
+```sh
+# Emit canonical AgentSync MCP JSON to stdout; diagnostics go to stderr.
+agentsync mcp render example --library catalog/mcp
+
+# Preview a selection for an already enabled client; no files are written.
+agentsync mcp use example --tool claude --library catalog/mcp
+
+# Explicitly request a documented recommendation, then create the source.
+agentsync mcp use example@recommended --tool claude --library catalog/mcp --apply
+agentsync sync --only claude
+
+# Several servers, with per-entry variants when needed.
+agentsync mcp use example@uvx another@default --tool opencode --library catalog/mcp --apply
+agentsync sync --only opencode
+```
+
+Only `claude` and `opencode` are supported by `use` in this iteration. Enable
+the client explicitly first. Other clients, including Codex's TOML settings,
+require additional adapters and are rejected instead of receiving guessed JSON.
+
+`render` emits `{"mcpServers":{...}}`, an **AgentSync source**, not native
+OpenCode configuration. `use --apply` creates
+`.ai/src/tools/<tool>/mcp.json` (or the corresponding in-project `source.tools`
+path). The existing sync pipeline copies this for Claude and translates it
+for OpenCode. Per-tool settings remain under their existing ownership.
+
+`use` defaults to preview; `--dry-run` is an explicit synonym. `--apply` and
+`--dry-run` are mutually exclusive. No runtime is installed or started. HTTP
+URLs are not contacted. Authentication, credentials, mounts and endpoints are
+not verified by these commands.
+
+This is **snapshot materialization**, not a live link: catalog changes do not
+silently change the generated source. Identical reapplication is a no-op;
+different existing per-tool, shared, legacy or declared sources cause a clear
+conflict. Use `render` and merge deliberately rather than overwriting unrelated
+servers. No automatic merge, replacement or removal is provided yet. Publishing
+requires a filesystem supporting ordinary file hard links; unsupported writes
+fail rather than falling back to overwriting a destination. Concurrent hostile
+changes to directory structure are outside the supported write model.
 
 ## Manifest schema v1
 
@@ -103,6 +147,70 @@ To keep validation bounded, a manifest is limited to 131,072 bytes (with or
 without a final newline), JSON nesting to 16 levels, and a catalog to 256
 entries. These are intentional format limits, not general JSON Schema support.
 
+## Schema v2: sourced recommendations and optional alternatives
+
+Schema v1 remains supported unchanged. Version 2 retains the required primary
+`connection` and `requirements` as variant `default`, and optionally adds
+`alternatives` and `guidance`. Each alternative owns its own connection and
+requirements: a remote endpoint must not inherit a local uvx dependency.
+
+The following is a **synthetic example**, not a real provider recommendation:
+
+```json
+{
+  "schema_version": 2,
+  "id": "example",
+  "title": "Example MCP",
+  "connection": {"type": "http", "url": "https://example.invalid/mcp"},
+  "requirements": {"binaries": [], "inputs": []},
+  "alternatives": {
+    "uvx": {
+      "description": "Optional local package launch",
+      "connection": {
+        "type": "stdio",
+        "command": "uvx",
+        "args": ["--from", "example-mcp==1.0.0", "example-mcp"]
+      },
+      "requirements": {"binaries": ["uvx"], "inputs": []}
+    }
+  },
+  "guidance": {
+    "recommended": "default",
+    "authority": "vendor",
+    "source": "https://example.invalid/docs/mcp",
+    "checked_at": "2026-09-16",
+    "reason": "Illustrative provider-documented hosted connection"
+  }
+}
+```
+
+`guidance` records who recommends a variant (`vendor` or catalog `maintainer`),
+the HTTPS source, the date of review and a reason. It is an attributed claim,
+not a certification by AgentSync. Catalog authors must check the cited source;
+the validator checks structure, not whether the provider made that statement.
+Without guidance the recommendation is **unknown**, not inferred from HTTP,
+the variant name, or the presence of a default connection.
+
+Selection is always explicit:
+
+- `example` selects `default`, regardless of guidance.
+- `example@recommended` resolves the recorded recommendation or fails if absent.
+- `example@uvx` selects that alternative or fails if absent.
+- `--variant NAME` sets the choice for entries without an `@variant` suffix.
+- Repeated IDs are rejected, even if their variants differ.
+
+Alternative names use the same safe ID syntax as entries; `default` and
+`recommended` are reserved. All variants are validated, including unselected
+ones. An invalid or missing alternative never falls back to a remote service.
+The original manifest and its guidance remain available through `mcp show`;
+only the selected connection goes into the client source.
+
+Start methods such as `uvx`, `uv run`, `npx`, Docker or a standalone executable
+remain ordinary `command` plus `args`, not new MCP transports. Package versions
+and image digests can be pinned in those arguments, but AgentSync does not
+resolve packages, inspect images or lock transitive dependencies. Input binding
+and authentication metadata remain deferred; `requirements.inputs` stays empty.
+
 ## Development validation
 
 The production path uses Bash and awk, with no new Python, Node, or jq runtime
@@ -125,5 +233,6 @@ mount-free Linux container. CI runs ShellCheck, Bats on Linux/macOS/Windows,
 and the reference probe with GNU awk and mawk on Linux and native awk/Bash on
 macOS. Local Linux results do not establish macOS or Windows compatibility.
 
-Import, export, release management, input binding, and project assignment are
-not implemented by these commands. The older `add mcp` workflow is unchanged.
+Live catalog bindings, automatic config merging, release management, secret
+binding and server lifecycle management are not implemented. The older `add
+mcp` workflow is unchanged.

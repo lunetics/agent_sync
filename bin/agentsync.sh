@@ -116,7 +116,7 @@ print_usage() {
     echo "    $(_cyan "enable")         Opt in to one or more tools"
     echo "    $(_cyan "disable")        Opt out of one or more tools"
     echo "    $(_cyan "add")            Scaffold a rule, skill, command, or subagent"
-    echo "    $(_cyan "mcp")            Read and validate an explicitly selected MCP library"
+    echo "    $(_cyan "mcp")            Validate a library and prepare per-tool MCP sources"
     echo "    $(_cyan "customize")      Create a per-field override for a tool"
     echo "    $(_cyan "simplify")       Remove override fields that match the base"
     echo "    $(_cyan "migrate")        Print and copy a prompt for upgrading an existing config"

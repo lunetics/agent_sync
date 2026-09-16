@@ -77,7 +77,7 @@ teardown() {
     run run_agentsync mcp show ../stdio --library "$CATALOG"
     [ "$status" -ne 0 ]
     [[ "$output" == *"Unsafe MCP library id"* ]]
-    printf '%s\n' '{"schema_version":2,"id":"stdio","title":"x","connection":{"type":"stdio","command":"x","args":[]},"requirements":{"binaries":[],"inputs":[]}}' > "$CATALOG/stdio/manifest.json"
+    printf '%s\n' '{"schema_version":99,"id":"stdio","title":"x","connection":{"type":"stdio","command":"x","args":[]},"requirements":{"binaries":[],"inputs":[]}}' > "$CATALOG/stdio/manifest.json"
     run run_agentsync mcp validate stdio --library "$CATALOG"
     [ "$status" -ne 0 ]
     [[ "$output" == *"unsupported schema_version"* ]]

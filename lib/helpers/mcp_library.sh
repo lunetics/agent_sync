@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Read-only MCP library commands. The catalog is intentionally separate from
-# .ai/src/mcp.json: these commands neither execute nor write server definitions.
+# MCP library reading and validation. Explicit source materialization lives in
+# mcp_library_bind.sh; no library command executes a described server.
 
 readonly MCP_LIBRARY_MAX_MANIFEST_BYTES=131072
 readonly MCP_LIBRARY_MAX_DEPTH=16
@@ -16,10 +16,16 @@ Usage:
   agentsync mcp list [--library PATH]
   agentsync mcp show <id> [--library PATH]
   agentsync mcp validate [id] [--library PATH]
+  agentsync mcp render <id[@variant]>... [--variant NAME] [--library PATH]
+  agentsync mcp use <id[@variant]>... --tool claude|opencode [--apply]
+                    [--variant NAME] [--library PATH]
 
 Read an explicitly selected local MCP library. --library may be absolute or
 relative to the selected AgentSync root. Without it, library.mcp.path in the
-selected agent_sync.yaml is required. These commands are offline and read-only.
+selected agent_sync.yaml is required. render emits an AgentSync MCP source, not
+a native OpenCode config. use previews that source; --apply creates a per-tool
+source for a later sync. Existing differing sources are never overwritten.
+Variant defaults to default; recommended must be explicitly requested.
 USAGE
 }
 
@@ -56,6 +62,11 @@ _mcp_library_parser() {
     local manifest="$1"
     local expected_id="${2:-}"
     local output_mode="${3:-validate}"
+    local selected_variant="${4:-default}"
+    _mcp_library_valid_id "$selected_variant" || {
+        _mcp_library_error "Unsafe MCP variant: $selected_variant"
+        return 1
+    }
     local size
     size=$(wc -c < "$manifest") || {
         _mcp_library_error "Cannot read manifest: $manifest"
@@ -73,6 +84,7 @@ _mcp_library_parser() {
         -v max_bytes="$MCP_LIBRARY_MAX_MANIFEST_BYTES" \
         -v expected_id="$expected_id" \
         -v output_mode="$output_mode" \
+        -v selected_variant="$selected_variant" \
         -f "$parser" "$manifest" 2>&1) || {
         _mcp_library_error "${diagnostic:-Malformed MCP library manifest: $manifest}"
         return 1
@@ -226,6 +238,11 @@ cmd_mcp_library() {
     [[ -n "$action" ]] || { _mcp_library_usage >&2; return 1; }
     case "$action" in
         --help|-h|help) _mcp_library_usage; return 0 ;;
+        render|use)
+            _need paths tool_resolver mcp_library_bind
+            cmd_mcp_library_bind "$@"
+            return
+            ;;
     esac
     shift
 

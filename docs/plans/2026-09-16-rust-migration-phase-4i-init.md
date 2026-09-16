@@ -3414,7 +3414,7 @@ git commit -m "feat(native): port init"
 **Files:**
 - Modify: `docs/specs/2026-09-12-rust-migration-design.md`, `.ai/src/skills/native-port/references/module-map.md`, `.ai/.sync-manifest`
 
-- [ ] **Step 1: Spec**
+- [x] **Step 1: Spec**
 
 Append to "Known quirks":
 
@@ -3443,11 +3443,11 @@ Append to "Accepted deviations":
   `lib/sync.sh`; the transcript is the same.
 ```
 
-- [ ] **Step 2: Module map and outputs**
+- [x] **Step 2: Module map and outputs**
 
 Set the `lib/helpers/init.sh` row to `→ src/cli/{init,upgrade_config}.rs   Phase 4d (upgrade_config) and 4i (init), ported`, the `lib/helpers/prompts.sh` row to `→ src/prompts.rs          confirm on /dev/tty (Phase 3); multiselect through stty (4i)`, and the `lib/helpers/adopt.sh` row to `→ src/cli/adopt.rs        Phase 4f, ported; Resolver serves init's adoption (4i)`. Regenerate outputs outside the sandbox with `AGENTSYNC_NATIVE=0 AGENTSYNC_HOME="$PWD" bash bin/agentsync.sh sync --force`.
 
-- [ ] **Step 3: Verify (outside the agent sandbox)**
+- [x] **Step 3: Verify (outside the agent sandbox)**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -4
@@ -3459,7 +3459,7 @@ bash phase4i/native_suite.sh "$PWD" both phase4i/suite_both.out && tail -1 phase
 
 Expected: `255 passed`, `0`, `11`, `1`; lint exit 0; `TOTAL bash=0 native=0` over the 49 bats files, each run one at a time under both engines.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/specs/2026-09-12-rust-migration-design.md .ai/src/skills/native-port/references/module-map.md .ai/.sync-manifest docs/plans/2026-09-16-rust-migration-phase-4i-init.md

@@ -449,6 +449,15 @@ cleanup has a list:
     on stderr and declines it.
 40. `refresh` reads `template_overrides` from `.ai/agent_sync.yaml`, else a
     root `agent_sync.yaml`, ignoring `AGENTSYNC_CONFIG_PATH`.
+41. A detected tool whose destination has a file where a directory is expected,
+    such as a legacy single-file `.clinerules`, makes `init` refuse at the
+    backup step with `Backup target parent is not a directory`.
+42. `init` drops every space inside a `--tools` or `--content` token, so
+    `cla ude` reads as `claude`; `--tools=` and `--content ''` skip the wizard
+    while contributing nothing.
+43. `init` heals `.ai/.template-manifest` before it adopts existing outputs, so
+    an adopted `AGENTS.md` carries the template's hash and `refresh` treats it
+    as a silently kept edit.
 
 ## Accepted deviations
 
@@ -526,6 +535,14 @@ Appended one line at a time as they are found, with the phase:
   does through a new `0600` inode.
 - Phase 4h: a `refresh` prompt whose terminal device cannot be opened declines
   silently where Bash also printed the shell's `/dev/tty` open error.
+- Phase 4i: the multiselect switches the terminal through `stty` (settings
+  saved with `stty -g`, restored on exit) where Bash's `read -rsn1` did it
+  in-process; a lone Escape registers after the same one-second wait.
+- Phase 4i: a failed scaffold write in `init` reports the Rust I/O error where
+  Bash printed the shell's redirect message (`init.sh: line N: <path>: Is a
+  directory`); the restore and the status are unchanged.
+- Phase 4i: `init`'s first sync runs in-process where Bash spawned
+  `lib/sync.sh`; the transcript is the same.
 
 ## Risks
 

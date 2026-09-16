@@ -111,8 +111,8 @@ cmd_import() {
         local filtered=()
         local selected_item
         IFS=',' read -ra selected_arr <<< "$only"
-        for t in "${targets[@]}"; do
-            for selected_item in "${selected_arr[@]}"; do
+        for t in "${targets[@]+"${targets[@]}"}"; do
+            for selected_item in "${selected_arr[@]+"${selected_arr[@]}"}"; do
                 # Trim whitespace via parameter expansion (no subprocess)
                 selected_item="${selected_item#"${selected_item%%[![:space:]]*}"}"
                 selected_item="${selected_item%"${selected_item##*[![:space:]]}"}"
@@ -122,7 +122,7 @@ cmd_import() {
                 fi
             done
         done
-        targets=("${filtered[@]}")
+        targets=("${filtered[@]+"${filtered[@]}"}")
     fi
 
     # Diff: compute changes
@@ -131,7 +131,7 @@ cmd_import() {
     local update_count=0
     local skip_count=0
 
-    for target in "${targets[@]}"; do
+    for target in "${targets[@]+"${targets[@]}"}"; do
         local src_path="$src_root/$target"
         local dest_path="$dest_base/$target"
         [[ -e "$src_path" ]] || continue
@@ -168,7 +168,7 @@ cmd_import() {
     # Print preview
     echo "  $(_green "Changes:")"
     local change
-    for change in "${changes[@]}"; do
+    for change in "${changes[@]+"${changes[@]}"}"; do
         local type="${change%%:*}"
         local name="${change#*:}"
         case "$type" in
@@ -202,7 +202,7 @@ cmd_import() {
     # Perform copy
     mkdir -p "$dest_base"
 
-    for target in "${targets[@]}"; do
+    for target in "${targets[@]+"${targets[@]}"}"; do
         local src_path="$src_root/$target"
         local dest_path="$dest_base/$target"
         [[ -e "$src_path" ]] || continue

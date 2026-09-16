@@ -389,16 +389,16 @@ git commit -m "fix(export): size a relative archive from the project root"
 
 **Interfaces:** none.
 
-- [ ] **Step 1: Confirm the failing tests**
+- [x] **Step 1: Confirm the failing tests**
 
 Run: `bats --tap -f 'matches nothing|config-only' tests/bundle.bats`
 Expected: `not ok 1 import --only that matches nothing reports an up-to-date project` and `not ok 2 import --only previews a config-only change` (`changes[@]: unbound variable` with Tasks 1–3 in place).
 
-- [ ] **Step 2: Expand the arrays as Bash 3.2 allows**
+- [x] **Step 2: Expand the arrays as Bash 3.2 allows**
 
 In `cmd_import`, replace `"${targets[@]}"` (three places), `"${selected_arr[@]}"`, `"${filtered[@]}"`, and `"${changes[@]}"` with `"${targets[@]+"${targets[@]}"}"`, `"${selected_arr[@]+"${selected_arr[@]}"}"`, `"${filtered[@]+"${filtered[@]}"}"`, and `"${changes[@]+"${changes[@]}"}"`.
 
-- [ ] **Step 3: Run the tests, confirm green**
+- [x] **Step 3: Run the tests, confirm green**
 
 ```bash
 bats --tap tests/bundle.bats | grep -c '^ok'
@@ -407,7 +407,7 @@ shellcheck -x -S warning -e SC1091 lib/helpers/import.sh
 
 Expected: `16`; ShellCheck exit 0.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add lib/helpers/import.sh docs/plans/2026-09-16-rust-migration-phase-4l-bundle.md

@@ -25,6 +25,8 @@ pub struct Env<'a> {
     pub cwd: String,
     /// `[[ -t 0 ]]`: the confirmation is asked only when stdin is a terminal.
     pub interactive: bool,
+    /// `PATH`, for the `command -v curl` check.
+    pub path: Option<String>,
     /// `read -r answer` on stdin.
     pub read_line: &'a mut dyn FnMut() -> String,
 }
@@ -387,9 +389,8 @@ fn download(url: &str, to: &Path) -> bool {
         .unwrap_or(false)
 }
 
-fn curl_on_path() -> bool {
-    std::env::var_os("PATH")
-        .is_some_and(|path| std::env::split_paths(&path).any(|dir| dir.join("curl").is_file()))
+fn curl_on_path(path: Option<&str>) -> bool {
+    path.is_some_and(|path| std::env::split_paths(path).any(|dir| dir.join("curl").is_file()))
 }
 
 /// `_import_find_ai_src`: `.ai/src` over `.ai`, directly or one level down.
@@ -623,7 +624,7 @@ pub fn import(
     let label;
     if let Some((owner, repo)) = github_segments(&source) {
         label = format!("GitHub: {source}");
-        if !curl_on_path() {
+        if !curl_on_path(env.path.as_deref()) {
             put(
                 err,
                 format!("  {error}: curl is required for GitHub import.\n").as_bytes(),
@@ -1069,6 +1070,7 @@ mod tests {
         let mut env = Env {
             cwd: root.to_string(),
             interactive: false,
+            path: None,
             read_line: &mut read_line,
         };
         let status = import(&args, root, &Style::plain(), &mut env, &mut out, &mut err).unwrap();

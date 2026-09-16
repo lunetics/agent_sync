@@ -15,6 +15,14 @@ setup() {
 
 teardown() { teardown_test_project; }
 
+@test "merge preserves distinct NUL and SOH keys and string values" {
+    printf '%s\n' '{"mcpServers":{},"mcpSer\u0000vers":{"x\u0000y":"nul\u0000data","x\u0001y":"soh\u0001data"},"mcpSer\u0001vers":"other"}' > .ai/src/tools/claude/mcp.json
+    cp .ai/src/tools/claude/mcp.json expected-before.json
+    run run_agentsync mcp use http --tool claude --merge --apply --library "$CATALOG"
+    [ "$status" -eq 0 ]
+    python3 -c 'import json,pathlib; expected=json.loads(pathlib.Path("expected-before.json").read_text()); expected["mcpServers"]["http"]={"type":"http","url":"https://example.invalid/mcp"}; actual=json.loads(pathlib.Path(".ai/src/tools/claude/mcp.json").read_text()); assert actual == expected, (actual, expected)'
+}
+
 backup_state() {
     # init may already have a backup; compare content rather than assuming none.
     [ -d .ai/backups ] || return 0
@@ -174,8 +182,18 @@ backup_state() {
 @test "merge signal cleanup removes its registered files and lock" {
     printf '%s\n' '{"mcpServers":{"mine":{"command":"keep","args":[]}}}' > .ai/src/tools/claude/mcp.json
     mkdir signal-tmp
+    mkdir signal-bin
+    local system_rmdir
+    system_rmdir=$(command -v rmdir)
+    [ -n "$system_rmdir" ]
+    cat > signal-bin/rmdir <<'SH'
+#!/bin/sh
+[ "$1" != "--" ] || exit 64
+exec "$MCP_LIBRARY_SYSTEM_RMDIR" "$@"
+SH
+    chmod 700 signal-bin/rmdir
 
-    run env TMPDIR="$TEST_PROJECT/signal-tmp" bash -c '
+    run env PATH="$TEST_PROJECT/signal-bin:$PATH" MCP_LIBRARY_SYSTEM_RMDIR="$system_rmdir" TMPDIR="$TEST_PROJECT/signal-tmp" bash -c '
         set -euo pipefail
         repo="$1" project="$2" catalog="$3"
         cd "$project"

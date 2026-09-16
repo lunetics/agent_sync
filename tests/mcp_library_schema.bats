@@ -32,6 +32,27 @@ write_manifest() {
     printf '%s' "$1" > "$MANIFEST"
 }
 
+@test "NUL cannot alias schema keys IDs or transport types" {
+    local base='{"schema_version":1,"id":"example","title":"x","connection":{"type":"stdio","command":"printf","args":[]},"requirements":{"binaries":[],"inputs":[]}}'
+    local candidate
+    for candidate in \
+        "${base/\"example\"/\"ex\\u0000ample\"}" \
+        "${base/\"stdio\"/\"st\\u0000dio\"}" \
+        "${base/\"connection\"/\"connec\\u0000tion\"}" \
+        "${base/\"command\"/\"comm\\u0000and\"}"; do
+        write_manifest "$candidate"
+        run run_parser "$MANIFEST" validate
+        [ "$status" -ne 0 ]
+    done
+}
+
+@test "metadata preserves the distinction between NUL and SOH" {
+    write_manifest '{"schema_version":1,"id":"example","title":"nul\u0000soh\u0001","connection":{"type":"stdio","command":"printf","args":[]},"requirements":{"binaries":[],"inputs":[]}}'
+    run run_parser "$MANIFEST" metadata
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'nul\u0000soh\u0001'* ]]
+}
+
 @test "v1 validation and metadata stay selection-neutral" {
     local manifest="$FIXTURES/v1/manifest.json"
 

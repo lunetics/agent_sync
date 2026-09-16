@@ -87,12 +87,13 @@ def main():
     root = Path(__file__).resolve().parents[1]
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--catalog", type=Path, default=root / "catalog/mcp")
+    parser.add_argument("--bash", type=Path, default=Path("bash"))
     parser.add_argument("--as-of", type=dt.date.fromisoformat, default=dt.date.today())
     parser.add_argument("--fail-stale", action="store_true")
     args = parser.parse_args()
-    subprocess.run(["bash", str(root / "bin/agentsync.sh"), "mcp", "validate", "--library",
-                    str(args.catalog.resolve())], check=True, stdout=sys.stderr,
-                   env=dict(os.environ, AGENTSYNC_HOME=str(root)))
+    subprocess.run([args.bash.as_posix(), (root / "bin/agentsync.sh").as_posix(), "mcp", "validate", "--library",
+                    args.catalog.resolve().as_posix()], check=True, stdout=sys.stderr,
+                   env=dict(os.environ, AGENTSYNC_HOME=root.as_posix()))
     paths = sorted(args.catalog.glob("*/manifest.json"))
     require(bool(paths), "catalog is empty")
     records = [check(path, args.as_of) for path in paths]

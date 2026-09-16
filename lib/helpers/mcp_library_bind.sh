@@ -129,7 +129,7 @@ cmd_mcp_library_bind() (
     _mcp_library_bind_cleanup() {
         [[ -z "$cleanup_snapshot" ]] || rm -f -- "$cleanup_snapshot"
         [[ -z "$cleanup_staging" ]] || rm -f -- "$cleanup_staging"
-        [[ -z "$cleanup_lock" ]] || rmdir -- "$cleanup_lock" 2>/dev/null || true
+        [[ -z "$cleanup_lock" ]] || rmdir "$cleanup_lock" 2>/dev/null || true
     }
     trap _mcp_library_bind_cleanup EXIT
     trap 'exit 130' INT

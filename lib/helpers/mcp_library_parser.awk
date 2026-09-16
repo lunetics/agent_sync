@@ -13,6 +13,7 @@ function init_bytes(    i) {
 
 function byte_at(at) { return byte_value[substr(json, at, 1)] }
 function hex_byte(value) { return sprintf("%02x", value) }
+function hex_pair_value(pair) { return hex_value(pair) }
 
 function utf8(codepoint,    output) {
     if (codepoint <= 127) return sprintf("%c", codepoint)
@@ -67,6 +68,46 @@ function json_text(value,    i, byte, output) {
     return output "\""
 }
 
+# String nodes retain a canonical byte sequence so escaped NUL never has to
+# survive in an awk string before being serialized back to JSON or TOML.
+function json_text_canonical(canonical,    i, byte, output) {
+    output = "\""
+    for (i = 1; i <= length(canonical); i += 2) {
+        byte = hex_pair_value(substr(canonical, i, 2))
+        if (byte == 34) output = output "\\\""
+        else if (byte == 92) output = output "\\\\"
+        else if (byte == 8) output = output "\\b"
+        else if (byte == 12) output = output "\\f"
+        else if (byte == 10) output = output "\\n"
+        else if (byte == 13) output = output "\\r"
+        else if (byte == 9) output = output "\\t"
+        else if (byte < 32 || byte == 127) output = output sprintf("\\u%04x", byte)
+        else if (byte == 194 && i < length(canonical) && hex_pair_value(substr(canonical, i + 2, 2)) >= 128 && hex_pair_value(substr(canonical, i + 2, 2)) <= 159) {
+            i += 2
+            output = output sprintf("\\u00%02x", hex_pair_value(substr(canonical, i, 2)))
+        }
+        else output = output sprintf("%c", byte)
+    }
+    return output "\""
+}
+
+function display_canonical(canonical,    i, byte, next_byte, output) {
+    output = ""
+    for (i = 1; i <= length(canonical); i += 2) {
+        byte = hex_pair_value(substr(canonical, i, 2))
+        next_byte = hex_pair_value(substr(canonical, i + 2, 2))
+        if (byte == 9) output = output "\\t"
+        else if (byte == 10) output = output "\\n"
+        else if (byte == 13) output = output "\\r"
+        else if (byte < 32 || byte == 127) output = output sprintf("\\u%04x", byte)
+        else if (byte == 194 && next_byte >= 128 && next_byte <= 159) {
+            i += 2
+            output = output sprintf("\\u00%02x", next_byte)
+        } else output = output sprintf("%c", byte)
+    }
+    return output
+}
+
 function has_control(value,    i, byte) {
     for (i = 1; i <= length(value); i++) {
         byte = byte_value[substr(value, i, 1)]
@@ -92,6 +133,14 @@ function skip_space() {
 function append_codepoint(codepoint, raw_hex,    value) {
     if (codepoint >= 55296 && codepoint <= 57343) {
         return fail("unpaired Unicode surrogate escape")
+    }
+    if (codepoint == 0) {
+        # A nonempty control sentinel keeps ASCII schema/ID checks fail-closed
+        # even in awk implementations which cannot retain NUL in strings.
+        # Identity, serialization and display must use canonical bytes instead.
+        string_value = string_value sprintf("%c", 1)
+        string_canonical = string_canonical "00"
+        return 1
     }
     value = utf8(codepoint)
     string_value = string_value value
@@ -253,6 +302,7 @@ function parse_object(depth,    node, key, canonical, value, char) {
         value = last_node
         object_count[node]++
         object_key[node SUBSEP object_count[node]] = key
+        object_key_canonical[node SUBSEP object_count[node]] = canonical
         object_value[node SUBSEP object_count[node]] = value
         skip_space()
         char = substr(json, position, 1)
@@ -290,10 +340,12 @@ function parse_value(depth,    char, rest, raw, node) {
     return fail("invalid JSON value")
 }
 
-function object_field(object, wanted,    i) {
-    for (i = 1; i <= object_count[object]; i++) if (object_key[object SUBSEP i] == wanted) return object_value[object SUBSEP i]
+function object_field_canonical(object, canonical,    i) {
+    for (i = 1; i <= object_count[object]; i++) if (object_key_canonical[object SUBSEP i] == canonical) return object_value[object SUBSEP i]
     return 0
 }
+
+function object_field(object, wanted) { return object_field_canonical(object, bytes_hex(wanted)) }
 
 function require_field(object, name, label,    value) {
     value = object_field(object, name)
@@ -479,6 +531,7 @@ function validate_manifest(root,    allowed, schema, version, id, title, descrip
     manifest_connection = connection
     manifest_id = node_raw[id]
     manifest_title = node_raw[title]
+    manifest_title_canonical = node_canonical[title]
     return 1
 }
 
@@ -487,7 +540,7 @@ function serialize_string_array(node,    i, item, output) {
     for (i = 1; i <= array_count[node]; i++) {
         item = array_item[node SUBSEP i]
         if (i > 1) output = output ","
-        output = output json_text(node_raw[item])
+        output = output json_text_canonical(node_canonical[item])
     }
     return output "]"
 }
@@ -497,10 +550,10 @@ function serialize_connection(node,    type, command, args, url) {
     if (node_raw[type] == "stdio") {
         command = object_field(node, "command")
         args = object_field(node, "args")
-        return "{\"command\":" json_text(node_raw[command]) ",\"args\":" serialize_string_array(args) "}"
+        return "{\"command\":" json_text_canonical(node_canonical[command]) ",\"args\":" serialize_string_array(args) "}"
     }
     url = object_field(node, "url")
-    return "{\"type\":\"http\",\"url\":" json_text(node_raw[url]) "}"
+    return "{\"type\":\"http\",\"url\":" json_text_canonical(node_canonical[url]) "}"
 }
 
 function validate_codex_source_connection(node,    allowed, type, command, args, url) {
@@ -548,7 +601,7 @@ function serialize_toml_string_array(node,    i, item, output) {
     for (i = 1; i <= array_count[node]; i++) {
         item = array_item[node SUBSEP i]
         if (i > 1) output = output ", "
-        output = output json_text(node_raw[item])
+        output = output json_text_canonical(node_canonical[item])
     }
     return output "]"
 }
@@ -558,10 +611,10 @@ function serialize_codex_source_server(node,    type, command, args, url) {
     if (type == 0) {
         command = object_field(node, "command")
         args = object_field(node, "args")
-        return "{ command = " json_text(node_raw[command]) ", args = " serialize_toml_string_array(args) " }"
+        return "{ command = " json_text_canonical(node_canonical[command]) ", args = " serialize_toml_string_array(args) " }"
     }
     url = object_field(node, "url")
-    return "{ url = " json_text(node_raw[url]) " }"
+    return "{ url = " json_text_canonical(node_canonical[url]) " }"
 }
 
 function serialize_codex_source(    i, id, server, output) {
@@ -571,7 +624,7 @@ function serialize_codex_source(    i, id, server, output) {
         server = object_value[codex_source_servers SUBSEP i]
         if (i > 1) output = output ", "
         else output = output " "
-        output = output json_text(id) " = " serialize_codex_source_server(server)
+        output = output json_text_canonical(object_key_canonical[codex_source_servers SUBSEP i]) " = " serialize_codex_source_server(server)
     }
     return output " }"
 }
@@ -603,7 +656,8 @@ function parse_json_path(path, label,    read_status, read_bytes, have_line, lin
 
 function json_node_equal(left, right,    i, key, left_value, right_value) {
     if (node_kind[left] != node_kind[right]) return 0
-    if (node_kind[left] == "string" || node_kind[left] == "number" || node_kind[left] == "boolean" || node_kind[left] == "null") return node_raw[left] == node_raw[right]
+    if (node_kind[left] == "string") return node_canonical[left] == node_canonical[right]
+    if (node_kind[left] == "number" || node_kind[left] == "boolean" || node_kind[left] == "null") return node_raw[left] == node_raw[right]
     if (node_kind[left] == "array") {
         if (array_count[left] != array_count[right]) return 0
         for (i = 1; i <= array_count[left]; i++) if (!json_node_equal(array_item[left SUBSEP i], array_item[right SUBSEP i])) return 0
@@ -613,7 +667,7 @@ function json_node_equal(left, right,    i, key, left_value, right_value) {
     for (i = 1; i <= object_count[left]; i++) {
         key = object_key[left SUBSEP i]
         left_value = object_value[left SUBSEP i]
-        right_value = object_field(right, key)
+        right_value = object_field_canonical(right, object_key_canonical[left SUBSEP i])
         if (right_value == 0 || !json_node_equal(left_value, right_value)) return 0
     }
     return 1
@@ -671,7 +725,7 @@ function validate_merge_source(source_root, overlay_root,    source_servers, ove
 }
 
 function serialize_json_node(node,    i, output) {
-    if (node_kind[node] == "string") return json_text(node_raw[node])
+    if (node_kind[node] == "string") return json_text_canonical(node_canonical[node])
     if (node_kind[node] == "number" || node_kind[node] == "boolean" || node_kind[node] == "null") return node_raw[node]
     if (node_kind[node] == "array") {
         output = "["
@@ -684,7 +738,7 @@ function serialize_json_node(node,    i, output) {
     output = "{"
     for (i = 1; i <= object_count[node]; i++) {
         if (i > 1) output = output ","
-        output = output json_text(object_key[node SUBSEP i]) ":" serialize_json_node(object_value[node SUBSEP i])
+        output = output json_text_canonical(object_key_canonical[node SUBSEP i]) ":" serialize_json_node(object_value[node SUBSEP i])
     }
     return output "}"
 }
@@ -696,7 +750,7 @@ function serialize_merged_servers(    i, id, source_server, overlay_server, outp
         id = object_key[merge_source_servers SUBSEP i]
         source_server = object_value[merge_source_servers SUBSEP i]
         if (count++ > 0) output = output ","
-        output = output json_text(id) ":"
+        output = output json_text_canonical(object_key_canonical[merge_source_servers SUBSEP i]) ":"
         if (merge_action[id] == "replace") {
             overlay_server = object_field(merge_overlay_servers, id)
             output = output serialize_json_node(overlay_server)
@@ -707,7 +761,7 @@ function serialize_merged_servers(    i, id, source_server, overlay_server, outp
         if (object_field(merge_source_servers, id) != 0) continue
         if (count++ > 0) output = output ","
         overlay_server = object_value[merge_overlay_servers SUBSEP i]
-        output = output json_text(id) ":" serialize_json_node(overlay_server)
+        output = output json_text_canonical(object_key_canonical[merge_overlay_servers SUBSEP i]) ":" serialize_json_node(overlay_server)
     }
     return output "}"
 }
@@ -718,7 +772,7 @@ function serialize_merged_source(    i, key, value, output) {
         if (i > 1) output = output ","
         key = object_key[merge_source_root SUBSEP i]
         value = object_value[merge_source_root SUBSEP i]
-        output = output json_text(key) ":"
+        output = output json_text_canonical(object_key_canonical[merge_source_root SUBSEP i]) ":"
         if (key == "mcpServers") output = output serialize_merged_servers()
         else output = output serialize_json_node(value)
     }
@@ -775,7 +829,7 @@ BEGIN {
     if (output_mode == "merge-plan") print_merge_plan()
     else if (output_mode == "merge-json") print serialize_merged_source()
     else if (output_mode == "codex-source") print serialize_codex_source()
-    else if (output_mode == "metadata") printf "%s\t%s\n", manifest_id, display_text(manifest_title)
+    else if (output_mode == "metadata") printf "%s\t%s\n", manifest_id, display_canonical(manifest_title_canonical)
     else if (output_mode == "server" || output_mode == "selection") {
         if (!resolve_selected_variant()) {
             print error > "/dev/stderr"

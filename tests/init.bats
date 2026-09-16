@@ -186,8 +186,9 @@ teardown() {
 
 @test "init: the wizard draws its tool list on a terminal" {
     command -v script >/dev/null 2>&1 || skip "script(1) not available"
-    # Enter through both lists, keep committed outputs, decline at Proceed.
-    local keys=$'\n\ny\nn\n'
+    # Move down once in the tool list (an arrow must not read as Escape), Enter
+    # through both lists, keep committed outputs, decline at Proceed.
+    local keys=$'\e[B\n\ny\nn\n'
     if script --version >/dev/null 2>&1; then
         run bash -c 'printf "%s" "$1" | script -q -c "AGENTSYNC_HOME=\"$2\" bash \"$3\" init" /dev/null' _ "$keys" "$REPO_ROOT" "$AGENTSYNC_BIN"
     else

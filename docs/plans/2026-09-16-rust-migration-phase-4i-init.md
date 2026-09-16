@@ -347,7 +347,7 @@ git commit -m "fix(prompts): draw the multiselect when stdout is captured"
 
 **Interfaces:** none.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 In the wizard test, replace the key line and its comment with:
 
@@ -360,7 +360,7 @@ In the wizard test, replace the key line and its comment with:
 Run outside the agent sandbox: `bats --tap -f 'wizard' tests/init.bats`
 Expected: `not ok 1 init: the wizard draws its tool list on a terminal` (`Content sections:` is missing: the arrow cancelled the first list).
 
-- [ ] **Step 2: Wait a whole second**
+- [x] **Step 2: Wait a whole second**
 
 Replace the two `-t 0.01` reads and their comment with:
 
@@ -373,7 +373,7 @@ Replace the two `-t 0.01` reads and their comment with:
             IFS= read -rsn1 -t 1 k3 </dev/tty || k3=""
 ```
 
-- [ ] **Step 3: Run the tests, confirm green**
+- [x] **Step 3: Run the tests, confirm green**
 
 ```bash
 bats --tap tests/init.bats | grep -c '^ok'
@@ -382,7 +382,7 @@ shellcheck -x -S warning -e SC1091 lib/helpers/prompts.sh
 
 Expected: `37`; ShellCheck exit 0.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add lib/helpers/prompts.sh tests/init.bats docs/plans/2026-09-16-rust-migration-phase-4i-init.md

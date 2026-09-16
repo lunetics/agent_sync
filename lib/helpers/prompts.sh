@@ -108,11 +108,12 @@ prompt_multiselect() {
     _redraw
     while true; do
         IFS= read -rsn1 key </dev/tty || break
-        # Handle escape sequences for arrow keys.
+        # Handle escape sequences for arrow keys. Bash 3.2 rejects a
+        # fractional -t, so a lone Escape takes a second to register.
         if [[ "$key" == $'\033' ]]; then
             local k2 k3
-            IFS= read -rsn1 -t 0.01 k2 </dev/tty || k2=""
-            IFS= read -rsn1 -t 0.01 k3 </dev/tty || k3=""
+            IFS= read -rsn1 -t 1 k2 </dev/tty || k2=""
+            IFS= read -rsn1 -t 1 k3 </dev/tty || k3=""
             case "$k2$k3" in
                 "[A") key="UP" ;;
                 "[B") key="DOWN" ;;

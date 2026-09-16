@@ -130,18 +130,18 @@ prompt_multiselect() {
                 ;;
             " ")
                 if [[ ${selected[$cursor]} -eq 1 ]]; then
-                    selected[$cursor]=0
+                    selected[cursor]=0
                 else
-                    selected[$cursor]=1
+                    selected[cursor]=1
                 fi
                 ;;
             a|A)
                 local i
-                for ((i=0; i<n; i++)); do selected[$i]=1; done
+                for ((i=0; i<n; i++)); do selected[i]=1; done
                 ;;
             n|N)
                 local i
-                for ((i=0; i<n; i++)); do selected[$i]=0; done
+                for ((i=0; i<n; i++)); do selected[i]=0; done
                 ;;
             "")
                 # Enter.

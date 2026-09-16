@@ -26,6 +26,13 @@ fn main() -> ExitCode {
 
 fn run(args: Vec<OsString>) -> Result<u8, Error> {
     guard_engine_version()?;
+    let words: Vec<String> = args
+        .iter()
+        .map(|a| a.to_string_lossy().into_owned())
+        .collect();
+    if cli::usage::wants_usage(&words) {
+        return print_usage();
+    }
     // The Bash CLI accepts these flags as commands; clap's own version flag is off.
     if matches!(
         args.first().and_then(|a| a.to_str()),
@@ -370,6 +377,13 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
             ),
         };
     }
+    let command = words.first().map(String::as_str).unwrap_or_default();
+    if !matches!(
+        command,
+        "version" | "list" | "ls" | "check" | "sync" | "rollback"
+    ) {
+        return cli::usage::unknown_command(command, &Style::for_stdout(), &mut std::io::stderr());
+    }
     let cli = Cli::parse_from(std::iter::once(OsString::from("agentsync")).chain(args));
     match cli.command {
         Command::Version => print_version(),
@@ -514,6 +528,13 @@ fn project_root() -> Result<String, Error> {
         )));
     }
     Ok(root)
+}
+
+fn print_usage() -> Result<u8, Error> {
+    let mut out = std::io::stdout().lock();
+    out.write_all(cli::usage::usage(&Style::for_stdout()).as_bytes())
+        .map(|()| 0)
+        .map_err(|e| Error::io("<stdout>", e))
 }
 
 fn print_version() -> Result<u8, Error> {

@@ -45,12 +45,22 @@ teardown() { teardown_test_project; }
     [[ "$output" == agentsync\ v* ]]
 }
 
-@test "native: an unported command never reaches the binary" {
+@test "native: an unlisted command never reaches the binary" {
+    export AGENTSYNC_NATIVE=1
+    run run_agentsync nonexistent
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Unknown command: nonexistent"* ]]
+    [[ "$output" != *"native:"* ]]
+}
+
+@test "native: help and a missing command reach the binary" {
     export AGENTSYNC_NATIVE=1
     run run_agentsync help
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"COMMANDS"* ]]
-    [[ "$output" != *"native:"* ]]
+    [ "$status" -eq 42 ]
+    [[ "$output" == *"native:help"* ]]
+    run run_agentsync
+    [ "$status" -eq 42 ]
+    [[ "$output" == "native:"$'\n'* ]]
 }
 
 @test "native: without AGENTSYNC_NATIVE a missing binary falls back to Bash" {

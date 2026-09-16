@@ -45,7 +45,7 @@ Reused: `style::Style`, `cli::customize::put`, `engine_version`.
 
 **Files:** none changed.
 
-- [ ] **Step 1: Record the baseline**
+- [x] **Step 1: Record the baseline**
 
 ```bash
 git log --oneline -1
@@ -81,7 +81,7 @@ pub fn unknown_command(command: &str, style: &Style, err: &mut dyn Write) -> Res
 fn print_usage() -> Result<u8, Error>;
 ```
 
-- [ ] **Step 1: Parity fixtures, failing against the current binary**
+- [x] **Step 1: Parity fixtures, failing against the current binary**
 
 Append to `tests/native_parity.bats`:
 
@@ -144,7 +144,7 @@ assert_entry_parity() {
 Run, outside the sandbox: `bats --tap -f 'parity: help|parity: --help after|parity: an unknown command' tests/native_parity.bats`
 Expected: `not ok 1` with `exit status differs for []: bash=0 native=2`, `not ok 2` with `exit status differs for [check --help]: bash=0 native=2`, `not ok 3` with `exit status differs for [nonexistent]: bash=1 native=2`. The binary from Task 0 still answers these through clap; `assert_parity help` passes because the dispatcher does not delegate `help` yet.
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Create `src/cli/usage.rs` with its tests module, and add `pub mod usage;` to `src/cli/mod.rs` between `pub mod upgrade_config;` and `pub mod workspace;`:
 
@@ -232,7 +232,7 @@ mod tests {
 Run: `cargo test cli::usage 2>&1 | grep -E '^error' | head -3`
 Expected: ``error[E0425]: cannot find function `usage` in this scope``, ``error[E0433]: cannot find type `Style` in this scope``, ``error[E0425]: cannot find function `engine_version` in this scope``: the module body and its imports do not exist yet.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 In `src/style.rs`, after `plain`:
 
@@ -488,7 +488,7 @@ In `tests/native_dispatch.bats`, replace the test "native: an unported command n
 }
 ```
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo fmt --all
@@ -505,7 +505,7 @@ bats --tap -f 'parity: help|parity: --help after|parity: an unknown command' tes
 
 Expected: `289 passed`, `0`, `11`, `1`; `bash=0 native=0` for both files; `9` cases; `ok 1`, `ok 2`, `ok 3`.
 
-- [ ] **Step 5: Prove the fixture bites, run the references, lint, commit**
+- [x] **Step 5: Prove the fixture bites, run the references, lint, commit**
 
 Change `Unknown command: {command}` to `Unknown command {command}` in `src/cli/usage.rs`, rebuild, rerun `bats --tap -f 'parity: an unknown command' tests/native_parity.bats`: `not ok 1` with `stderr differs for [nonexistent]` and `< Error: Unknown command: nonexistent` in the diff; revert and rebuild.
 
@@ -700,4 +700,11 @@ The plan is closed when every box is ticked, every bats file is green under both
 - Verified: the Rust in Task 1 was drafted in the tree and then parked in the session scratchpad: `cargo test` 289/0/11/1, fmt and clippy clean; `cli.bats` and `native_dispatch.bats` green under both engines; the three fixtures `ok` against the draft binary and `not ok` on the Step 5 mutation; `entry_reference.sh` 2468 lines over 31 shapes and `entry_tty.sh` 738 dump lines, both with 0 differing lines. Against the release binary of `02e4e01`, 12 of 14 probed shapes answered with a clap error and status 2, which Step 1 expects; `sync --help` and `rollback --help` already matched Bash. The Step 2 compile errors were captured by building the tests module alone. `yelmuratoff/agent` redirects to `yelmuratoff/agent_sync`, which has no GitHub release yet; cargo-dist's latest release is 0.33.0 (2026-09-11). No Bash bug turned up.
 - Plan amended: none.
 - Next: Task 0 Step 1.
+- Blocker: none.
+
+### 2026-09-16 — Task 0 and Task 1 done
+- Commits: this commit, feat(native): port help and the dispatcher's own answers.
+- Verified: baseline `cargo test` 285/0/11/1, and `cli`, `native_dispatch`, and `native_parity` (outside the sandbox) at 0 failures in Bash with 8, 8, and 65 cases; the three new fixtures `not ok` against the `1f20da0` binary with the three expected status lines; Step 2's three compile errors as listed; `cargo test` 289/0/11/1; `cli.bats` and `native_dispatch.bats` (9 cases) at `bash=0 native=0`; fixtures `ok 1` to `ok 3`, then `not ok 1` on the mutation with `stderr differs for [nonexistent]` and `ok 1` after the revert; `entry_reference.sh` 2468 lines over 31 shapes and `entry_tty.sh` 738 dump lines with 200 escapes, both with 0 differing lines; ShellCheck, fmt, and clippy exit 0.
+- Plan amended: none.
+- Next: Task 2 Step 1.
 - Blocker: none.

@@ -21,6 +21,7 @@ pub mod show;
 pub mod simplify;
 pub mod sync;
 pub mod upgrade_config;
+pub mod usage;
 pub mod workspace;
 
 use std::io::Write;

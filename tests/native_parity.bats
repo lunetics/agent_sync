@@ -1239,3 +1239,56 @@ _assert_same_hooks() {
     rm -rf .git
     assert_tree_parity setup-hooks
 }
+
+# ── help and the dispatcher's own answers ────────────────────────────────────
+# bin/agentsync.sh answers these before it delegates, and the binary must answer
+# them the same way once it is the entry point, so the native side here is the
+# binary with no dispatcher in front of it. Stdout and stderr are compared apart.
+
+# Usage: assert_entry_parity <agentsync args...>
+assert_entry_parity() {
+    local dir="$BATS_TEST_TMPDIR/entry" bash_rc=0 native_rc=0 stream
+    mkdir -p "$dir"
+    _run_engine 0 "$@" > "$dir/bash.out" 2> "$dir/bash.err" || bash_rc=$?
+    "$NATIVE_BIN" "$@" > "$dir/native.out" 2> "$dir/native.err" || native_rc=$?
+    if [[ "$bash_rc" -ne "$native_rc" ]]; then
+        echo "exit status differs for [$*]: bash=$bash_rc native=$native_rc" >&2
+        return 1
+    fi
+    for stream in out err; do
+        if ! cmp -s "$dir/bash.$stream" "$dir/native.$stream"; then
+            echo "std$stream differs for [$*]" >&2
+            diff "$dir/bash.$stream" "$dir/native.$stream" >&2 || true
+            return 1
+        fi
+    done
+}
+
+@test "parity: help and a missing command print the usage like Bash" {
+    assert_parity help
+    assert_parity --help
+    assert_parity -h
+    assert_parity
+    assert_parity ""
+    assert_entry_parity
+    assert_entry_parity ""
+    assert_entry_parity help sync --bogus
+    assert_entry_parity -h extra
+}
+
+@test "parity: --help after a command that does not parse it prints the usage like Bash" {
+    local command
+    for command in check doctor list ls show diff disable resolve; do
+        assert_entry_parity "$command" --help
+        assert_entry_parity "$command" -h
+    done
+    assert_entry_parity sync --help
+    assert_entry_parity rollback --help
+}
+
+@test "parity: an unknown command is refused with the usage on stderr like Bash" {
+    assert_entry_parity nonexistent
+    assert_entry_parity HELP
+    assert_entry_parity --bogus
+    assert_entry_parity nonexistent --help
+}

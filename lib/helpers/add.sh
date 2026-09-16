@@ -423,10 +423,20 @@ cmd_add_mcp() {
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --url)     url="${2:-}";         shift 2 ;;
-            --command) command_str="${2:-}"; shift 2 ;;
-            --args)    args_str="${2:-}";    shift 2 ;;
-            --env)     env_str="${2:-}";     shift 2 ;;
+            --url|--command|--args|--env)
+                if [[ $# -lt 2 ]]; then
+                    echo "$(_red "Error"): $1 requires a value." >&2
+                    _add_mcp_print_usage
+                    exit 1
+                fi
+                case "$1" in
+                    --url)     url="$2" ;;
+                    --command) command_str="$2" ;;
+                    --args)    args_str="$2" ;;
+                    --env)     env_str="$2" ;;
+                esac
+                shift 2
+                ;;
             --force|-f) force=true;          shift ;;
             -h|--help) _add_mcp_print_usage; return 0 ;;
             -*)

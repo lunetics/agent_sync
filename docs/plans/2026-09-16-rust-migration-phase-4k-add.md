@@ -53,7 +53,7 @@ Reused: `paths::logical_root`, `staging::write_beside`, `style`, `cli::customize
 
 **Files:** none changed.
 
-- [ ] **Step 1: Record the baseline**
+- [x] **Step 1: Record the baseline**
 
 ```bash
 git log --oneline -1
@@ -76,7 +76,7 @@ Expected: the plan's latest commit; `263 passed`, `0 passed`, `11 passed`, `1 pa
 
 **Interfaces:** none.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/add.bats`:
 
@@ -84,16 +84,19 @@ Append to `tests/add.bats`:
 @test "add mcp names a flag that is missing its value" {
     run run_agentsync add mcp gh --url
     [ "$status" -eq 1 ]
-    [[ "$output" == *"--url requires a value."* ]]
-    [[ "$output" == *"Usage: agentsync add mcp"* ]]
+    [ -n "$output" ]
+    grep -q -- '--url requires a value\.' <<<"$output"
+    grep -q 'Usage: agentsync add mcp' <<<"$output"
     [ ! -e ".ai/src/mcp.json" ]
 }
 ```
 
+The assertions are `[ ]` and `grep`, not `[[ ]]`: after this `run`, a `[[ ]]` that fails does not fail the test under Bash 3.2 and bats 1.13 (reproduced with an impossible pattern), while `[ -n "$output" ]` does.
+
 Run: `bats --tap -f 'missing its value' tests/add.bats`
 Expected: `not ok 1 add mcp names a flag that is missing its value`.
 
-- [ ] **Step 2: Refuse before shifting**
+- [x] **Step 2: Refuse before shifting**
 
 In `cmd_add_mcp`, replace the four `--url`, `--command`, `--args`, and `--env` option lines with:
 
@@ -114,7 +117,7 @@ In `cmd_add_mcp`, replace the four `--url`, `--command`, `--args`, and `--env` o
                 ;;
 ```
 
-- [ ] **Step 3: Run the tests, confirm green**
+- [x] **Step 3: Run the tests, confirm green**
 
 ```bash
 bats --tap tests/add.bats | grep -c '^ok'
@@ -123,7 +126,7 @@ shellcheck -x -S warning -e SC1091 lib/helpers/add.sh
 
 Expected: `36`; ShellCheck exit 0.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add lib/helpers/add.sh tests/add.bats docs/plans/2026-09-16-rust-migration-phase-4k-add.md

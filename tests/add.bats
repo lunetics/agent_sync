@@ -272,3 +272,12 @@ teardown() { teardown_test_project; }
     run python3 -c "import json; json.load(open('.ai/src/mcp.json'))"
     [ "$status" -eq 0 ]
 }
+
+@test "add mcp names a flag that is missing its value" {
+    run run_agentsync add mcp gh --url
+    [ "$status" -eq 1 ]
+    [ -n "$output" ]
+    grep -q -- '--url requires a value\.' <<<"$output"
+    grep -q 'Usage: agentsync add mcp' <<<"$output"
+    [ ! -e ".ai/src/mcp.json" ]
+}

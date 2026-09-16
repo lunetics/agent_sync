@@ -2139,6 +2139,43 @@ git commit -m "docs(native): map the phase 4l modules and quirks"
 
 The plan is closed when every box is ticked, every bats file is green under both engines, the two parity fixtures pass, and a `## Completion receipt` records the fresh verification. The last plan of Phase 4 covers `generate`, `shell-init`, and `setup-hooks`.
 
+## Completion receipt
+
+### Decisions the review took
+
+All three as recommended, on 2026-09-16, under the maintainer's standing instruction to run Phase 4 to its close; each Bash bug was reproduced on the committed engine before its fix, and the archive-byte drift was reproduced with two `tar -czf` runs on one file.
+
+### Global Constraints
+
+| Constraint | Satisfied by |
+|---|---|
+| `export` writes the one archive it names; `import` writes below the source base and `.ai/agent_sync.yaml`, its scratch directory removed; `--dry-run` writes nothing | `src/cli/bundle.rs` (`export` spawns `tar` on the items alone; `import` copies through `copy_file` under `dest_base` and drops `Scratch`); the import fixture compares whole trees after every call |
+| Four Bash changes, each in its own commit with a regression test; `lib/**/*.sh` and `bin/agentsync.sh` clean under ShellCheck | `bf873a2`, `35678cc`, `6a61b98`, `0efc069`, each covered by a case in `tests/bundle.bats` that failed before it (11, then 4, 3, 2 failures, then 16 passes); ShellCheck exit 0 |
+| Byte-for-byte parity except the accepted deviations and the archive bytes | `tests/native_parity.bats`: `parity: export previews, bundles, and refuses like Bash` and `parity: import brings a bundle, a directory, and a GitHub archive in like Bash`; the reference transcript and probe in Task 5 Step 5 |
+| `unsafe_code = "forbid"`, fmt and clippy clean, no new dependency; `main.rs` alone reads the environment and terminal state; only `tar` and `curl` are spawned | `Cargo.toml` unchanged; `AGENTSYNC_REPO_ROOT`, `PWD`, and `stdin.is_terminal()` are read in `src/main.rs` and carried in `bundle::Env`; `Command::new` appears for `tar` and `curl` alone |
+| Disk-touching unit tests are `#[cfg(unix)]` | `sources_are_resolved_like_resolve_source_paths`, `a_dry_run_export_lists_the_sources_like_cmd_export`, and `a_directory_import_copies_then_reports_up_to_date_like_cmd_import` in `src/cli/bundle.rs` |
+| Expected values captured from the fixed Bash | `bundle_reference.sh` (48 scenarios, 1150 lines) through `fake_curl.sh`, and `tiny_probe.sh`, reproduced in Task 5 Step 5 |
+| Conventional Commits, at most 72 characters, no trailers | `a1df2da`, `bf873a2`, `35678cc`, `6a61b98`, `0efc069`, `29f2aae`, the map commit, and the close commit |
+| bats one file at a time | every recorded run, including `native_suite.sh` |
+
+### Fresh verification, 2026-09-16, macOS 26.5 arm64, outside the agent sandbox where noted
+
+- `cargo test`: 277 passed (lib), 0 passed (doc), 11 passed (cli), 1 passed (interrupt).
+- `cargo clippy --all-targets -- -D warnings`: exit 0. `cargo fmt --all --check`: exit 0.
+- `shellcheck -x -S warning -e SC1091 bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh`: exit 0.
+- bats, one file at a time under both engines with `native_suite.sh` in a detached worktree at `29f2aae` (the port commit; the map commit that follows changes no code or test) with the release binary built there: 50 files, `TOTAL bash=0 native=0`, `bundle` (16 cases) and `native_parity` (62 cases) included, the latter run outside the sandbox.
+- Mutation in Task 5 Step 5: `Already up to date!` → `Already up to date` failed the import fixture on that line; reverted, rebuilt, byte-identical to the verified draft.
+- Against the `29f2aae` tree: `bundle_reference.sh` gave 1150-line transcripts for both engines with 0 differing lines; `tiny_probe.sh` gave identical stdout and stderr for the dry-run export and the directory import.
+- `sync` and `check` are unchanged; no timings.
+
+### Skipped, deferred, open
+
+- **Windows**: native bats runs stay off Windows until Phase 5; `cargo test` still runs there.
+- **A real GitHub download** was not exercised; the `curl` stand-in served the archives and the URL parsing, the `master` fallback, and the failure messages were compared through it.
+- **The `Proceed? [Y/n]` prompt** was not driven on a pty; both engines ask it only when stdin is a terminal and read one line from stdin, and every fixture runs off a terminal.
+- **`generate`, `shell-init`, and `setup-hooks`** (4m) are drafted behind this close and kept out of the 4l commits.
+- **Not pushed.**
+
 ## Run log
 
 ### 2026-09-16 — Phase 4l planned
@@ -2146,4 +2183,11 @@ The plan is closed when every box is ticked, every bats file is green under both
 - Verified: every branch of `cmd_export` and `cmd_import` was captured with `bundle_reference.sh` (48 scenarios, archive listings and trees included) through a `curl` stand-in. The reference turned up four Bash bugs, each covered by a test in the new `tests/bundle.bats` that fails on the committed engine: `import` dies on `_BUNDLE_CONFIG` because the dispatcher never loads `export.sh`; a source without `.ai` exits silently; a relative `--output` is sized from the working directory; an empty selection dies on an unbound array under Bash 3.2. The Rust in Task 5 was drafted in the tree: `cargo test` 277/0/11/1 with the 4k port, fmt and clippy clean; the debug binary, called directly, gave a 1150-line transcript identical to the fixed Bash, and identical stdout and stderr on the probe. Baseline `cargo test` 271/0/11/1; `native_parity.bats` 60 cases green in Bash.
 - Plan amended: none.
 - Next: Task 0 Step 1.
+- Blocker: none.
+
+### 2026-09-16 — phase closed
+- Commits: `b7e9bbd` docs(native): map the phase 4l modules and quirks; this commit, docs(native): close phase 4l.
+- Verified: `cargo test` 277/0/11/1; clippy, fmt, ShellCheck exit 0; `native_suite.sh both` over 50 bats files `TOTAL bash=0 native=0` in the worktree at `29f2aae`; the reference transcript and probe as recorded in Task 5 Step 5.
+- Plan amended: none.
+- Next: Phase 4m, `generate`, `shell-init`, and `setup-hooks`: write and commit its plan, then Task 0 Step 1.
 - Blocker: none.

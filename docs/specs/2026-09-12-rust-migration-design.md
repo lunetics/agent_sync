@@ -7,6 +7,8 @@ Status: In progress since 2026-09-12. Phases 1 and 2 are closed in
 closed in `docs/plans/2026-09-14-rust-migration-phase-3-native-sync.md`.
 Phase 3b, release 0.36.0's Bash changes, is closed in four family plans ending
 with `docs/plans/2026-09-14-rust-migration-phase-3b-rollback-witness.md`.
+Phase 4 is closed in thirteen command-family plans, the last being
+`docs/plans/2026-09-16-rust-migration-phase-4m-tail.md`.
 
 ## Objective
 
@@ -477,6 +479,10 @@ cleanup has a list:
     `https://github.com/user/repo.git/` downloads the repository `repo.git`.
 51. A directory `import` copies the source project's `.ai/` alone, so a
     `source:` override pointing elsewhere in that project is not carried.
+52. `generate` ends with status 1 and no message when stdin closes before the
+    menu choice or the description is complete.
+53. `setup-hooks` reads its options in order and refuses the first unknown
+    one, so `--bogus --help` prints the unknown-option error, not the help.
 
 ## Accepted deviations
 
@@ -577,6 +583,11 @@ Appended one line at a time as they are found, with the phase:
   compare the report and the archive's listing.
 - Phase 4l: `import` extracts into a scratch directory under the system temp
   dir, removed when the command ends, where Bash used the run directory.
+- Phase 4m: `generate`'s clipboard tip names the first of `pbcopy`,
+  `wl-copy`, `xclip`, `xsel` the binary finds on `PATH`, as `command -v`
+  found it; the tip is printed only on a terminal.
+- Phase 4m: `shell-init`'s refusals are log lines coloured from stdout, as
+  `_use_colors` decided, through `Log::capturing`.
 
 ## Risks
 

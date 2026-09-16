@@ -62,9 +62,9 @@ lib/helpers/doctor.sh            → src/cli/doctor.rs       Phase 4j, ported; e
 lib/helpers/add.sh               → src/cli/add.rs          Phase 4k, ported; the awk merge as merge(), content templates through catalog::content_template
 lib/helpers/export.sh            → src/cli/bundle.rs       Phase 4l, ported; tar through the executable
 lib/helpers/import.sh            → src/cli/bundle.rs       Phase 4l, ported; curl and tar through the executables
-lib/helpers/generate.sh          → src/cli/generate.rs
-lib/helpers/shell_init.sh        → src/cli/shell_init.rs   stdout must stay clean for `>> ~/.zshrc`
-lib/setup_hooks.sh               → src/cli/setup_hooks.rs  git rev-parse --git-path hooks
+lib/helpers/generate.sh          → src/cli/generate.rs     Phase 4m, ported; prompt embedded
+lib/helpers/shell_init.sh        → src/cli/shell_init.rs   Phase 4m, ported; stdout carries the snippet alone
+lib/setup_hooks.sh               → src/cli/setup_hooks.rs  Phase 4m, ported; git through the executable
 lib/helpers/update.sh            → src/cli/update.rs       Phase 5, binary self-replace
 lib/helpers/release.sh           → src/cli/release.rs      Phase 5, bumps VERSION and Cargo.toml
 ```

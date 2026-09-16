@@ -1410,7 +1410,7 @@ git commit -m "feat(native): port generate, shell-init, and setup-hooks"
 **Files:**
 - Modify: `docs/specs/2026-09-12-rust-migration-design.md`, `.ai/src/skills/native-port/references/module-map.md`, `.ai/.sync-manifest`
 
-- [ ] **Step 1: Spec**
+- [x] **Step 1: Spec**
 
 Append to "Known quirks":
 
@@ -1433,11 +1433,11 @@ Append to "Accepted deviations":
 
 Append to the spec's `Status:` paragraph: `Phase 4 is closed in thirteen command-family plans, the last being docs/plans/2026-09-16-rust-migration-phase-4m-tail.md.`
 
-- [ ] **Step 2: Module map and outputs**
+- [x] **Step 2: Module map and outputs**
 
 Set the `lib/helpers/generate.sh` row to `→ src/cli/generate.rs     Phase 4m, ported; prompt embedded`, the `lib/helpers/shell_init.sh` row to `→ src/cli/shell_init.rs   Phase 4m, ported; stdout carries the snippet alone`, and the `lib/setup_hooks.sh` row to `→ src/cli/setup_hooks.rs  Phase 4m, ported; git through the executable`. Regenerate outputs outside the sandbox with `AGENTSYNC_NATIVE=0 AGENTSYNC_HOME="$PWD" bash bin/agentsync.sh sync --force`.
 
-- [ ] **Step 3: Verify (outside the agent sandbox)**
+- [x] **Step 3: Verify (outside the agent sandbox)**
 
 ```bash
 cargo test 2>&1 | grep 'test result' | head -4
@@ -1449,7 +1449,7 @@ bash phase4i/native_suite.sh "$PWD" both phase4m/suite_both.out && tail -1 phase
 
 Expected: `285 passed`, `0`, `11`, `1`; lint exit 0; `TOTAL bash=0 native=0` over the 50 bats files, each run one at a time under both engines: the Phase 4 exit.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/specs/2026-09-12-rust-migration-design.md .ai/src/skills/native-port/references/module-map.md .ai/.sync-manifest docs/plans/2026-09-16-rust-migration-phase-4m-tail.md

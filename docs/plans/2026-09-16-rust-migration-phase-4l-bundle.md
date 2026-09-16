@@ -343,12 +343,12 @@ git commit -m "fix(import): report a source without .ai"
 
 **Interfaces:** none.
 
-- [ ] **Step 1: Confirm the failing test**
+- [x] **Step 1: Confirm the failing test**
 
 Run: `bats --tap -f 'relative archive' tests/bundle.bats`
 Expected: `not ok 1 export sizes a relative archive from the project root` (`(? B)` on the committed engine).
 
-- [ ] **Step 2: Size the archive where tar wrote it**
+- [x] **Step 2: Size the archive where tar wrote it**
 
 In `cmd_export`, replace the `local size` block through its `fi` with:
 
@@ -364,7 +364,7 @@ In `cmd_export`, replace the `local size` block through its `fi` with:
     fi
 ```
 
-- [ ] **Step 3: Run the tests, confirm green**
+- [x] **Step 3: Run the tests, confirm green**
 
 ```bash
 bats --tap tests/bundle.bats | grep -c '^ok'
@@ -373,7 +373,7 @@ shellcheck -x -S warning -e SC1091 lib/helpers/export.sh
 
 Expected: `14`; ShellCheck exit 0.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add lib/helpers/export.sh docs/plans/2026-09-16-rust-migration-phase-4l-bundle.md

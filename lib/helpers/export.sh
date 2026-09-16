@@ -198,11 +198,14 @@ cmd_export() {
         return 1
     }
 
+    # A relative --output was created from repo_root, so it is sized from there.
+    local archive="$output"
+    [[ "$output" == /* ]] || archive="$repo_root/$output"
     local size
     if [[ "$(uname)" == "Darwin" ]]; then
-        size=$(stat -f%z "$output" 2>/dev/null || echo "?")
+        size=$(stat -f%z "$archive" 2>/dev/null || echo "?")
     else
-        size=$(stat -c%s "$output" 2>/dev/null || echo "?")
+        size=$(stat -c%s "$archive" 2>/dev/null || echo "?")
     fi
 
     local human_size="$size B"

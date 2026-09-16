@@ -15,6 +15,18 @@ setup() {
 
 teardown() { teardown_test_project; }
 
+@test "merge rejects an appended raw NUL without changing its source" {
+    printf '%s\0' '{"mcpServers":{"mine":{"command":"keep","args":[]}}}' > .ai/src/tools/claude/mcp.json
+    local before
+    before=$(file_sha256 .ai/src/tools/claude/mcp.json)
+
+    run run_agentsync mcp use http --tool claude --merge --apply --library "$CATALOG"
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"raw NUL"* ]]
+    [ "$before" = "$(file_sha256 .ai/src/tools/claude/mcp.json)" ]
+}
+
 @test "merge preserves distinct NUL and SOH keys and string values" {
     printf '%s\n' '{"mcpServers":{},"mcpSer\u0000vers":{"x\u0000y":"nul\u0000data","x\u0001y":"soh\u0001data"},"mcpSer\u0001vers":"other"}' > .ai/src/tools/claude/mcp.json
     cp .ai/src/tools/claude/mcp.json expected-before.json

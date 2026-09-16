@@ -179,10 +179,18 @@ teardown() {
     printf '%b' '{"schema_version":1,"id":"stdio","title":"x","description":"raw\0NUL","connection":{"type":"stdio","command":"x","args":[]},"requirements":{"binaries":[],"inputs":[]}}' > "$manifest"
     run run_agentsync mcp validate stdio --library "$CATALOG"
     [ "$status" -ne 0 ]
-    [[ "$output" == *"control character in JSON string"* ]]
+    [[ "$output" == *"raw NUL"* ]]
     run run_agentsync mcp show stdio --library "$CATALOG"
     [ "$status" -ne 0 ]
-    [[ "$output" == *"control character in JSON string"* ]]
+    [[ "$output" == *"raw NUL"* ]]
+
+    printf '%s\0' '{"schema_version":1,"id":"stdio","title":"x","connection":{"type":"stdio","command":"x","args":[]},"requirements":{"binaries":[],"inputs":[]}}' > "$manifest"
+    run run_agentsync mcp validate stdio --library "$CATALOG"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"raw NUL"* ]]
+    run run_agentsync mcp show stdio --library "$CATALOG"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"raw NUL"* ]]
 
     printf '%s\n' '{"schema_version":1,"id":"stdio","title":"x",}' > "$manifest"
     run run_agentsync mcp validate stdio --library "$CATALOG"

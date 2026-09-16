@@ -22,9 +22,17 @@ sync_codex_config() {
         log_error "Codex MCP ownership conflict or ambiguous settings keys. Keep MCP in one source; settings must not mention mcp_servers or use escaped quoted/table keys."
         return 1
     fi
-    local rendered size staging
+    local rendered size staging nonnul_size
     rendered=$(tmp_file agentsync_codex) || return 1
     size=$(LC_ALL=C wc -c < "$mcp") || { rm -f "$rendered"; return 1; }
+    if (( size <= 33554432 )); then
+        nonnul_size=$(set -o pipefail; LC_ALL=C tr -d '\000' < "$mcp" | wc -c) || { rm -f "$rendered"; return 1; }
+        if (( nonnul_size != size )); then
+            rm -f "$rendered"
+            log_error "Codex MCP source contains a raw NUL byte."
+            return 1
+        fi
+    fi
     if (( size > 33554432 )) || ! LC_ALL=C awk -v output_mode=codex-source \
         -v max_bytes=33554432 -v max_depth=16 \
         -f "$CODEX_MCP_HELPER_DIR/mcp_library_parser.awk" "$mcp" > "$rendered"; then

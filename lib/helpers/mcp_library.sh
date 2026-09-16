@@ -95,6 +95,23 @@ _mcp_library_parser() {
         return 1
     fi
 
+    # Native macOS awk can truncate input at NUL before JSON parsing begins.
+    # Check bytes, not shell strings; escaped JSON NUL remains valid data.
+    local input input_size nonnul_size
+    for input in "$manifest" "$overlay_path"; do
+        [[ -n "$input" ]] || continue
+        input_size=$(wc -c < "$input") || return 1
+        (( input_size <= max_bytes )) || {
+            _mcp_library_error "MCP input exceeds ${max_bytes} byte limit"
+            return 1
+        }
+        nonnul_size=$(set -o pipefail; LC_ALL=C tr -d '\000' < "$input" | wc -c) || return 1
+        if (( nonnul_size != input_size )); then
+            _mcp_library_error "MCP input contains a raw NUL byte"
+            return 1
+        fi
+    done
+
     local parser="${BASH_SOURCE[0]%/*}/mcp_library_parser.awk"
     local diagnostic
     diagnostic=$(LC_ALL=C awk \

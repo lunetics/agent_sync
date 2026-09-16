@@ -101,6 +101,20 @@ assert data["model"] == "example" and data["features"] == {"example": True}
     [ "$before" = "$(file_sha256 .codex/config.toml)" ]
 }
 
+@test "Codex rejects an appended raw NUL MCP source without replacing config" {
+    printf '%s\0' '{"mcpServers":{"mine":{"command":"keep","args":[]}}}' > .ai/src/tools/codex/mcp.json
+    mkdir -p .codex
+    printf '%s\n' '# keep destination' > .codex/config.toml
+    local before
+    before=$(file_sha256 .codex/config.toml)
+
+    run run_agentsync sync --only codex
+
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"raw NUL"* ]]
+    [ "$before" = "$(file_sha256 .codex/config.toml)" ]
+}
+
 @test "Codex dry run validates but does not replace native config" {
     run_agentsync mcp use http --tool codex --library "$CATALOG" --apply >/dev/null
     mkdir -p .codex

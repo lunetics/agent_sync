@@ -184,6 +184,14 @@ teardown() {
     [ -f "subdir/.ai/src/AGENTS.md" ]
 }
 
+@test "init names a missing target directory and fails" {
+    run run_agentsync init missing-dir
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Directory not found: missing-dir"* ]]
+    [ ! -d ".ai" ]
+    [ ! -d "missing-dir" ]
+}
+
 @test "init does not copy system engine into project" {
     run run_agentsync init
     [ "$status" -eq 0 ]

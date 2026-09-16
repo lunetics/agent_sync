@@ -65,7 +65,7 @@ Reused: `Project::at`, `Tool::{load, flag, value}`, `render::TARGET_KEYS`, `Path
 
 **Files:** none changed.
 
-- [ ] **Step 1: Record the baseline**
+- [x] **Step 1: Record the baseline**
 
 ```bash
 git log --oneline -1
@@ -88,7 +88,7 @@ Expected: the plan's latest commit; `243 passed`, `0 passed`, `11 passed`, `1 pa
 
 **Interfaces:** none.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `tests/init.bats`, before `init does not copy system engine into project`:
 
@@ -106,7 +106,7 @@ Add to `tests/init.bats`, before `init does not copy system engine into project`
 Run: `bats --tap -f 'missing target' tests/init.bats`
 Expected: `not ok 1 init names a missing target directory and fails`.
 
-- [ ] **Step 2: Name the requested directory**
+- [x] **Step 2: Name the requested directory**
 
 In `cmd_init`, replace the `target_dir="${target_dir:-.}"` line and the `cd` block that follows it with:
 
@@ -118,7 +118,7 @@ In `cmd_init`, replace the `target_dir="${target_dir:-.}"` line and the `cd` blo
     }
 ```
 
-- [ ] **Step 3: Run the tests, confirm green**
+- [x] **Step 3: Run the tests, confirm green**
 
 ```bash
 bats --tap tests/init.bats | grep -c '^ok'
@@ -127,7 +127,7 @@ shellcheck -x -S warning -e SC1091 lib/helpers/init.sh
 
 Expected: `36`; ShellCheck exit 0.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add lib/helpers/init.sh tests/init.bats docs/plans/2026-09-16-rust-migration-phase-4i-init.md

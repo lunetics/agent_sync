@@ -916,9 +916,9 @@ HELP
             ;;
     esac
 
-    target_dir="${target_dir:-.}"
-    target_dir="$(cd "$target_dir" 2>/dev/null && pwd)" || {
-        echo "$(_red "Error"): Directory not found: $1" >&2
+    local requested_dir="${target_dir:-.}"
+    target_dir="$(cd "$requested_dir" 2>/dev/null && pwd)" || {
+        echo "$(_red "Error"): Directory not found: $requested_dir" >&2
         exit 1
     }
 

@@ -1,5 +1,6 @@
 pub mod add;
 pub mod adopt;
+pub mod bundle;
 pub mod check;
 pub mod customize;
 pub mod dedupe;

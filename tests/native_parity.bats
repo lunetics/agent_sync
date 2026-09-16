@@ -1102,3 +1102,86 @@ _forget_template() {
     printf '{"mcpServers": []}\n' > .ai/src/mcp.json
     assert_tree_parity add mcp n --url "https://n"
 }
+# ── export and import ────────────────────────────────────────────────────────
+# A gzip stream carries its creation time, so the archive bytes are never
+# compared: export is checked on its report and the archive's listing, import
+# on the tree it leaves behind. GitHub downloads go through a curl stand-in.
+
+_parity_curl_stub() {
+    mkdir -p "$BATS_TEST_TMPDIR/stub" "$BATS_TEST_TMPDIR/github"
+    cat > "$BATS_TEST_TMPDIR/stub/curl" <<'EOF'
+#!/usr/bin/env bash
+out=""; url=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -o) out="$2"; shift 2 ;;
+        --max-time) shift 2 ;;
+        -*) shift ;;
+        *) url="$1"; shift ;;
+    esac
+done
+name="${url##*/archive/refs/heads/}"
+repo="${url#https://github.com/}"; repo="${repo%%/archive/*}"
+file="$FAKE_GITHUB_DIR/${repo//\//_}-$name"
+[ -f "$file" ] || exit 22
+cp "$file" "$out"
+EOF
+    chmod +x "$BATS_TEST_TMPDIR/stub/curl"
+    export FAKE_GITHUB_DIR="$BATS_TEST_TMPDIR/github"
+    export PATH="$BATS_TEST_TMPDIR/stub:$PATH"
+}
+
+@test "parity: export previews, bundles, and refuses like Bash" {
+    assert_parity export --help
+    assert_parity export --bogus
+    assert_parity export -o
+    assert_parity export --dry-run
+    assert_parity export -o bundles/missing.tgz
+    mkdir -p .ai/src/settings custom/rules
+    printf '{"legacy": true}\n' > .ai/src/settings/cursor.json
+    printf '# Custom\n' > custom/rules/x.md
+    printf 'source:\n  rules: custom/rules\n' > .ai/agent_sync.yaml
+    assert_parity export --dry-run
+    assert_parity export -o bundle.tgz
+    tar -tzf bundle.tgz | grep -q '^custom/rules/x.md$'
+    mv .ai/agent_sync.yaml agent_sync.yaml
+    assert_parity export --dry-run
+    rm -rf .ai
+    assert_parity export
+}
+
+@test "parity: import brings a bundle, a directory, and a GitHub archive in like Bash" {
+    assert_tree_parity import --help
+    assert_tree_parity import
+    assert_tree_parity import --bogus
+    assert_tree_parity import a b
+    assert_tree_parity import --only
+    assert_tree_parity import nothing.txt
+    mkdir -p "$BATS_TEST_TMPDIR/plain/docs"
+    printf 'x\n' > "$BATS_TEST_TMPDIR/plain/docs/readme.md"
+    assert_tree_parity import "$BATS_TEST_TMPDIR/plain"
+    run_agentsync export -o "$BATS_TEST_TMPDIR/bundle.tgz" >/dev/null
+    assert_tree_parity import "$BATS_TEST_TMPDIR/bundle.tgz"
+    printf '# Edited core\n' > .ai/src/rules/core.md
+    printf '# Added\n' > .ai/src/rules/added.md
+    assert_tree_parity import "$BATS_TEST_TMPDIR/bundle.tgz" --dry-run
+    assert_tree_parity import "$BATS_TEST_TMPDIR/bundle.tgz" --only " rules , bogus "
+    assert_tree_parity import "$BATS_TEST_TMPDIR/bundle.tgz"
+    mkdir -p "$BATS_TEST_TMPDIR/other/.ai/src/skills/new"
+    printf '# New skill\n' > "$BATS_TEST_TMPDIR/other/.ai/src/skills/new/SKILL.md"
+    printf 'outputs: committed\n' > "$BATS_TEST_TMPDIR/other/agent_sync.yaml"
+    assert_tree_parity import "$BATS_TEST_TMPDIR/other" --force
+    _parity_curl_stub
+    mkdir -p "$BATS_TEST_TMPDIR/gh/repo-main/.ai/src/rules" "$BATS_TEST_TMPDIR/gh/repo2-master/.ai/src"
+    printf '# From GitHub\n' > "$BATS_TEST_TMPDIR/gh/repo-main/.ai/src/AGENTS.md"
+    printf '# GH rule\n' > "$BATS_TEST_TMPDIR/gh/repo-main/.ai/src/rules/gh.md"
+    printf '# From master\n' > "$BATS_TEST_TMPDIR/gh/repo2-master/.ai/src/AGENTS.md"
+    (cd "$BATS_TEST_TMPDIR/gh" && tar -czf "$FAKE_GITHUB_DIR/user_repo-main.tar.gz" repo-main && tar -czf "$FAKE_GITHUB_DIR/user_repo2-master.tar.gz" repo2-master)
+    assert_tree_parity import https://github.com/user/repo --force
+    assert_tree_parity import https://github.com/user/repo2 --dry-run
+    assert_tree_parity import https://github.com/user/repo3
+    assert_tree_parity import https://github.com/user/repo/tree/develop
+    assert_tree_parity import https://github.com/user
+    rm -rf .ai
+    assert_tree_parity import "$BATS_TEST_TMPDIR/bundle.tgz"
+}

@@ -83,6 +83,44 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
             &mut std::io::stderr(),
         );
     }
+    if let Some(command @ ("export" | "import")) = args.first().and_then(|a| a.to_str()) {
+        let rest: Vec<String> = args[1..]
+            .iter()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
+        let logical_cwd = paths::logical_root(None, &cwd, var("PWD").as_deref());
+        let env_root = var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty());
+        let root = paths::logical_root(env_root.as_deref(), &cwd, var("PWD").as_deref());
+        let style = Style::for_stdout();
+        if command == "export" {
+            return cli::bundle::export(
+                &rest,
+                &root,
+                &style,
+                &mut std::io::stdout(),
+                &mut std::io::stderr(),
+            );
+        }
+        let mut read_line = || {
+            let mut line = String::new();
+            let _ = std::io::stdin().read_line(&mut line);
+            line.trim_end_matches(['\n', '\r']).to_string()
+        };
+        let mut env = cli::bundle::Env {
+            cwd: logical_cwd,
+            interactive: std::io::stdin().is_terminal(),
+            read_line: &mut read_line,
+        };
+        return cli::bundle::import(
+            &rest,
+            &root,
+            &style,
+            &mut env,
+            &mut std::io::stdout(),
+            &mut std::io::stderr(),
+        );
+    }
     if args.first().and_then(|a| a.to_str()) == Some("add") {
         let rest: Vec<String> = args[1..]
             .iter()

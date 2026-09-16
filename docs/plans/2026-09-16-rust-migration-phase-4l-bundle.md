@@ -436,7 +436,7 @@ pub fn export(args: &[String], root: &str, style: &Style, out: &mut dyn Write, e
 pub fn import(args: &[String], root: &str, style: &Style, env: &mut Env, out: &mut dyn Write, err: &mut dyn Write) -> Result<u8, Error>;
 ```
 
-- [ ] **Step 1: Parity fixtures, Bash side**
+- [x] **Step 1: Parity fixtures, Bash side**
 
 Append to `tests/native_parity.bats`:
 
@@ -529,7 +529,7 @@ EOF
 Run, outside the sandbox: `AGENTSYNC_NATIVE=0 bats --tap tests/bundle.bats | grep -c '^ok'`; `bats --tap -f 'parity: export|parity: import' tests/native_parity.bats`
 Expected: `16`; `ok 1` and `ok 2` (the native side still runs Bash until Step 3 lists the commands).
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Create `src/cli/bundle.rs` with the tests module, and add `pub mod bundle;` to `src/cli/mod.rs` after `adopt`:
 
@@ -759,7 +759,7 @@ mod tests {
 Run: `cargo test cli::bundle 2>&1 | grep -E '^error' | head -3`
 Expected: compile errors naming `filter_targets`, `github_segments`, `human_size`, `resolve_sources`, `export`, and `import`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Prepend to `src/cli/bundle.rs`:
 
@@ -1752,7 +1752,7 @@ In `bin/agentsync.sh:280` append `export import`:
 _NATIVE_COMMANDS=" version --version -v list ls check sync rollback enable disable customize show diff simplify resolve upgrade-config profile dedupe adopt migrate refresh init doctor add export import "
 ```
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo fmt --all
@@ -1764,7 +1764,7 @@ bats --tap -f 'parity: export|parity: import' tests/native_parity.bats
 
 Expected: `277 passed`, `0`, `11`, `1`; `0`; `ok 1` and `ok 2`.
 
-- [ ] **Step 5: Prove the fixture bites, run the reference, lint, commit**
+- [x] **Step 5: Prove the fixture bites, run the reference, lint, commit**
 
 Change `Already up to date!` to `Already up to date` in `src/cli/bundle.rs`, rebuild, rerun `bats --tap -f 'parity: import' tests/native_parity.bats`: `not ok 1` with that line in the diff; revert and rebuild.
 

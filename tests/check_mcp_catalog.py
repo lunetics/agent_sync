@@ -24,6 +24,18 @@ def source_url(value):
             "source must be credential-free HTTPS without query or fragment")
 
 
+def posix_shell_path_from_resolved(resolved, platform):
+    value = resolved.as_posix()
+    if platform == "nt" and re.fullmatch(r"[A-Za-z]:", resolved.drive):
+        return f"/{resolved.drive[0].lower()}{value[len(resolved.drive):]}"
+    return value
+
+
+def posix_shell_path(path):
+    """Return an absolute path Git Bash can pass to a shell script."""
+    return posix_shell_path_from_resolved(path.resolve(), os.name)
+
+
 def check(path, today):
     data = json.loads(path.read_text(encoding="utf-8"))
     meta = data["extensions"]["agentsync.dev"]
@@ -91,9 +103,10 @@ def main():
     parser.add_argument("--as-of", type=dt.date.fromisoformat, default=dt.date.today())
     parser.add_argument("--fail-stale", action="store_true")
     args = parser.parse_args()
-    subprocess.run([args.bash.as_posix(), (root / "bin/agentsync.sh").as_posix(), "mcp", "validate", "--library",
-                    args.catalog.resolve().as_posix()], check=True, stdout=sys.stderr,
-                   env=dict(os.environ, AGENTSYNC_HOME=root.as_posix()))
+    shell_root = posix_shell_path(root)
+    subprocess.run([args.bash.as_posix(), posix_shell_path(root / "bin/agentsync.sh"), "mcp", "validate", "--library",
+                    posix_shell_path(args.catalog)], check=True, stdout=sys.stderr,
+                   env=dict(os.environ, AGENTSYNC_HOME=shell_root))
     paths = sorted(args.catalog.glob("*/manifest.json"))
     require(bool(paths), "catalog is empty")
     records = [check(path, args.as_of) for path in paths]

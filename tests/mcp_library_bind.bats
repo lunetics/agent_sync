@@ -50,10 +50,10 @@ teardown() { teardown_test_project; }
 
 @test "library source reaches the existing OpenCode translator" {
     run run_agentsync mcp use http stdio --tool opencode --library "$CATALOG" --apply
-    [ "$status" -eq 0 ]
+    [ "$status" -eq 0 ] || { printf 'OpenCode source materialization failed:\n%s\n' "$output" >&2; return 1; }
     [ ! -f opencode.json ]
     run run_agentsync sync --only opencode
-    [ "$status" -eq 0 ]
+    [ "$status" -eq 0 ] || { printf 'OpenCode translation failed:\n%s\n' "$output" >&2; return 1; }
     grep -q '"type": "remote"\|"type":"remote"' opencode.json
     grep -q '"type": "local"\|"type":"local"' opencode.json
     grep -q 'printf' opencode.json

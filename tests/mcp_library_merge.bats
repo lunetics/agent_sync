@@ -188,12 +188,16 @@ backup_state() {
     [ -n "$system_rmdir" ]
     cat > signal-bin/rmdir <<'SH'
 #!/bin/sh
+printf 'rmdir target=%s executable=%s\n' "$1" "$MCP_LIBRARY_SYSTEM_RMDIR" >> "$MCP_LIBRARY_CLEANUP_TRACE"
 [ "$1" != "--" ] || exit 64
-exec "$MCP_LIBRARY_SYSTEM_RMDIR" "$@"
+"$MCP_LIBRARY_SYSTEM_RMDIR" "$@"
+rc=$?
+printf 'rmdir status=%s\n' "$rc" >> "$MCP_LIBRARY_CLEANUP_TRACE"
+exit "$rc"
 SH
     chmod 700 signal-bin/rmdir
 
-    run env PATH="$TEST_PROJECT/signal-bin:$PATH" MCP_LIBRARY_SYSTEM_RMDIR="$system_rmdir" TMPDIR="$TEST_PROJECT/signal-tmp" bash -c '
+    run env PATH="$TEST_PROJECT/signal-bin:$PATH" MCP_LIBRARY_CLEANUP_TRACE="$TEST_PROJECT/cleanup-trace" MCP_LIBRARY_SYSTEM_RMDIR="$system_rmdir" TMPDIR="$TEST_PROJECT/signal-tmp" bash -c '
         set -euo pipefail
         repo="$1" project="$2" catalog="$3"
         cd "$project"
@@ -212,12 +216,16 @@ SH
         _AGENTSYNC_ENGINE_ROOT="$repo"
         PROJECT_CONFIG_PATH="$project/.ai/agent_sync.yaml"
         _mcp_library_staged_source_within_limit() {
+            printf "registered lock=%s\n" "$cleanup_lock" >&2
+            trap -p EXIT TERM >&2
             sh -c "kill -TERM \"\$PPID\""
         }
         cmd_mcp_library_bind use http --tool claude --merge --apply --library "$catalog"
     ' bash "$REPO_ROOT" "$TEST_PROJECT" "$CATALOG"
 
-    [ "$status" -ne 0 ]
+    printf '%s\n' "$output" >&3
+    if [ -f cleanup-trace ]; then cat cleanup-trace >&3; fi
+    [ "$status" -eq 143 ]
     [ ! -e .ai/src/tools/claude/mcp.json.mcp-library.lock ]
     [ -z "$(find signal-tmp -mindepth 1 -maxdepth 1 -print -quit)" ]
     [ -z "$(find .ai/src/tools/claude -name '.mcp-library.*' -print -quit)" ]

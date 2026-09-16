@@ -378,7 +378,7 @@ main() {
         shell-init)    _need logging shell_init;                      shift; cmd_shell_init "$@" ;;
         generate|gen)  _need prompts generate;                         shift; cmd_generate "$*" ;;
         export)        _need yaml export;                              shift; cmd_export "$@" ;;
-        import)        _need import;                                   shift; cmd_import "$@" ;;
+        import)        _need yaml export import;                       shift; cmd_import "$@" ;;
         refresh)       _need yaml export prompts template_manifest refresh; shift; cmd_refresh "$@" ;;
         enable)        _need prompts yaml yaml_edit tool_resolver project_config paths edit_paths enable; shift; cmd_enable "$@" ;;
         disable)       _need yaml yaml_edit tool_resolver project_config paths enable;      shift; cmd_disable "$@" ;;

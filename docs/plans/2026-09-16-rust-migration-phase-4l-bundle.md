@@ -58,7 +58,7 @@ Reused: `paths::{logical_root, normalize}`, `yaml_subset::value`, `style`, `cli:
 
 **Files:** none changed.
 
-- [ ] **Step 1: Record the baseline**
+- [x] **Step 1: Record the baseline**
 
 ```bash
 git log --oneline -1
@@ -80,7 +80,7 @@ Expected: the plan's latest commit; `271 passed`, `0 passed`, `11 passed`, `1 pa
 
 **Interfaces:** none.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `tests/bundle.bats`:
 
@@ -276,11 +276,11 @@ github_archive() {
 Run: `bats --tap tests/bundle.bats | grep -c '^not ok'`
 Expected: `11` — every import case but `import rejects an unrecognized source` and `import reports a branch that cannot be downloaded`, plus `export sizes a relative archive from the project root`, fail on the committed engine. The assertions are `grep -qF … <<<"$output"`, not `[[ ]]`: after a `run` whose child died on `set -u` at top level, a failing `[[ ]]` does not fail the test under Bash 3.2 and bats 1.13, while `grep` and `[ ]` do.
 
-- [ ] **Step 2: Load export.sh for import**
+- [x] **Step 2: Load export.sh for import**
 
 In `bin/agentsync.sh`, change the `import` arm to `import)        _need yaml export import;                       shift; cmd_import "$@" ;;`.
 
-- [ ] **Step 3: Run the tests, confirm green**
+- [x] **Step 3: Run the tests, confirm green**
 
 ```bash
 bats --tap tests/bundle.bats | grep -c '^not ok'
@@ -289,7 +289,7 @@ shellcheck -x -S warning -e SC1091 bin/agentsync.sh
 
 Expected: `4` (`export sizes a relative archive from the project root`, `import refuses a source without .ai`, `import --only that matches nothing reports an up-to-date project`, `import --only previews a config-only change`); ShellCheck exit 0.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add bin/agentsync.sh tests/bundle.bats docs/plans/2026-09-16-rust-migration-phase-4l-bundle.md

@@ -25,13 +25,13 @@ lib/helpers/tool_resolver.sh     → src/tool.rs, src/catalog.rs, src/payload.rs
 lib/helpers/profiles.sh          → src/profiles.rs         names, overlay dir, tools, active, rewrite_dest
 
 Tier 2
-lib/helpers/manifest.sh          → src/session.rs (record_write, was_touched, record_tree, may_prune), src/manifest.rs (load, drift, write, update_entry (Phase 4f))
+lib/helpers/manifest.sh          → src/session.rs (record_write, was_touched, record_tree, may_prune), src/manifest.rs (load, drift, write, update_entry (Phase 4f), entries (4j))
 lib/helpers/file_ops.sh          → src/file_ops.rs         ensure_dir, cleanup_path, copy_file, sync_dir, prune-vs-preserve
 
 Tier 3
 lib/helpers/rule_operations.sh   → src/rules.rs            headers, frontmatter merge, append_imports, merge_to_file, inliners, commands as skills
 lib/helpers/format_conversion.sh → src/convert.rs          frontmatter and per-file converters; directory loops live in src/rules.rs
-lib/helpers/opencode.sh          → src/opencode_json.rs    awk composer, exit codes 20-26
+lib/helpers/opencode.sh          → src/opencode_json.rs    awk composer, exit codes 20-26; settings_has_mcp (4j)
 lib/helpers/shared.sh            → src/overlay.rs          shared, base-src, and profile overlays; shared and base-src mirror the resolved sources; shared parent merge for check
 lib/helpers/gitignore.sh         → src/gitignore.rs        managed block between START/END markers
 lib/helpers/backup.sh            → src/backup.rs           same on-disk layout; create, restore, latest, list, prune; backup.retention (configure, Retention), validated before sync and rollback write
@@ -40,7 +40,7 @@ lib/helpers/yaml_edit.sh         → src/yaml_edit.rs        set_scalar, list_ap
 lib/helpers/template_manifest.sh → src/template_manifest.rs   hash (4e); load, lookup, remove, write (4g); record and heal (4h)
 lib/helpers/snapshot.sh          → src/snapshot.rs         read_pending_pairs, clear_pending (Phase 4c); save, diff, conflicts wait for update
 lib/helpers/prompts.sh           → src/prompts.rs          confirm on /dev/tty (Phase 3); multiselect through stty (4i)
-lib/helpers/edit_paths.sh        → src/edit_paths.rs       block for enable (Phase 4a); checklist waits for doctor
+lib/helpers/edit_paths.sh        → src/edit_paths.rs       block for enable (Phase 4a); checklist for doctor (4j)
 
 Commands
 lib/helpers/list.sh              → src/cli/list.rs         Phase 1
@@ -58,7 +58,7 @@ lib/helpers/refresh.sh           → src/cli/refresh.rs      Phase 4h, ported
 lib/helpers/dedupe.sh            → src/cli/dedupe.rs       Phase 4e, ported
 lib/helpers/migrate.sh           → src/cli/migrate.rs      Phase 4g, ported
 lib/helpers/adopt.sh             → src/cli/adopt.rs        Phase 4f, ported; Resolver serves init's adoption (4i)
-lib/helpers/doctor.sh            → src/cli/doctor.rs       exit 0/1/2 = clean/warnings/errors
+lib/helpers/doctor.sh            → src/cli/doctor.rs       Phase 4j, ported; exit 0/1/2 = clean/warnings/errors
 lib/helpers/add.sh               → src/cli/add.rs
 lib/helpers/export.sh            → src/cli/export.rs
 lib/helpers/import.sh            → src/cli/import.rs       curl + tar; network

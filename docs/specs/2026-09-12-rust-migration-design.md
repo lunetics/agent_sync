@@ -458,6 +458,11 @@ cleanup has a list:
 43. `init` heals `.ai/.template-manifest` before it adopts existing outputs, so
     an adopted `AGENTS.md` carries the template's hash and `refresh` treats it
     as a silently kept edit.
+44. `doctor`'s secret scan lists only the lines of the first pattern with a
+    hit, in pattern order, so a file with an AWS key on line 1 and an OpenAI
+    key on line 2 reports only line 2.
+45. `doctor` never reports a line holding `${…}` anywhere, or `<…>` without
+    `sk-`, however real the key beside the placeholder.
 
 ## Accepted deviations
 
@@ -543,6 +548,13 @@ Appended one line at a time as they are found, with the phase:
   directory`); the restore and the status are unchanged.
 - Phase 4i: `init`'s first sync runs in-process where Bash spawned
   `lib/sync.sh`; the transcript is the same.
+- Phase 4j: `doctor` validates JSON in-process as `python3 -c 'json.load'`
+  judges it (`NaN` and `Infinity` accepted; a BOM, trailing commas, control
+  characters, and an empty file rejected), where Bash's verdict depended on
+  `python3`, `node`, or neither being installed.
+- Phase 4j: `doctor` lists skill directories, rules, overrides, and parent
+  files in byte order (the Phase 2 deviation), so `skills/Zeta/` precedes
+  `skills/empty-one/` where the locale's glob put it after.
 
 ## Risks
 

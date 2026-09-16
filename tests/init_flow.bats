@@ -69,10 +69,20 @@ teardown() {
 @test "init: two destinations mapping to one source keep the first and report the rest" {
     printf '# From CLAUDE\n' > CLAUDE.md
     printf '# From AGENTS\n' > AGENTS.md
-    run run_agentsync init --tools claude,codex --yes
+    run run_agentsync init --tools claude,codex --yes --no-sync
     [ "$status" -eq 0 ]
-    [[ "$output" == *"already became"* ]]
-    grep -q "^# From " .ai/src/AGENTS.md
+    [[ "$output" == *"Adopted AGENTS.md"* ]]
+    [[ "$output" == *"Kept as-is CLAUDE.md — another file already became .ai/src/AGENTS.md"* ]]
+    [ "$(cat .ai/src/AGENTS.md)" = "# From AGENTS" ]
+}
+
+@test "init: a file no tool produces is kept with the resolver's reason" {
+    mkdir -p .cursor/rules
+    printf 'body\n' > .cursor/rules/core.mdc
+    run run_agentsync init --tools cursor --yes --no-sync
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Kept as-is .cursor/rules/core.mdc — cursor injects a frontmatter header on sync."* ]]
+    [ "$(cat .cursor/rules/core.mdc)" = "body" ]
 }
 
 @test "init: --ci github writes the check workflow with the pinned version" {

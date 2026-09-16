@@ -144,7 +144,7 @@ git commit -m "fix(init): name the missing target directory"
 
 **Interfaces:** none.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 In `tests/init_flow.bats`, replace `init: two destinations mapping to one source keep the first and report the rest` with these two tests:
 
@@ -172,7 +172,7 @@ In `tests/init_flow.bats`, replace `init: two destinations mapping to one source
 Run: `bats --tap -f 'two destinations|resolver' tests/init_flow.bats`
 Expected: `not ok 1 init: two destinations mapping to one source keep the first and report the rest` and `not ok 2 init: a file no tool produces is kept with the resolver's reason`.
 
-- [ ] **Step 2: Resolve, check the claim, then copy**
+- [x] **Step 2: Resolve, check the claim, then copy**
 
 Replace `_init_adopt_existing` in `lib/helpers/init.sh` with:
 
@@ -255,7 +255,7 @@ index af74c8f..a1009a7 100644
      local assume_yes="false"
 ```
 
-- [ ] **Step 3: Run the tests, confirm green**
+- [x] **Step 3: Run the tests, confirm green**
 
 ```bash
 for f in init init_flow adopt; do
@@ -266,7 +266,7 @@ shellcheck -x -S warning -e SC1091 lib/helpers/init.sh lib/helpers/adopt.sh
 
 Expected: `init ok=36 notok=0`, `init_flow ok=15 notok=0`, `adopt ok=29 notok=0`; ShellCheck exit 0.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add lib/helpers/init.sh lib/helpers/adopt.sh tests/init_flow.bats docs/plans/2026-09-16-rust-migration-phase-4i-init.md

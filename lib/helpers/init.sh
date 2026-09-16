@@ -116,23 +116,26 @@ _init_adopt_existing() {
     local target_dir="$1"
     local existing="$2"   # newline-separated repo-relative paths
 
-    local claimed="|" file source adopted=0 skipped=0
+    local claimed="|" file adopted=0 skipped=0
     local -a skips=()
     while IFS= read -r file; do
         [[ -n "$file" ]] || continue
-        if source=$(AGENTSYNC_REPO_ROOT="$target_dir" adopt_file_quiet "$target_dir/$file"); then
-            if [[ "$claimed" == *"|$source|"* ]]; then
-                skips+=("$file — another file already became $source")
-                skipped=$((skipped + 1))
-                continue
-            fi
-            claimed+="$source|"
-            echo "   $(_green "Adopted") $(_cyan "$file") → $(_dim "$source")"
-            adopted=$((adopted + 1))
-        else
-            skips+=("$file — ${ADOPT_QUIET_REASON:-not an adoptable output}")
+        _adopt_resolve_dest "$target_dir/$file"
+        if [[ -n "$_ADOPT_REFUSAL" ]]; then
+            skips+=("$file — $_ADOPT_REFUSAL")
             skipped=$((skipped + 1))
+            continue
         fi
+        if [[ "$claimed" == *"|$_ADOPT_SOURCE_REL|"* ]]; then
+            skips+=("$file — another file already became $_ADOPT_SOURCE_REL")
+            skipped=$((skipped + 1))
+            continue
+        fi
+        ensure_dir "$(dirname "$_ADOPT_SOURCE_ABS")"
+        cp "$_ADOPT_DEST_ABS" "$_ADOPT_SOURCE_ABS"
+        claimed+="$_ADOPT_SOURCE_REL|"
+        echo "   $(_green "Adopted") $(_cyan "$file") → $(_dim "$_ADOPT_SOURCE_REL")"
+        adopted=$((adopted + 1))
     done <<< "$existing"
 
     local note

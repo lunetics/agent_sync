@@ -546,30 +546,6 @@ _adopt_all() {
     _adopt_all_apply
 }
 
-# Copy <dest> into its .ai/src/ source with no prompt, diff, or manifest write —
-# the pre-first-sync path `agentsync init` uses to keep a project's existing
-# config. Echoes the source's repo-relative path; on refusal returns 1 with the
-# reason in ADOPT_QUIET_REASON. Callers own the resolver globals.
-# Read by init.sh after a failed adopt_file_quiet.
-# shellcheck disable=SC2034
-ADOPT_QUIET_REASON=""
-adopt_file_quiet() {
-    local dest="$1"
-    # shellcheck disable=SC2034
-    ADOPT_QUIET_REASON=""
-
-    _adopt_resolve_dest "$dest"
-    if [[ -n "$_ADOPT_REFUSAL" ]]; then
-        # shellcheck disable=SC2034  # read by init.sh
-        ADOPT_QUIET_REASON="$_ADOPT_REFUSAL"
-        return 1
-    fi
-
-    ensure_dir "$(dirname "$_ADOPT_SOURCE_ABS")"
-    cp "$_ADOPT_DEST_ABS" "$_ADOPT_SOURCE_ABS"
-    echo "$_ADOPT_SOURCE_REL"
-}
-
 cmd_adopt() {
     local dry_run="false"
     local assume_yes="false"

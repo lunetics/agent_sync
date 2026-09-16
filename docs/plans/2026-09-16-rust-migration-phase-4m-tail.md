@@ -1462,6 +1462,41 @@ git commit -m "docs(native): map the phase 4m modules and quirks"
 
 The plan is closed when every box is ticked, every bats file is green under both engines, the three parity fixtures pass, and a `## Completion receipt` records the fresh verification. With it Phase 4 is closed: `_NATIVE_COMMANDS` names every command but `help`, `update`, and `release`, which Phase 5 owns, and the whole suite passes under `AGENTSYNC_NATIVE=1`.
 
+## Completion receipt
+
+### Decisions the review took
+
+All three as recommended, on 2026-09-16, under the maintainer's standing instruction to run Phase 4 to its close; the quirks were reproduced with `tail_reference.sh` and `generate_tty.sh` before being recorded.
+
+### Global Constraints
+
+| Constraint | Satisfied by |
+|---|---|
+| `generate` and `shell-init` write nothing; `setup-hooks` writes only below the hooks directory git names | `src/cli/generate.rs` and `src/cli/shell_init.rs` call no filesystem writer; `src/cli/setup_hooks.rs` writes through `install_hook` under `hooks_dir` alone, after `physical()` confirmed it is git's own |
+| No Bash change; `lib/**/*.sh` and `bin/agentsync.sh` clean under ShellCheck | `git diff --stat <plan>..HEAD -- lib bin` names only `bin/agentsync.sh` (the `_NATIVE_COMMANDS` line); ShellCheck exit 0 |
+| Byte-for-byte parity except the accepted deviations | `tests/native_parity.bats`: the `generate`, `shell-init`, and `setup-hooks` fixtures with `_assert_same_hooks`; the reference and pty transcripts in Task 1 Step 5 |
+| `unsafe_code = "forbid"`, fmt and clippy clean, no new dependency; `main.rs` alone reads the environment and terminal state; only `git` is spawned | `Cargo.toml` unchanged; `SHELL`, `PATH`, `AGENTSYNC_REPO_ROOT`, `PWD`, and both terminal states are read in `src/main.rs`; `Command::new("git")` in `setup_hooks.rs` is the one new spawn |
+| Disk-touching unit tests are `#[cfg(unix)]`, and the `setup-hooks` tests pin `core.hooksPath` | the `setup_hooks.rs` tests module is `#[cfg(all(test, unix))]` and its `repo()` sets `core.hooksPath .git/hooks` |
+| Expected values captured from Bash | `tail_reference.sh` (1884 lines) and `generate_tty.sh` (4 scenarios), reproduced in Task 1 Step 5 |
+| Conventional Commits, at most 72 characters, no trailers | `d5711ea`, `5ecb846`, the map commit, and the close commit |
+| bats one file at a time | every recorded run, including `native_suite.sh` |
+
+### Fresh verification, 2026-09-16, macOS 26.5 arm64, outside the agent sandbox where noted
+
+- `cargo test`: 285 passed (lib), 0 passed (doc), 11 passed (cli), 1 passed (interrupt).
+- `cargo clippy --all-targets -- -D warnings`: exit 0. `cargo fmt --all --check`: exit 0.
+- `shellcheck -x -S warning -e SC1091 bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh`: exit 0.
+- bats, one file at a time under both engines with `native_suite.sh` in a detached worktree at `5ecb846` (the port commit; the map commit that follows changes no code or test) with the release binary built there: 50 files, `TOTAL bash=0 native=0`, `native_parity` (65 cases) included and run outside the sandbox: the Phase 4 exit.
+- Mutation in Task 1 Step 5: `Configured {name} hook.` → `Configured {name} hook` failed the setup-hooks fixture on the `Configured post-merge hook.` line; reverted, rebuilt, byte-identical to the verified draft.
+- Against the `5ecb846` tree: `tail_reference.sh` gave 1884-line transcripts for both engines with 0 differing lines, git config isolated; `generate_tty.sh` on a pty gave identical transcripts for the four menu scenarios.
+- `sync` and `check` are unchanged; no timings.
+
+### Skipped, deferred, open
+
+- **Windows**: native bats runs stay off Windows until Phase 5; `cargo test` still runs there.
+- **`help`, `update`, and `release`** stay in Bash by decision 2 and the spec's Phase 5.
+- **Not pushed.** The cutover (Phase 5) is the first release point.
+
 ## Run log
 
 ### 2026-09-16 — Phase 4m planned
@@ -1469,4 +1504,11 @@ The plan is closed when every box is ticked, every bats file is green under both
 - Verified: every non-interactive branch of the three commands was captured with `tail_reference.sh` (1884 lines, git config isolated so the developer's `core.hooksPath` did not reach the scenarios) and the menu with `generate_tty.sh` (4 scenarios on a pty). No Bash bug turned up. The Rust in Task 1 was drafted in the tree: `cargo test` 285/0/11/1 with the 4k and 4l ports, fmt and clippy clean; the debug binary, called directly, gave transcripts identical to Bash on both harnesses. Baseline `cargo test` 277/0/11/1; `generate.bats` 7, `shell_init.bats` 15, `hooks.bats` 16, `native_parity.bats` 62 cases green in Bash.
 - Plan amended: none.
 - Next: Task 0 Step 1.
+- Blocker: none.
+
+### 2026-09-16 — phase closed
+- Commits: `d892e34` docs(native): map the phase 4m modules and quirks; this commit, docs(native): close phase 4m.
+- Verified: `cargo test` 285/0/11/1; clippy, fmt, ShellCheck exit 0; `native_suite.sh both` over 50 bats files `TOTAL bash=0 native=0` in the worktree at `5ecb846`; the reference and pty transcripts as recorded in Task 1 Step 5.
+- Plan amended: none.
+- Next: Phase 5, distribution and cutover: its plan, per the spec's Phase 5 section.
 - Blocker: none.

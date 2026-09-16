@@ -125,7 +125,9 @@ _mcp_library_source_target_r() {
 }
 
 cmd_mcp_library_bind() (
-    local cleanup_snapshot="" cleanup_staging="" cleanup_lock=""
+    # macOS Bash can unwind function locals before the EXIT trap on a signal.
+    # This entire function is a subshell, so these paths cannot leak to callers.
+    cleanup_snapshot="" cleanup_staging="" cleanup_lock=""
     _mcp_library_bind_cleanup() {
         [[ -z "$cleanup_snapshot" ]] || rm -f -- "$cleanup_snapshot"
         [[ -z "$cleanup_staging" ]] || rm -f -- "$cleanup_staging"

@@ -53,7 +53,7 @@ Reused: `paths::{logical_root, normalize, parent, leaf}`, `yaml_subset::value`, 
 
 **Files:** none changed.
 
-- [ ] **Step 1: Record the baseline**
+- [x] **Step 1: Record the baseline**
 
 ```bash
 git log --oneline -1
@@ -91,7 +91,7 @@ pub fn shell_init(args: &[String], shell_env: Option<&str>, style: &Style, color
 pub fn setup_hooks(args: &[String], root: &str, out: &mut dyn Write, err: &mut dyn Write) -> Result<u8, Error>;
 ```
 
-- [ ] **Step 1: Parity fixtures, Bash side**
+- [x] **Step 1: Parity fixtures, Bash side**
 
 Append to `tests/native_parity.bats`:
 
@@ -155,7 +155,7 @@ _assert_same_hooks() {
 Run, outside the sandbox: `bats --tap -f 'parity: generate|parity: shell-init|parity: setup-hooks' tests/native_parity.bats`
 Expected: `ok 1`, `ok 2`, `ok 3` (the native side still runs Bash until Step 3 lists the commands).
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Create the three files with their tests modules, and add `pub mod generate;`, `pub mod setup_hooks;`, and `pub mod shell_init;` to `src/cli/mod.rs` in alphabetical order:
 
@@ -483,7 +483,7 @@ mod tests {
 Run: `cargo test cli:: 2>&1 | grep -E '^error' | head -3`
 Expected: compile errors naming `generate`, `shell_init`, and `setup_hooks`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 In `src/log.rs`, before `streaming`:
 
@@ -1147,7 +1147,7 @@ In `bin/agentsync.sh:280` append `generate gen shell-init setup-hooks`:
 _NATIVE_COMMANDS=" version --version -v list ls check sync rollback enable disable customize show diff simplify resolve upgrade-config profile dedupe adopt migrate refresh init doctor add export import generate gen shell-init setup-hooks "
 ```
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo fmt --all
@@ -1161,7 +1161,7 @@ bats --tap -f 'parity: generate|parity: shell-init|parity: setup-hooks' tests/na
 
 Expected: `285 passed`, `0`, `11`, `1`; `0` for every file; `ok 1`, `ok 2`, `ok 3`.
 
-- [ ] **Step 5: Prove the fixture bites, run the references, lint, commit**
+- [x] **Step 5: Prove the fixture bites, run the references, lint, commit**
 
 Change `Configured {name} hook.` to `Configured {name} hook` in `src/cli/setup_hooks.rs`, rebuild, rerun `bats --tap -f 'parity: setup-hooks' tests/native_parity.bats`: `not ok 1` with the `Configured post-merge hook.` line in the diff; revert and rebuild.
 

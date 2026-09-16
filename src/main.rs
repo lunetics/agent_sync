@@ -83,6 +83,67 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
             &mut std::io::stderr(),
         );
     }
+    if matches!(
+        args.first().and_then(|a| a.to_str()),
+        Some("generate" | "gen")
+    ) {
+        let rest: Vec<String> = args[1..]
+            .iter()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        let mut read_line = || {
+            let mut line = String::new();
+            match std::io::stdin().read_line(&mut line) {
+                Ok(0) | Err(_) => None,
+                Ok(_) => Some(line.trim_end_matches(['\n', '\r']).to_string()),
+            }
+        };
+        let mut env = cli::generate::Env {
+            stdin_tty: std::io::stdin().is_terminal(),
+            stdout_tty: std::io::stdout().is_terminal(),
+            clipboard: clipboard_command(),
+            read_line: &mut read_line,
+        };
+        return cli::generate::generate(
+            &rest,
+            &Style::for_stdout(),
+            &mut env,
+            &mut std::io::stdout(),
+            &mut std::io::stderr(),
+        );
+    }
+    if args.first().and_then(|a| a.to_str()) == Some("shell-init") {
+        let rest: Vec<String> = args[1..]
+            .iter()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        return cli::shell_init::shell_init(
+            &rest,
+            var("SHELL").as_deref(),
+            &Style::for_stdout(),
+            log_colors(),
+            &mut std::io::stdout(),
+            &mut std::io::stderr(),
+        );
+    }
+    if args.first().and_then(|a| a.to_str()) == Some("setup-hooks") {
+        let rest: Vec<String> = args[1..]
+            .iter()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
+        let env_root = var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty());
+        let root = match env_root {
+            Some(root) => root,
+            None => paths::logical_root(None, &cwd, var("PWD").as_deref()),
+        };
+        return cli::setup_hooks::setup_hooks(
+            &rest,
+            &root,
+            &mut std::io::stdout(),
+            &mut std::io::stderr(),
+        );
+    }
     if let Some(command @ ("export" | "import")) = args.first().and_then(|a| a.to_str()) {
         let rest: Vec<String> = args[1..]
             .iter()
@@ -399,6 +460,22 @@ fn sync_env() -> cli::sync::Env {
         backup_limit: var("AGENTSYNC_BACKUP_LIMIT"),
         backup_max_age: var("AGENTSYNC_BACKUP_MAX_AGE_DAYS"),
     }
+}
+
+/// The clipboard command `_output_prompt` names in its tip: the first of
+/// `pbcopy`, `wl-copy`, `xclip`, `xsel` on `PATH`, with the flags Bash printed.
+fn clipboard_command() -> Option<String> {
+    let path = std::env::var_os("PATH")?;
+    let on_path = |name: &str| std::env::split_paths(&path).any(|dir| dir.join(name).is_file());
+    [
+        ("pbcopy", "pbcopy"),
+        ("wl-copy", "wl-copy"),
+        ("xclip", "xclip -selection clipboard"),
+        ("xsel", "xsel --clipboard --input"),
+    ]
+    .iter()
+    .find(|(name, _)| on_path(name))
+    .map(|(_, command)| command.to_string())
 }
 
 /// `_use_colors` of `logging.sh`: stdout is a terminal and `NO_COLOR` is empty.

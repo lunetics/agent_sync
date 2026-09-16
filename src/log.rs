@@ -27,6 +27,15 @@ const YELLOW: &str = "\x1b[0;33m";
 const RED: &str = "\x1b[0;31m";
 
 impl Log {
+    /// A log that keeps its lines for `lines()`, coloured when `colors`.
+    pub fn capturing(colors: bool) -> Self {
+        Self {
+            lines: Vec::new(),
+            sink: None,
+            colors,
+        }
+    }
+
     /// A log that hands every line to `sink` instead of keeping it; `colors` is
     /// `_use_colors`, decided by the caller from stdout and `NO_COLOR`.
     pub fn streaming(colors: bool, sink: Sink) -> Self {

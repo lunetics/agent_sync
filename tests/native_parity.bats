@@ -1185,3 +1185,57 @@ EOF
     rm -rf .ai
     assert_tree_parity import "$BATS_TEST_TMPDIR/bundle.tgz"
 }
+# ── generate, shell-init, setup-hooks ────────────────────────────────────────
+# Every call runs off a terminal: generate prints the raw prompt, and the hooks
+# live under .git/, which the tree comparison prunes, so they are compared here.
+
+@test "parity: generate prints the prompt with and without a context like Bash" {
+    assert_parity generate
+    assert_parity generate "Flutter app" with BLoC
+    assert_parity gen ""
+    assert_parity generate "React + Next.js"
+}
+
+@test "parity: shell-init prints the hooks and refuses unknown shells like Bash" {
+    assert_parity shell-init zsh
+    assert_parity shell-init bash extra
+    assert_parity shell-init --help
+    assert_parity shell-init -h
+    assert_parity shell-init fish
+    SHELL=/usr/bin/zsh assert_parity shell-init
+    SHELL=/bin/bash assert_parity shell-init
+    SHELL= assert_parity shell-init
+    SHELL=zsh assert_parity shell-init
+}
+
+_assert_same_hooks() {
+    local name left right
+    for name in post-merge post-checkout pre-commit; do
+        left="$BATS_TEST_TMPDIR/bash/.git/hooks/$name"
+        right="$BATS_TEST_TMPDIR/native/.git/hooks/$name"
+        if [[ -f "$left" ]] || [[ -f "$right" ]]; then
+            cmp -s "$left" "$right" || { echo "hook differs: $name" >&2; return 1; }
+            [[ -x "$left" ]] && [[ -x "$right" ]]
+        fi
+    done
+}
+
+@test "parity: setup-hooks installs the hooks for each outputs mode like Bash" {
+    assert_tree_parity setup-hooks --help
+    assert_tree_parity setup-hooks --bogus --help
+    assert_tree_parity setup-hooks
+    _assert_same_hooks
+    printf '#!/bin/sh\necho "existing hook"\n' > .git/hooks/post-merge
+    chmod +x .git/hooks/post-merge
+    assert_tree_parity setup-hooks --pre-commit
+    _assert_same_hooks
+    printf 'gitignore:\n  update: false\n' > .ai/agent_sync.yaml
+    assert_tree_parity setup-hooks
+    _assert_same_hooks
+    mkdir -p .githooks
+    git config core.hooksPath .githooks
+    assert_tree_parity setup-hooks
+    [ ! -e "$BATS_TEST_TMPDIR/native/.githooks/pre-commit" ]
+    rm -rf .git
+    assert_tree_parity setup-hooks
+}

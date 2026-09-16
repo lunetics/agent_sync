@@ -473,6 +473,10 @@ cleanup has a list:
 49. `add mcp` creates `.ai/src/mcp.json` with an empty server map before it
     validates `--env`, so a bad pair leaves the file behind; `--args` and
     `--env` read only the first line of their value.
+50. `import` strips a `.git` suffix before a trailing `/`, so
+    `https://github.com/user/repo.git/` downloads the repository `repo.git`.
+51. A directory `import` copies the source project's `.ai/` alone, so a
+    `source:` override pointing elsewhere in that project is not carried.
 
 ## Accepted deviations
 
@@ -568,6 +572,11 @@ Appended one line at a time as they are found, with the phase:
 - Phase 4k: `add --force` onto a destination that is a directory reports the
   Rust I/O error where Bash printed the shell's redirect message (`add.sh:
   line N: <path>: Is a directory`); the status is unchanged.
+- Phase 4l: `export`'s archive bytes are not compared; two `tar -czf` runs on
+  the same files differ in the gzip header's time, so the parity fixtures
+  compare the report and the archive's listing.
+- Phase 4l: `import` extracts into a scratch directory under the system temp
+  dir, removed when the command ends, where Bash used the run directory.
 
 ## Risks
 

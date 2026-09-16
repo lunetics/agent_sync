@@ -60,8 +60,8 @@ lib/helpers/migrate.sh           → src/cli/migrate.rs      Phase 4g, ported
 lib/helpers/adopt.sh             → src/cli/adopt.rs        Phase 4f, ported; Resolver serves init's adoption (4i)
 lib/helpers/doctor.sh            → src/cli/doctor.rs       Phase 4j, ported; exit 0/1/2 = clean/warnings/errors
 lib/helpers/add.sh               → src/cli/add.rs          Phase 4k, ported; the awk merge as merge(), content templates through catalog::content_template
-lib/helpers/export.sh            → src/cli/export.rs
-lib/helpers/import.sh            → src/cli/import.rs       curl + tar; network
+lib/helpers/export.sh            → src/cli/bundle.rs       Phase 4l, ported; tar through the executable
+lib/helpers/import.sh            → src/cli/bundle.rs       Phase 4l, ported; curl and tar through the executables
 lib/helpers/generate.sh          → src/cli/generate.rs
 lib/helpers/shell_init.sh        → src/cli/shell_init.rs   stdout must stay clean for `>> ~/.zshrc`
 lib/setup_hooks.sh               → src/cli/setup_hooks.rs  git rev-parse --git-path hooks

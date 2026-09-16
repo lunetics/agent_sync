@@ -3472,6 +3472,43 @@ git commit -m "docs(native): map the phase 4i modules and quirks"
 
 The plan is closed when every box is ticked, every bats file is green under both engines, the two parity fixtures pass, and a `## Completion receipt` records the fresh verification. With it the `template_manifest` family is complete; the next plans cover the standalone commands the spec names: `doctor`, `add`, `export`, `import`, `generate`, `shell-init`, and `setup-hooks`.
 
+## Completion receipt
+
+### Decisions the review took
+
+All three as recommended, on 2026-09-16, under the maintainer's standing instruction to run Phase 4 to its close; each Bash bug was reproduced on the committed engine before its fix.
+
+### Global Constraints
+
+| Constraint | Satisfied by |
+|---|---|
+| `init` writes only below `.ai/`, the adopted copies into `.ai/src/`, the CI workflow when asked, and what the first sync writes; `--dry-run` writes nothing; a failure after the backup restores the pre-init state | `src/cli/init.rs` (`Transaction`, the scaffold, adopt, and CI steps, the restore on `Err`); the two parity fixtures in `tests/native_parity.bats` compare whole trees after every call, the second one after the refused config write |
+| Four Bash changes, each in its own commit with a regression test; `lib/**/*.sh` and `bin/agentsync.sh` clean under ShellCheck | `9a724e9`, `64ce90a`, `cfb4275`, `cae1721`, each adding a test to `tests/init.bats` or `tests/init_flow.bats` that failed on the committed engine; ShellCheck exit 0 |
+| Byte-for-byte parity on stdout, stderr, exit status, and the files left behind, except the accepted deviations | `tests/native_parity.bats`: `parity: init scaffolds, detects, adopts, and runs the first sync like Bash` and `parity: init keeps existing configs, refuses, and restores like Bash`; the reference and pty transcripts in Task 6 Step 5 |
+| `unsafe_code = "forbid"`, fmt and clippy clean, no new dependency; `main.rs` alone reads the environment and terminal state; the terminal mode is switched through `stty` | `Cargo.toml` unchanged; `AGENTSYNC_*`, `PWD`, and `prompts::is_tty` are read in `src/main.rs` and carried in `init::Env`; `prompts::RawTerminal` runs `stty -g`, `stty -icanon -echo min 1 time 0`, and restores on drop |
+| Disk-touching unit tests are `#[cfg(unix)]` | `src/cli/init.rs` and `src/prompts.rs` test modules |
+| No bats fixture opens the wizard; the wizard is proven on a pty with keys typed one at a time | every fixture passes `--yes`, `--no-detect`, `--tools`, or runs off a terminal; `init_tty.sh` drives 9 scenarios through `script`, one key per 0.4 s |
+| Expected values captured from the fixed Bash | `init_reference.sh` (53 scenarios, 2862 lines) and `init_tty.sh` (9 scenarios, 753 lines), reproduced with `native_suite.sh` in Task 6 Step 5 |
+| Conventional Commits, at most 72 characters, no trailers | `84b2607`, `9a724e9`, `64ce90a`, `cfb4275`, `cae1721`, `5152d81`, `dab1d2a`, `bcacc96`, and the close commit |
+| bats one file at a time | every recorded run, including `native_suite.sh` |
+
+### Fresh verification, 2026-09-16, macOS 26.5 arm64, outside the agent sandbox where noted
+
+- `cargo test` on the 4i tree (the uncommitted 4j draft parked with `git stash` for the run and restored after it): 255 passed (lib), 0 passed (doc), 11 passed (cli), 1 passed (interrupt).
+- `cargo clippy --all-targets -- -D warnings`: exit 0. `cargo fmt --all --check`: exit 0.
+- `shellcheck -x -S warning -e SC1091 bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh`: exit 0.
+- bats, one file at a time under both engines with `native_suite.sh` on the final 4i tree and the release binary built from `dab1d2a`: 49 files, `TOTAL bash=0 native=0`, `native_parity` (56 cases) included and run outside the sandbox.
+- Mutation in Task 6 Step 5: `Initializing AgentSync` → `Initialising AgentSync` failed the first fixture on that line; reverted, rebuilt.
+- Against the `dab1d2a` tree: `init_reference.sh` gave 2862-line transcripts for both engines with 2 differing lines, both the scaffold failure's message (Bash `init.sh: line 415: <root>/.ai/agent_sync.yaml: Is a directory`, native `<root>/.ai/agent_sync.yaml: Is a directory (os error 21)`, decision 3); `init_tty.sh` on a pty gave identical 753-line transcripts, 6 scenarios at `rc=0` and 3 at `rc=130`.
+- `sync` and `check` are unchanged; no timings.
+
+### Skipped, deferred, open
+
+- **Windows**: native bats runs stay off Windows until Phase 5; `cargo test` still runs there.
+- **The wizard on a real terminal** was checked on a pty through `script`; a terminal that refuses `stty` falls back to the preselected defaults, as Bash does when `/dev/tty` cannot be opened.
+- **`doctor`** (4j) is drafted in the tree behind this close: `src/cli/doctor.rs`, the helper additions, and the `main.rs` arm are uncommitted and kept out of the 4i commits.
+- **Not pushed.**
+
 ## Run log
 
 ### 2026-09-16 — Phase 4i planned
@@ -3479,4 +3516,11 @@ The plan is closed when every box is ticked, every bats file is green under both
 - Verified: every non-interactive branch of `cmd_init` was captured with `init_reference.sh` (53 scenarios) and the wizard with `init_tty.sh` (9 scenarios on a pty). The reference turned up four Bash bugs, fixed on a copy of the engine and each covered by a regression test that failed on the committed engine: the unbound `$1` on a missing directory, the last-wins adoption behind a first-wins message (with the lost refusal reason), the wizard's lists never drawn because `is_tty` tested a captured stdout, and `read -t 0.01` rejected by Bash 3.2 so arrows cancelled. The Rust in Tasks 5–6 was drafted in the tree against the fixed Bash: `cargo test` 255/0/11/1, fmt and clippy clean; with `init` in `_NATIVE_COMMANDS`, every bats file ran green under `AGENTSYNC_NATIVE=1` (49 files, 0 failures), the two parity fixtures passed and failed on an `Initialising AgentSync` mutation; `init_reference.sh` gave 2862-line transcripts identical apart from the scaffold failure's I/O message; `init_tty.sh` gave identical 753-line transcripts once the harness typed keys one at a time (a byte written before `read -rsn1` sits in the canonical buffer) and turned echo off in the child. Baseline `cargo test` 243/0/11/1; `init.bats` 35, `init_flow.bats` 14, `adopt.bats` 29, `native_parity.bats` 54 cases green in Bash.
 - Plan amended: none.
 - Next: Task 0 Step 1.
+- Blocker: none.
+
+### 2026-09-16 — phase closed
+- Commits: `bcacc96` docs(native): map the phase 4i modules and quirks; this commit, docs(native): close phase 4i.
+- Verified: `cargo test` 255/0/11/1 with the 4j draft parked; clippy, fmt, ShellCheck exit 0; `native_suite.sh both` over 49 bats files `TOTAL bash=0 native=0`; the reference and pty transcripts as recorded in Task 6 Step 5.
+- Plan amended: none.
+- Next: Phase 4j, `doctor`: write and commit its plan, then Task 0 Step 1.
 - Blocker: none.

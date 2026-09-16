@@ -74,7 +74,7 @@ cmd_import() {
 
     # Locate .ai/src (or .ai/) inside extracted content
     local src_root="" src_project_root=""
-    src_root=$(_import_find_ai_src "$tmp_dir")
+    src_root=$(_import_find_ai_src "$tmp_dir") || src_root=""
     if [[ -z "$src_root" ]]; then
         echo "  $(_red "Error"): No .ai/src/ (or .ai/) directory found in source." >&2
         echo "  The source must contain a structure created by $(_cyan "agentsync init")." >&2

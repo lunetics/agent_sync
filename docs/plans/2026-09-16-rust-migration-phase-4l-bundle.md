@@ -305,12 +305,12 @@ git commit -m "fix(import): load the bundle constants export defines"
 
 **Interfaces:** none.
 
-- [ ] **Step 1: Confirm the failing test**
+- [x] **Step 1: Confirm the failing test**
 
 Run: `bats --tap -f 'source without .ai' tests/bundle.bats`
 Expected: `not ok 1 import refuses a source without .ai` (status 1 and no message on the committed engine).
 
-- [ ] **Step 2: Keep the run alive past the lookup**
+- [x] **Step 2: Keep the run alive past the lookup**
 
 In `cmd_import`, replace `src_root=$(_import_find_ai_src "$tmp_dir")` with:
 
@@ -318,7 +318,7 @@ In `cmd_import`, replace `src_root=$(_import_find_ai_src "$tmp_dir")` with:
     src_root=$(_import_find_ai_src "$tmp_dir") || src_root=""
 ```
 
-- [ ] **Step 3: Run the tests, confirm green**
+- [x] **Step 3: Run the tests, confirm green**
 
 ```bash
 bats --tap tests/bundle.bats | grep -c '^not ok'
@@ -327,7 +327,7 @@ shellcheck -x -S warning -e SC1091 lib/helpers/import.sh
 
 Expected: `3`; ShellCheck exit 0.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add lib/helpers/import.sh docs/plans/2026-09-16-rust-migration-phase-4l-bundle.md

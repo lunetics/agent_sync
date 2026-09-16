@@ -157,7 +157,7 @@ pub fn add(
 ) -> Result<u8, Error>;
 ```
 
-- [ ] **Step 1: Parity fixtures, Bash side**
+- [x] **Step 1: Parity fixtures, Bash side**
 
 Append to `tests/native_parity.bats`:
 
@@ -221,7 +221,7 @@ Append to `tests/native_parity.bats`:
 Run, outside the sandbox: `AGENTSYNC_NATIVE=0 bats --tap tests/add.bats | grep -c '^ok'`; `bats --tap -f 'parity: add' tests/native_parity.bats`
 Expected: `36`; `ok 1` and `ok 2` (the native side still runs Bash until Step 3 lists `add`).
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Create `src/cli/add.rs` with the tests module, and add `pub mod add;` to `src/cli/mod.rs` before `adopt`:
 
@@ -502,7 +502,7 @@ mod tests {
 Run: `cargo test cli::add 2>&1 | grep -E '^error' | head -3`
 Expected: compile errors naming `title`, `render`, `validate_name`, `build_entry`, `merge`, and `add`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 In `src/catalog.rs`, after `base_tool_yaml`:
 
@@ -1211,7 +1211,7 @@ In `bin/agentsync.sh:280` append `add`:
 _NATIVE_COMMANDS=" version --version -v list ls check sync rollback enable disable customize show diff simplify resolve upgrade-config profile dedupe adopt migrate refresh init doctor add "
 ```
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo fmt --all
@@ -1223,7 +1223,7 @@ bats --tap -f 'parity: add' tests/native_parity.bats
 
 Expected: `271 passed`, `0`, `11`, `1`; `0`; `ok 1` and `ok 2`.
 
-- [ ] **Step 5: Prove the fixture bites, run the reference, lint, commit**
+- [x] **Step 5: Prove the fixture bites, run the reference, lint, commit**
 
 Change `Created {kind}:` to `Created {kind}` in `src/cli/add.rs`, rebuild, rerun `bats --tap -f 'parity: add scaffolds' tests/native_parity.bats`: `not ok 1` with the `Created rule:` line in the diff; revert and rebuild.
 

@@ -1048,3 +1048,57 @@ _forget_template() {
     rm -rf .ai
     assert_parity doctor
 }
+# ── add ──────────────────────────────────────────────────────────────────────
+# add writes one scaffold or the shared MCP source, so every call compares
+# whole trees.
+
+@test "parity: add scaffolds each kind and refuses bad names like Bash" {
+    assert_tree_parity add
+    assert_tree_parity add --help
+    assert_tree_parity add rule
+    assert_tree_parity add --bogus rule x
+    assert_tree_parity add banana x
+    assert_tree_parity add rule a b
+    assert_tree_parity add rule sub/dir
+    assert_tree_parity add rule ..evil
+    assert_tree_parity add rule .hidden
+    assert_tree_parity add rule "my rule"
+    assert_tree_parity add rule testing
+    assert_tree_parity add skill my-skill
+    assert_tree_parity add command deploy
+    assert_tree_parity add subagent reviewer
+    assert_tree_parity add rule my_tool-x2--y
+    run_agentsync add rule testing >/dev/null
+    assert_tree_parity add rule testing
+    printf 'custom content\n' > .ai/src/rules/testing.md
+    assert_tree_parity add --force rule testing
+    assert_tree_parity add -f skill my-skill
+    mkdir -p .ai/src/rules/dirname.md
+    assert_tree_parity add rule dirname
+}
+
+@test "parity: add mcp creates, appends, escapes, and refuses like Bash" {
+    assert_tree_parity add mcp
+    assert_tree_parity add mcp --help
+    assert_tree_parity add mcp gh --bogus
+    assert_tree_parity add mcp gh extra --command x
+    assert_tree_parity add mcp bad/name --command x
+    assert_tree_parity add mcp gh
+    assert_tree_parity add mcp gh --url u --command c
+    assert_tree_parity add mcp gh --url
+    assert_tree_parity add mcp bad --command c --env NOEQ
+    rm -f .ai/src/mcp.json
+    assert_tree_parity add mcp github --command "npx @github/mcp-server"
+    run_agentsync add mcp github --command "npx @github/mcp-server" >/dev/null
+    assert_tree_parity add mcp linear --url "https://mcp.linear.app/sse"
+    assert_tree_parity add mcp fs --command fs-server --args "--root /tmp   --debug" --env " TOKEN = abc ,DEBUG=1,, "
+    assert_tree_parity add mcp github --command other
+    assert_tree_parity add mcp github --command other --force
+    assert_tree_parity add mcp weird --command 'say "hi" path\to' --env 'MSG=a"b' --args 'x"y z\w'
+    printf '{"mcpServers": {"a": { "env": { "X": "}\\"{" }, "args": [ "1", [ "2" ] ] }, "b": "str"}, "trailing": true}\n' > .ai/src/mcp.json
+    assert_tree_parity add mcp d --url "https://d"
+    printf '{"servers": {}}\n' > .ai/src/mcp.json
+    assert_tree_parity add mcp n --url "https://n"
+    printf '{"mcpServers": []}\n' > .ai/src/mcp.json
+    assert_tree_parity add mcp n --url "https://n"
+}

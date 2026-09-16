@@ -11,6 +11,13 @@ pub fn base_tool_yaml(slug: &str) -> Option<&'static str> {
         .contents_utf8()
 }
 
+/// Shipped `lib/templates/content/<kind>.md`, the scaffold `add` fills in.
+pub fn content_template(kind: &str) -> Option<&'static str> {
+    TEMPLATES
+        .get_file(format!("content/{kind}.md"))?
+        .contents_utf8()
+}
+
 /// Base tool slugs in byte order, `_`-prefixed entries such as `_TEMPLATE` skipped.
 pub fn base_tools() -> Vec<String> {
     let mut slugs: Vec<String> = files_in("tools")

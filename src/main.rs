@@ -83,6 +83,22 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
             &mut std::io::stderr(),
         );
     }
+    if args.first().and_then(|a| a.to_str()) == Some("add") {
+        let rest: Vec<String> = args[1..]
+            .iter()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        let env_root = var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty());
+        let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
+        let root = paths::logical_root(env_root.as_deref(), &cwd, var("PWD").as_deref());
+        return cli::add::add(
+            &rest,
+            &root,
+            &Style::for_stdout(),
+            &mut std::io::stdout(),
+            &mut std::io::stderr(),
+        );
+    }
     if args.first().and_then(|a| a.to_str()) == Some("doctor") {
         let env = cli::doctor::Env {
             version: engine_version(),

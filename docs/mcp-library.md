@@ -70,15 +70,48 @@ agentsync mcp use example@uvx another@default --tool opencode --library catalog/
 agentsync sync --only opencode
 ```
 
-Only `claude` and `opencode` are supported by `use` in this iteration. Enable
-the client explicitly first. Other clients, including Codex's TOML settings,
-require additional adapters and are rejected instead of receiving guessed JSON.
+`claude`, `opencode` and `codex` are supported by `use`. Enable the client
+explicitly first. Other clients require additional adapters and are rejected
+instead of receiving guessed JSON.
 
 `render` emits `{"mcpServers":{...}}`, an **AgentSync source**, not native
 OpenCode configuration. `use --apply` creates
 `.ai/src/tools/<tool>/mcp.json` (or the corresponding in-project `source.tools`
 path). The existing sync pipeline copies this for Claude and translates it
-for OpenCode. Per-tool settings remain under their existing ownership.
+for OpenCode. Codex composes the selected connections with its settings source
+into project-local `.codex/config.toml`. Per-tool settings remain under their
+existing ownership.
+
+### Codex composition boundary
+
+```sh
+agentsync mcp use example@recommended --tool codex --library catalog/mcp
+agentsync mcp use example@recommended --tool codex --library catalog/mcp --apply
+agentsync sync --only codex
+```
+
+The Codex adapter prepends one root `mcp_servers = { ... }` TOML assignment,
+then preserves the settings source byte-for-byte. It does not rewrite arbitrary
+TOML. Without a separate MCP source, settings retain the existing copy behavior,
+including hand-authored MCP sections. With both sources present, overlapping or
+ambiguous ownership fails before replacing the native configuration. `doctor`
+reports that conflict; `adopt` refuses to copy a composed file back into a single
+source.
+
+The ownership check is deliberately conservative, not a full TOML validator:
+it ignores full-line comments but refuses `mcp_servers` anywhere else, and
+backslashes on lines beginning with quoted keys or table headers. This can
+reject harmless mentions or escaped strings. Keep MCP in one source rather
+than relying on a best-effort merge. The settings source must already be valid
+TOML. Only canonical `command`/`args` and `type: http`/`url` MCP entries are
+accepted; unsupported fields such as `env` or headers fail instead of being
+silently discarded. The same restriction applies to a shared MCP source.
+
+The adapter never edits the user's global Codex config, starts a server or
+changes project trust. Codex's project-scoped configuration requires a trusted
+project; see the [official MCP documentation](https://developers.openai.com/codex/mcp).
+An explicit `targets.mcp.enabled: false` blocks library use and leaves dormant
+MCP sources out of sync composition, doctor ownership checks and adopt refusal.
 
 `use` defaults to preview; `--dry-run` is an explicit synonym. `--apply` and
 `--dry-run` are mutually exclusive. No runtime is installed or started. HTTP

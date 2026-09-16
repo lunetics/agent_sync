@@ -503,6 +503,79 @@ function serialize_connection(node,    type, command, args, url) {
     return "{\"type\":\"http\",\"url\":" json_text(node_raw[url]) "}"
 }
 
+function validate_codex_source_connection(node,    allowed, type, command, args, url) {
+    if (!require_kind(node, "object", "Codex MCP server")) return 0
+    allowed["type"] = allowed["command"] = allowed["args"] = allowed["url"] = 1
+    if (!allow_only(node, allowed, "Codex MCP server")) return 0
+    type = object_field(node, "type")
+    command = object_field(node, "command")
+    args = object_field(node, "args")
+    url = object_field(node, "url")
+    if (type == 0) {
+        if (command == 0 || args == 0) return fail("stdio Codex MCP server requires command and args")
+        if (!require_kind(command, "string", "Codex MCP command") || node_raw[command] == "") return fail("Codex MCP command must be a non-empty string")
+        if (!validate_string_array(args, "Codex MCP args")) return 0
+        if (url != 0) return fail("stdio Codex MCP server must not define url")
+    } else {
+        if (!require_kind(type, "string", "Codex MCP type") || node_raw[type] != "http") return fail("Codex MCP type must be 'http'")
+        if (url == 0) return fail("http Codex MCP server requires url")
+        if (!require_kind(url, "string", "Codex MCP url") || node_raw[url] == "") return fail("Codex MCP url must be a non-empty string")
+        if (command != 0 || args != 0) return fail("http Codex MCP server must not define command or args")
+    }
+    return 1
+}
+
+function validate_codex_source(root,    allowed, servers, i, id, server) {
+    if (!require_kind(root, "object", "Codex MCP source root")) return 0
+    allowed["mcpServers"] = 1
+    if (!allow_only(root, allowed, "Codex MCP source root")) return 0
+    servers = require_field(root, "mcpServers", "Codex MCP source root")
+    if (error != "") return 0
+    if (!require_kind(servers, "object", "mcpServers")) return 0
+    if (object_count[servers] > 256) return fail("mcpServers exceeds entry limit 256")
+    for (i = 1; i <= object_count[servers]; i++) {
+        id = object_key[servers SUBSEP i]
+        if (!validate_variant_id(id)) return fail("Codex MCP server id must match [A-Za-z0-9][A-Za-z0-9_-]{0,63}")
+        server = object_value[servers SUBSEP i]
+        if (!validate_codex_source_connection(server)) return 0
+    }
+    codex_source_servers = servers
+    return 1
+}
+
+function serialize_toml_string_array(node,    i, item, output) {
+    output = "["
+    for (i = 1; i <= array_count[node]; i++) {
+        item = array_item[node SUBSEP i]
+        if (i > 1) output = output ", "
+        output = output json_text(node_raw[item])
+    }
+    return output "]"
+}
+
+function serialize_codex_source_server(node,    type, command, args, url) {
+    type = object_field(node, "type")
+    if (type == 0) {
+        command = object_field(node, "command")
+        args = object_field(node, "args")
+        return "{ command = " json_text(node_raw[command]) ", args = " serialize_toml_string_array(args) " }"
+    }
+    url = object_field(node, "url")
+    return "{ url = " json_text(node_raw[url]) " }"
+}
+
+function serialize_codex_source(    i, id, server, output) {
+    output = "mcp_servers = {"
+    for (i = 1; i <= object_count[codex_source_servers]; i++) {
+        id = object_key[codex_source_servers SUBSEP i]
+        server = object_value[codex_source_servers SUBSEP i]
+        if (i > 1) output = output ", "
+        else output = output " "
+        output = output json_text(id) " = " serialize_codex_source_server(server)
+    }
+    return output " }"
+}
+
 function resolve_selected_variant(    requested, alternative_pos) {
     requested = selected_variant
     if (requested == "") requested = "default"
@@ -557,12 +630,15 @@ BEGIN {
     root = last_node
     skip_space()
     if (position <= length(json)) fail("trailing content after JSON value")
-    if (error == "" && !validate_manifest(root)) { }
+    if (output_mode == "codex-source") {
+        if (error == "" && !validate_codex_source(root)) { }
+    } else if (error == "" && !validate_manifest(root)) { }
     if (error != "") {
         print error > "/dev/stderr"
         exit 1
     }
-    if (output_mode == "metadata") printf "%s\t%s\n", manifest_id, display_text(manifest_title)
+    if (output_mode == "codex-source") print serialize_codex_source()
+    else if (output_mode == "metadata") printf "%s\t%s\n", manifest_id, display_text(manifest_title)
     else if (output_mode == "server" || output_mode == "selection") {
         if (!resolve_selected_variant()) {
             print error > "/dev/stderr"

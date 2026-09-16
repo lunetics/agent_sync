@@ -146,8 +146,8 @@ cmd_mcp_library_bind() {
         }
     else
         case "$tool" in
-            claude|opencode) ;;
-            *) _mcp_library_error "use requires --tool claude or opencode; other adapters are not supported yet"; return 1 ;;
+            claude|opencode|codex) ;;
+            *) _mcp_library_error "use requires --tool claude, opencode or codex; other adapters are not supported yet"; return 1 ;;
         esac
     fi
     _mcp_library_select_root_r "$library" || return 1
@@ -176,6 +176,19 @@ cmd_mcp_library_bind() {
         [[ "$candidate" != "$tool" ]] || enabled=true
     done < <(list_enabled_tools)
     [[ "$enabled" == true ]] || { _mcp_library_error "Enable $tool explicitly before use"; return 1; }
+    [[ "$(get_tool_bool "$tool" targets.mcp.enabled)" != false ]] || {
+        _mcp_library_error "Enable the MCP target for $tool before use"
+        return 1
+    }
+    if [[ "$tool" == codex ]]; then
+        _need codex
+        local settings
+        settings=$(resolve_payload_source "$tool" settings)
+        codex_settings_allow_mcp "$settings" || {
+            _mcp_library_error "Codex MCP ownership conflict or ambiguous settings keys; keep MCP in one source"
+            return 1
+        }
+    fi
     _mcp_library_source_target_r "$tool" "$payload" || return 1
     local target="$REPLY" staging
     if [[ "$apply" != true ]]; then

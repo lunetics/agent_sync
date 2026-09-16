@@ -183,7 +183,7 @@ teardown() { teardown_test_project; }
 }
 
 @test "library use rejects unsupported tools and conflicting flags" {
-    run run_agentsync mcp use http --tool codex --library "$CATALOG" --apply
+    run run_agentsync mcp use http --tool cursor --library "$CATALOG" --apply
     [ "$status" -ne 0 ]
     [[ "$output" == *"not supported yet"* ]]
     run run_agentsync mcp use http --tool claude --library "$CATALOG" --apply --dry-run

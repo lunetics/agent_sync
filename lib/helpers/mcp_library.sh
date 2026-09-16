@@ -17,7 +17,7 @@ Usage:
   agentsync mcp show <id> [--library PATH]
   agentsync mcp validate [id] [--library PATH]
   agentsync mcp render <id[@variant]>... [--variant NAME] [--library PATH]
-  agentsync mcp use <id[@variant]>... --tool claude|opencode [--apply]
+  agentsync mcp use <id[@variant]>... --tool claude|opencode|codex [--apply]
                     [--variant NAME] [--library PATH]
 
 Read an explicitly selected local MCP library. --library may be absolute or

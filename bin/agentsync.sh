@@ -343,7 +343,7 @@ main() {
         show)          _need yaml yaml_edit tool_resolver project_config snapshot customize;   shift; cmd_show "$@" ;;
         diff)          _need yaml yaml_edit tool_resolver project_config snapshot customize;   shift; cmd_diff "$@" ;;
         resolve)       _need yaml yaml_edit tool_resolver project_config snapshot customize resolve_cmd; shift; cmd_resolve "$@" ;;
-        doctor)        _need yaml tool_resolver project_config edit_paths opencode format doctor; cmd_doctor ;;
+        doctor)        _need yaml tool_resolver project_config edit_paths opencode codex format doctor; cmd_doctor ;;
         dedupe)        _need yaml yaml_edit prompts paths template_manifest dedupe; shift; cmd_dedupe "$@" ;;
         adopt)         _need yaml tool_resolver project_config paths logging filters file_ops prompts manifest cli_colors adopt; shift; cmd_adopt "$@" ;;
         profile)       _need yaml yaml_edit tool_resolver project_config profiles paths logging prompts profile; shift; cmd_profile "$@" ;;

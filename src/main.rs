@@ -83,6 +83,19 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
             &mut std::io::stderr(),
         );
     }
+    if args.first().and_then(|a| a.to_str()) == Some("doctor") {
+        let env = cli::doctor::Env {
+            version: engine_version(),
+            external_roots: var("AGENTSYNC_EXTERNAL_SOURCE_ROOTS"),
+        };
+        return cli::doctor::doctor(
+            &Project::discover,
+            &Style::for_stdout(),
+            &env,
+            &mut std::io::stdout(),
+            &mut std::io::stderr(),
+        );
+    }
     if args.first().and_then(|a| a.to_str()) == Some("init") {
         let rest: Vec<String> = args[1..]
             .iter()

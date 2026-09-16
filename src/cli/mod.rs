@@ -3,6 +3,7 @@ pub mod check;
 pub mod customize;
 pub mod dedupe;
 pub mod diff;
+pub mod doctor;
 pub mod enable;
 pub mod init;
 pub mod list;

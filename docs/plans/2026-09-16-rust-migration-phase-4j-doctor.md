@@ -318,7 +318,7 @@ pub fn doctor(
 ) -> Result<u8, Error>;
 ```
 
-- [ ] **Step 1: Parity fixtures, Bash side**
+- [x] **Step 1: Parity fixtures, Bash side**
 
 Append to `tests/native_parity.bats`:
 
@@ -362,7 +362,7 @@ Append to `tests/native_parity.bats`:
 Run, outside the sandbox: `AGENTSYNC_NATIVE=0 bats --tap tests/doctor.bats | grep -c '^ok'`; `bats --tap -f 'parity: doctor' tests/native_parity.bats`
 Expected: `37`; `ok 1` and `ok 2` (the native side still runs Bash until Step 3 lists `doctor`).
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Create `src/cli/doctor.rs` with the tests module, and add `pub mod doctor;` to `src/cli/mod.rs` between `diff` and `enable`:
 
@@ -562,7 +562,7 @@ mod tests {
 Run: `cargo test doctor 2>&1 | grep -E '^error' | head -3`
 Expected: compile errors naming `scan_secrets`, `json_valid`, `is_path_scoped`, `Env`, and `doctor`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Prepend to `src/cli/doctor.rs`:
 
@@ -1887,7 +1887,7 @@ In `bin/agentsync.sh:280` append `doctor`:
 _NATIVE_COMMANDS=" version --version -v list ls check sync rollback enable disable customize show diff simplify resolve upgrade-config profile dedupe adopt migrate refresh init doctor "
 ```
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo fmt --all
@@ -1901,7 +1901,7 @@ bats --tap -f 'parity: doctor' tests/native_parity.bats
 
 Expected: `263 passed`, `0`, `11`, `1`; `0` for every file; `ok 1` and `ok 2`.
 
-- [ ] **Step 5: Prove the fixture bites, run the reference, lint, commit**
+- [x] **Step 5: Prove the fixture bites, run the reference, lint, commit**
 
 Change `All checks passed.` to `All checks passed` in `src/cli/doctor.rs`, rebuild, rerun `bats --tap -f 'parity: doctor reports' tests/native_parity.bats`: `not ok 1` with the summary line in the diff; revert and rebuild.
 

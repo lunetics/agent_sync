@@ -1014,3 +1014,37 @@ _forget_template() {
     [ ! -e .ai/src ]
     [ ! -e .ai/.template-manifest ]
 }
+# ── doctor ───────────────────────────────────────────────────────────────────
+# doctor writes nothing, so assert_parity compares the report and the status.
+
+@test "parity: doctor reports layout, tools, overrides, drift, and advisories like Bash" {
+    assert_parity doctor
+    assert_parity doctor --bogus extra
+    enable_tools claude cursor opencode kimi
+    _bash_sync
+    assert_parity doctor
+    printf 'edit\n' >> CLAUDE.md
+    rm -f .claude/rules/core.md
+    mkdir -p .ai/src/tools/claude .ai/src/tools/cursor .ai/src/tools/opencode .ai/src/settings .ai/src/hooks .ai/src/skills/empty .zed
+    printf '{"a": 1,}\n' > .ai/src/tools/cursor/mcp.json
+    printf '{"gh": "ghp_abcdefghijklmnopqrstuvwxyz012345678901", "ok": "${TOKEN}"}\n' > .ai/src/tools/claude/mcp.json
+    printf '{"s": 2}\n' > .ai/src/settings/claude.json
+    printf '[hooks]\n' > .ai/src/hooks/kimi.toml
+    printf '{"mcp": {}}\n' > .ai/src/tools/opencode/settings.json
+    printf '{"mcpServers": {}}\n' > .ai/src/mcp.json
+    assert_parity doctor
+    run_agentsync customize claude >/dev/null
+    printf 'enabled: true\n' > .ai/src/tools/zed.yaml
+    assert_parity doctor
+}
+
+@test "parity: doctor fails on a bad config path, refused sources, and a missing layout like Bash" {
+    AGENTSYNC_CONFIG_PATH=missing.yaml assert_parity doctor
+    mkdir -p parent/.ai/src/rules
+    cp .ai/src/rules/core.md parent/.ai/src/rules/core.md
+    printf '# other\n' > parent/.ai/src/rules/git.md
+    printf 'agentsync_version: "0.0.1"\nformat: 1\nshared:\n  path: parent\n  inherit: rules\nsource:\n  skills: /\n  commands: ../outside/commands\n' > .ai/agent_sync.yaml
+    assert_parity doctor
+    rm -rf .ai
+    assert_parity doctor
+}

@@ -3,6 +3,16 @@
 # mcp_library_bind.sh; no library command executes a described server.
 
 readonly MCP_LIBRARY_MAX_MANIFEST_BYTES=131072
+# Tests and constrained callers may lower the source limit, but never raise the
+# 32 MiB safety ceiling.
+_mcp_library_source_limit="${MCP_LIBRARY_MAX_SOURCE_BYTES:-33554432}"
+if [[ ! "$_mcp_library_source_limit" =~ ^[1-9][0-9]*$ ]] || \
+   (( ${#_mcp_library_source_limit} > 8 )) || \
+   { (( ${#_mcp_library_source_limit} == 8 )) && (( _mcp_library_source_limit > 33554432 )); }; then
+    _mcp_library_source_limit=33554432
+fi
+readonly MCP_LIBRARY_MAX_SOURCE_BYTES="$_mcp_library_source_limit"
+unset _mcp_library_source_limit
 readonly MCP_LIBRARY_MAX_DEPTH=16
 readonly MCP_LIBRARY_MAX_ENTRIES=256
 
@@ -17,14 +27,15 @@ Usage:
   agentsync mcp show <id> [--library PATH]
   agentsync mcp validate [id] [--library PATH]
   agentsync mcp render <id[@variant]>... [--variant NAME] [--library PATH]
-  agentsync mcp use <id[@variant]>... --tool claude|opencode|codex [--apply]
-                    [--variant NAME] [--library PATH]
+  agentsync mcp use <id[@variant]>... --tool claude|opencode|codex|kimi [--apply]
+                    [--merge [--replace ID]...] [--variant NAME] [--library PATH]
 
 Read an explicitly selected local MCP library. --library may be absolute or
 relative to the selected AgentSync root. Without it, library.mcp.path in the
 selected agent_sync.yaml is required. render emits an AgentSync MCP source, not
 a native OpenCode config. use previews that source; --apply creates a per-tool
-source for a later sync. Existing differing sources are never overwritten.
+source for a later sync. --merge is limited to an existing canonical per-tool
+source and requires --replace ID for every selected differing server.
 Variant defaults to default; recommended must be explicitly requested.
 USAGE
 }
@@ -63,8 +74,15 @@ _mcp_library_parser() {
     local expected_id="${2:-}"
     local output_mode="${3:-validate}"
     local selected_variant="${4:-default}"
+    local max_bytes="${5:-$MCP_LIBRARY_MAX_MANIFEST_BYTES}"
+    local overlay_path="${6:-}"
+    local replace_ids="${7:-}"
     _mcp_library_valid_id "$selected_variant" || {
         _mcp_library_error "Unsafe MCP variant: $selected_variant"
+        return 1
+    }
+    [[ "$max_bytes" =~ ^[1-9][0-9]*$ ]] || {
+        _mcp_library_error "Invalid MCP parser byte limit"
         return 1
     }
     local size
@@ -72,8 +90,8 @@ _mcp_library_parser() {
         _mcp_library_error "Cannot read manifest: $manifest"
         return 1
     }
-    if (( size > MCP_LIBRARY_MAX_MANIFEST_BYTES )); then
-        _mcp_library_error "Manifest exceeds ${MCP_LIBRARY_MAX_MANIFEST_BYTES} byte limit: $manifest"
+    if (( size > max_bytes )); then
+        _mcp_library_error "MCP source exceeds ${max_bytes} byte limit: $manifest"
         return 1
     fi
 
@@ -81,10 +99,12 @@ _mcp_library_parser() {
     local diagnostic
     diagnostic=$(LC_ALL=C awk \
         -v max_depth="$MCP_LIBRARY_MAX_DEPTH" \
-        -v max_bytes="$MCP_LIBRARY_MAX_MANIFEST_BYTES" \
+        -v max_bytes="$max_bytes" \
         -v expected_id="$expected_id" \
         -v output_mode="$output_mode" \
         -v selected_variant="$selected_variant" \
+        -v overlay_path="$overlay_path" \
+        -v replace_ids="$replace_ids" \
         -f "$parser" "$manifest" 2>&1) || {
         _mcp_library_error "${diagnostic:-Malformed MCP library manifest: $manifest}"
         return 1
@@ -92,6 +112,24 @@ _mcp_library_parser() {
     [[ -n "$diagnostic" ]] && printf '%s\n' "$diagnostic"
     return 0
 }
+
+_mcp_library_merge_source_r() (
+    local source="$1" payload="$2" mode="$3" replace_ids="$4"
+    local overlay=""
+    _mcp_library_merge_cleanup() {
+        [[ -z "$overlay" ]] || rm -f -- "$overlay"
+    }
+    trap _mcp_library_merge_cleanup EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    overlay=$(mktemp "${TMPDIR:-/tmp}/agentsync-mcp-overlay.XXXXXX") || return 1
+    if ! printf '%s\n' "$payload" > "$overlay"; then
+        return 1
+    fi
+    local status=0
+    _mcp_library_parser "$source" "" "$mode" default "$MCP_LIBRARY_MAX_SOURCE_BYTES" "$overlay" "$replace_ids" || status=$?
+    return "$status"
+)
 
 _mcp_library_select_root_r() {
     local explicit_path="$1"

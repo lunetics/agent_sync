@@ -576,6 +576,162 @@ function serialize_codex_source(    i, id, server, output) {
     return output " }"
 }
 
+function parse_json_path(path, label,    read_status, read_bytes, have_line, line) {
+    if (path == "") return fail("missing " label)
+    json = ""
+    read_status = 0
+    read_bytes = 0
+    have_line = 0
+    while ((read_status = getline line < path) > 0) {
+        if (have_line) read_bytes++
+        read_bytes += length(line)
+        if (read_bytes > max_bytes) return fail(label " exceeds byte limit " max_bytes)
+        if (have_line) json = json "\n"
+        json = json line
+        have_line = 1
+    }
+    close(path)
+    if (read_status < 0) return fail("cannot read " label)
+    position = 1
+    skip_space()
+    if (!parse_value(1)) return 0
+    parsed_root = last_node
+    skip_space()
+    if (position <= length(json)) return fail("trailing content after JSON value")
+    return 1
+}
+
+function json_node_equal(left, right,    i, key, left_value, right_value) {
+    if (node_kind[left] != node_kind[right]) return 0
+    if (node_kind[left] == "string" || node_kind[left] == "number" || node_kind[left] == "boolean" || node_kind[left] == "null") return node_raw[left] == node_raw[right]
+    if (node_kind[left] == "array") {
+        if (array_count[left] != array_count[right]) return 0
+        for (i = 1; i <= array_count[left]; i++) if (!json_node_equal(array_item[left SUBSEP i], array_item[right SUBSEP i])) return 0
+        return 1
+    }
+    if (object_count[left] != object_count[right]) return 0
+    for (i = 1; i <= object_count[left]; i++) {
+        key = object_key[left SUBSEP i]
+        left_value = object_value[left SUBSEP i]
+        right_value = object_field(right, key)
+        if (right_value == 0 || !json_node_equal(left_value, right_value)) return 0
+    }
+    return 1
+}
+
+function validate_merge_replacements(value,    parts, count, i, id) {
+    if (value == "") return 1
+    count = split(value, parts, ",")
+    for (i = 1; i <= count; i++) {
+        id = parts[i]
+        if (!validate_variant_id(id)) return fail("replacement id must match [A-Za-z0-9][A-Za-z0-9_-]{0,63}")
+        if (id in merge_replace) return fail("duplicate replacement id '" display_text(id) "'")
+        merge_replace[id] = 1
+    }
+    return 1
+}
+
+function validate_merge_source(source_root, overlay_root,    source_servers, overlay_servers, i, id, source_server, overlay_server, merged_count) {
+    if (!require_kind(source_root, "object", "existing MCP source root")) return 0
+    source_servers = require_field(source_root, "mcpServers", "existing MCP source root")
+    if (error != "") return 0
+    if (!require_kind(source_servers, "object", "existing mcpServers")) return 0
+    if (object_count[source_servers] > 256) return fail("existing mcpServers exceeds entry limit 256")
+    for (i = 1; i <= object_count[source_servers]; i++) {
+        id = object_key[source_servers SUBSEP i]
+        if (!validate_variant_id(id)) return fail("existing MCP server id must match [A-Za-z0-9][A-Za-z0-9_-]{0,63}")
+        source_server = object_value[source_servers SUBSEP i]
+        if (!require_kind(source_server, "object", "existing MCP server")) return 0
+    }
+    if (!validate_codex_source(overlay_root)) return 0
+    overlay_servers = codex_source_servers
+    if (!validate_merge_replacements(replace_ids)) return 0
+    for (i = 1; i <= object_count[overlay_servers]; i++) {
+        id = object_key[overlay_servers SUBSEP i]
+        merge_selected[id] = 1
+    }
+    for (id in merge_replace) if (!(id in merge_selected)) return fail("replacement id is not selected: '" display_text(id) "'")
+    for (i = 1; i <= object_count[overlay_servers]; i++) {
+        id = object_key[overlay_servers SUBSEP i]
+        overlay_server = object_value[overlay_servers SUBSEP i]
+        source_server = object_field(source_servers, id)
+        if (source_server == 0) {
+            merge_action[id] = "add"
+            merged_count++
+        }
+        else if (json_node_equal(source_server, overlay_server)) merge_action[id] = "identical"
+        else if (id in merge_replace) merge_action[id] = "replace"
+        else return fail("existing MCP server differs; re-run with --replace " id)
+    }
+    if (object_count[source_servers] + merged_count > 256) return fail("merged mcpServers exceeds entry limit 256")
+    merge_source_root = source_root
+    merge_source_servers = source_servers
+    merge_overlay_servers = overlay_servers
+    return 1
+}
+
+function serialize_json_node(node,    i, output) {
+    if (node_kind[node] == "string") return json_text(node_raw[node])
+    if (node_kind[node] == "number" || node_kind[node] == "boolean" || node_kind[node] == "null") return node_raw[node]
+    if (node_kind[node] == "array") {
+        output = "["
+        for (i = 1; i <= array_count[node]; i++) {
+            if (i > 1) output = output ","
+            output = output serialize_json_node(array_item[node SUBSEP i])
+        }
+        return output "]"
+    }
+    output = "{"
+    for (i = 1; i <= object_count[node]; i++) {
+        if (i > 1) output = output ","
+        output = output json_text(object_key[node SUBSEP i]) ":" serialize_json_node(object_value[node SUBSEP i])
+    }
+    return output "}"
+}
+
+function serialize_merged_servers(    i, id, source_server, overlay_server, output, count) {
+    output = "{"
+    count = 0
+    for (i = 1; i <= object_count[merge_source_servers]; i++) {
+        id = object_key[merge_source_servers SUBSEP i]
+        source_server = object_value[merge_source_servers SUBSEP i]
+        if (count++ > 0) output = output ","
+        output = output json_text(id) ":"
+        if (merge_action[id] == "replace") {
+            overlay_server = object_field(merge_overlay_servers, id)
+            output = output serialize_json_node(overlay_server)
+        } else output = output serialize_json_node(source_server)
+    }
+    for (i = 1; i <= object_count[merge_overlay_servers]; i++) {
+        id = object_key[merge_overlay_servers SUBSEP i]
+        if (object_field(merge_source_servers, id) != 0) continue
+        if (count++ > 0) output = output ","
+        overlay_server = object_value[merge_overlay_servers SUBSEP i]
+        output = output json_text(id) ":" serialize_json_node(overlay_server)
+    }
+    return output "}"
+}
+
+function serialize_merged_source(    i, key, value, output) {
+    output = "{"
+    for (i = 1; i <= object_count[merge_source_root]; i++) {
+        if (i > 1) output = output ","
+        key = object_key[merge_source_root SUBSEP i]
+        value = object_value[merge_source_root SUBSEP i]
+        output = output json_text(key) ":"
+        if (key == "mcpServers") output = output serialize_merged_servers()
+        else output = output serialize_json_node(value)
+    }
+    return output "}"
+}
+
+function print_merge_plan(    i, id) {
+    for (i = 1; i <= object_count[merge_overlay_servers]; i++) {
+        id = object_key[merge_overlay_servers SUBSEP i]
+        printf "%s\t%s\n", id, merge_action[id]
+    }
+}
+
 function resolve_selected_variant(    requested, alternative_pos) {
     requested = selected_variant
     if (requested == "") requested = "default"
@@ -599,45 +755,26 @@ function resolve_selected_variant(    requested, alternative_pos) {
 
 BEGIN {
     init_bytes()
-    read_status = 0
-    read_bytes = 0
-    have_line = 0
-    while ((read_status = getline line < ARGV[1]) > 0) {
-        # getline strips delimiters. A separator is known to exist only before
-        # a later record, so do not invent one after a final unterminated line.
-        if (have_line) read_bytes++
-        read_bytes += length(line)
-        if (read_bytes > max_bytes) {
-            fail("manifest exceeds byte limit " max_bytes)
-            break
-        }
-        if (have_line) json = json "\n"
-        json = json line
-        have_line = 1
-    }
-    close(ARGV[1])
-    if (read_status < 0) fail("cannot read manifest")
-    if (error != "") {
+    if (!parse_json_path(ARGV[1], "manifest")) {
         print error > "/dev/stderr"
         exit 1
     }
-    position = 1
-    skip_space()
-    if (!parse_value(1)) {
-        print error > "/dev/stderr"
-        exit 1
-    }
-    root = last_node
-    skip_space()
-    if (position <= length(json)) fail("trailing content after JSON value")
-    if (output_mode == "codex-source") {
+    root = parsed_root
+    if (output_mode == "merge-plan" || output_mode == "merge-json") {
+        source_root = root
+        if (error == "" && !parse_json_path(overlay_path, "MCP source overlay")) { }
+        overlay_root = parsed_root
+        if (error == "" && !validate_merge_source(source_root, overlay_root)) { }
+    } else if (output_mode == "codex-source") {
         if (error == "" && !validate_codex_source(root)) { }
     } else if (error == "" && !validate_manifest(root)) { }
     if (error != "") {
         print error > "/dev/stderr"
         exit 1
     }
-    if (output_mode == "codex-source") print serialize_codex_source()
+    if (output_mode == "merge-plan") print_merge_plan()
+    else if (output_mode == "merge-json") print serialize_merged_source()
+    else if (output_mode == "codex-source") print serialize_codex_source()
     else if (output_mode == "metadata") printf "%s\t%s\n", manifest_id, display_text(manifest_title)
     else if (output_mode == "server" || output_mode == "selection") {
         if (!resolve_selected_variant()) {

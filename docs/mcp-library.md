@@ -70,7 +70,7 @@ agentsync mcp use example@uvx another@default --tool opencode --library catalog/
 agentsync sync --only opencode
 ```
 
-`claude`, `opencode` and `codex` are supported by `use`. Enable the client
+`claude`, `opencode`, `codex` and `kimi` are supported by `use`. Enable the client
 explicitly first. Other clients require additional adapters and are rejected
 instead of receiving guessed JSON.
 
@@ -121,11 +121,51 @@ not verified by these commands.
 This is **snapshot materialization**, not a live link: catalog changes do not
 silently change the generated source. Identical reapplication is a no-op;
 different existing per-tool, shared, legacy or declared sources cause a clear
-conflict. Use `render` and merge deliberately rather than overwriting unrelated
-servers. No automatic merge, replacement or removal is provided yet. Publishing
+conflict unless the explicit merge workflow below applies. Publishing
 requires a filesystem supporting ordinary file hard links; unsupported writes
 fail rather than falling back to overwriting a destination. Concurrent hostile
 changes to directory structure are outside the supported write model.
+
+### Extend an existing per-tool source
+
+```sh
+agentsync mcp use example --tool claude --merge --library catalog/mcp
+agentsync mcp use example --tool claude --merge --apply --library catalog/mcp
+# A differing selected ID needs explicit permission to replace its entire entry:
+agentsync mcp use example --tool claude --merge --replace example --apply --library catalog/mcp
+```
+
+Merge requires an existing canonical `.ai/src/tools/<tool>/mcp.json` (respecting
+`source.tools`). Shared, legacy and alternate declared sources are not migrated
+implicitly. New IDs are added, identical entries are left alone, and conflicting
+selected IDs fail without `--replace ID`. Repeat that option for multiple IDs.
+Replacement replaces the whole selected server, including any old env or headers;
+it is not a field-level overlay. Unrelated root fields and server objects retain
+their JSON meaning, although formatting may change. Existing JSON must pass the
+strict parser, use safe server IDs, stay within 32 MiB, 16 nesting levels and 256
+servers. No server is removed automatically.
+
+The preview prints selected IDs and actions, never existing configuration values.
+Apply holds a per-target directory lock, stages and size-checks the complete
+result, backs up the prior file and checks for changed source bytes before
+publishing. Concurrent AgentSync merge writers fail rather than overwrite each
+other. Normal exit, INT and TERM clean registered temporary files and the lock.
+SIGKILL or power loss cannot be trapped: after confirming no writer remains,
+inspect and remove only that target's stale `mcp.json.mcp-library.lock` and any
+identified leftover staging files. Temporary files and backup snapshots may
+contain existing credentials and must be treated as private data.
+
+These checks are not a filesystem transaction with non-cooperating editors or
+protection against a hostile concurrent directory replacement. A later sync still
+enforces each adapter's restrictions: preserving a foreign field during merge does
+not make it supported by the Codex adapter, for example.
+
+Kimi uses the existing project `.kimi-code/mcp.json` adapter. Its documented
+project trust and native OAuth login remain the client's responsibility; see
+[Kimi's MCP documentation](https://www.kimi.com/code/docs/en/kimi-code-cli/customization/mcp.html).
+The existing copy adapter retains the canonical HTTP `type` field; Kimi's
+current schema accepts it, but its docs show URL-only entries. This is not a
+native-client compatibility guarantee across future versions.
 
 ## Manifest schema v1
 
@@ -242,7 +282,10 @@ Start methods such as `uvx`, `uv run`, `npx`, Docker or a standalone executable
 remain ordinary `command` plus `args`, not new MCP transports. Package versions
 and image digests can be pinned in those arguments, but AgentSync does not
 resolve packages, inspect images or lock transitive dependencies. Input binding
-and authentication metadata remain deferred; `requirements.inputs` stays empty.
+remains deferred; `requirements.inputs` stays empty. The bundled
+[pilot catalog](../catalog/mcp/README.md) records descriptive authentication and
+runtime requirements in a namespaced extension, with a separate development
+checker and offline freshness queue. It does not enforce those requirements.
 
 ## Development validation
 
@@ -266,6 +309,6 @@ mount-free Linux container. CI runs ShellCheck, Bats on Linux/macOS/Windows,
 and the reference probe with GNU awk and mawk on Linux and native awk/Bash on
 macOS. Local Linux results do not establish macOS or Windows compatibility.
 
-Live catalog bindings, automatic config merging, release management, secret
+Live catalog bindings, automatic config merging without explicit selection, release management, secret
 binding and server lifecycle management are not implemented. The older `add
 mcp` workflow is unchanged.

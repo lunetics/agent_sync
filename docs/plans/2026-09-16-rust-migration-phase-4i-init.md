@@ -787,7 +787,7 @@ git commit -m "feat(native): port the multiselect prompt"
   - `pub struct init::Env<'a> { version, cwd, config_path, backup_limit, backup_max_age, interactive, confirm: &mut dyn FnMut(&str, bool) -> bool, multiselect: Picker, sync: &mut dyn FnMut(&str) -> u8 }`
   - `pub fn init::init(args: &[String], style: &Style, env: &mut Env, out: &mut dyn Write, err: &mut dyn Write) -> Result<u8, Error>`
 
-- [ ] **Step 1: Parity fixtures, Bash side**
+- [x] **Step 1: Parity fixtures, Bash side**
 
 Append to `tests/native_parity.bats`:
 
@@ -855,7 +855,7 @@ Append to `tests/native_parity.bats`:
 Run: `bats --tap -f 'parity: init' tests/native_parity.bats`
 Expected: `ok 1` and `ok 2` (the native side still runs Bash).
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 In `src/catalog.rs`, add to `a_base_payload_is_found_by_slug_and_resource`:
 
@@ -1681,7 +1681,7 @@ mod tests {
 Run: `cargo test --lib 2>&1 | grep -E '^error' | sort -u | head -8`
 Expected: compile errors naming the missing `init`, `Env`, `Cancelled`, `base_payloads`, `CI_GITHUB_WORKFLOW`, and the module's imports.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 In `src/catalog.rs`, replace `base_payload` and its doc comment with:
 
@@ -3090,7 +3090,7 @@ In `bin/agentsync.sh:280` append `init`:
 _NATIVE_COMMANDS=" version --version -v list ls check sync rollback enable disable customize show diff simplify resolve upgrade-config profile dedupe adopt migrate refresh init "
 ```
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo fmt --all
@@ -3104,7 +3104,7 @@ bats --tap -f 'parity: init' tests/native_parity.bats
 
 Expected: `255 passed`, `0`, `11`, `1`; `0` for every file (`init` outside the sandbox for its wizard case); `ok 1` and `ok 2`.
 
-- [ ] **Step 5: Prove the fixture bites, check the wizard on a terminal, lint, commit**
+- [x] **Step 5: Prove the fixture bites, check the wizard on a terminal, lint, commit**
 
 Change `Initializing AgentSync` to `Initialising AgentSync` in `src/cli/init.rs`, rebuild, rerun `bats --tap -f 'init scaffolds' tests/native_parity.bats`: `not ok 1` with the `Initializing AgentSync in <root>` line in the diff; revert and rebuild.
 

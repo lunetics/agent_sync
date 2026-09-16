@@ -4,6 +4,7 @@ pub mod customize;
 pub mod dedupe;
 pub mod diff;
 pub mod enable;
+pub mod init;
 pub mod list;
 pub mod migrate;
 pub mod profile;

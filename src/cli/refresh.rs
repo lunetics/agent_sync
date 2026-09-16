@@ -945,7 +945,7 @@ fn stage_template(bytes: &[u8]) -> Option<PathBuf> {
 /// `mkdir -p` and `cp <template> <dest>`. An existing file keeps its mode; a new
 /// one is created executable when the template starts with `#!`, the mode the
 /// shipped scripts carry in the checkout `cp` copied from.
-fn write_template(dest: &Path, bytes: &[u8]) -> Result<(), Error> {
+pub(crate) fn write_template(dest: &Path, bytes: &[u8]) -> Result<(), Error> {
     if let Some(parent) = dest.parent() {
         std::fs::create_dir_all(parent).map_err(|e| Error::io(parent, e))?;
     }

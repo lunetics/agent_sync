@@ -83,6 +83,41 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
             &mut std::io::stderr(),
         );
     }
+    if args.first().and_then(|a| a.to_str()) == Some("init") {
+        let rest: Vec<String> = args[1..]
+            .iter()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
+        let cwd = paths::logical_root(None, &cwd, var("PWD").as_deref());
+        let style = Style::for_stdout();
+        let sync_env = sync_env();
+        let colors = log_colors();
+        let mut sync = |root: &str| cli::sync::run(root, &[], &sync_env, colors, streams());
+        let mut confirm =
+            |question: &str, default_yes: bool| prompts::confirm(question, default_yes);
+        let mut multiselect = |title: &str, options: &[String], preselected: &[String]| {
+            prompts::multiselect_on_terminal(title, options, preselected, &style)
+        };
+        let mut env = cli::init::Env {
+            version: engine_version(),
+            cwd,
+            config_path: var("AGENTSYNC_CONFIG_PATH"),
+            backup_limit: var("AGENTSYNC_BACKUP_LIMIT"),
+            backup_max_age: var("AGENTSYNC_BACKUP_MAX_AGE_DAYS"),
+            interactive: prompts::is_tty(),
+            confirm: &mut confirm,
+            multiselect: &mut multiselect,
+            sync: &mut sync,
+        };
+        return cli::init::init(
+            &rest,
+            &style,
+            &mut env,
+            &mut std::io::stdout(),
+            &mut std::io::stderr(),
+        );
+    }
     if args.first().and_then(|a| a.to_str()) == Some("refresh") {
         let rest: Vec<String> = args[1..]
             .iter()

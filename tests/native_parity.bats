@@ -955,3 +955,62 @@ _forget_template() {
     rm -rf .ai
     assert_tree_parity refresh --yes
 }
+
+# ── init ─────────────────────────────────────────────────────────────────────
+# Every call runs off a terminal, so the wizard never opens; the seed's `.ai`
+# is removed first because init skips a project that already has `.ai/src`.
+
+@test "parity: init scaffolds, detects, adopts, and runs the first sync like Bash" {
+    assert_tree_parity init
+    rm -rf .ai
+    assert_tree_parity init --help
+    assert_tree_parity init --bogus
+    assert_tree_parity init a b
+    assert_tree_parity init --outputs bogus
+    assert_tree_parity init --existing bogus
+    assert_tree_parity init --ci gitlab
+    assert_tree_parity init missing-dir
+    assert_tree_parity init --content bogus
+    assert_tree_parity init --dry-run --tools claude,cursor --content agents,rules
+    assert_tree_parity init --dry-run --no-templates --no-detect
+    assert_tree_parity init --no-detect --no-sync
+    assert_tree_parity init --no-templates --no-detect --content agents,rules --no-sync
+    assert_tree_parity init --tools "claude, cursor,claude" --content " rules , skills " --no-detect --no-sync
+    assert_tree_parity init --tools claude --yes
+    assert_tree_parity init --tools claude --yes --outputs local --ci github
+    mkdir -p .claude/rules .cursor/rules .github/workflows
+    printf '# Hand-written team rules\n' > CLAUDE.md
+    printf '# Legacy rule\n' > .claude/rules/legacy.md
+    printf '{"settings": true}\n' > .claude/settings.json
+    printf '# From AGENTS\n' > AGENTS.md
+    printf 'body\n' > .cursor/rules/core.mdc
+    printf 'name: mine\n' > .github/workflows/agentsync-check.yml
+    assert_tree_parity init --dry-run
+    assert_tree_parity init --yes --no-sync
+    assert_tree_parity init --tools codex --yes --ci github --no-sync
+    assert_tree_parity init --tools claude --yes --existing replace --no-sync
+    assert_tree_parity init --yes
+}
+
+@test "parity: init keeps existing configs, refuses, and restores like Bash" {
+    rm -rf .ai
+    mkdir -p subdir
+    assert_tree_parity init subdir --no-detect --no-sync
+    mkdir -p .ai
+    PARITY_CWD=.ai assert_tree_parity init
+    printf 'tools:\n  enabled: []\nbackup:\n  retention: typo\n' > .ai/agent_sync.yaml
+    assert_tree_parity init --no-detect
+    printf 'tools:\n  enabled:\n    - claude\n' > .ai/agent_sync.yaml
+    assert_tree_parity init --no-detect --no-sync
+    rm -f .ai/agent_sync.yaml
+    printf 'tools:\n  enabled: []\n' > agent_sync.yaml
+    assert_tree_parity init --no-detect --no-sync
+    rm -f agent_sync.yaml
+    mkdir -p .ai/agent_sync.yaml
+    printf 'keep\n' > .ai/agent_sync.yaml/sentinel
+    # The failing write is reported in each engine's own words after these lines.
+    assert_parity_head 7 init --no-detect
+    [ -f .ai/agent_sync.yaml/sentinel ]
+    [ ! -e .ai/src ]
+    [ ! -e .ai/.template-manifest ]
+}

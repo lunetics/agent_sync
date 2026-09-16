@@ -24,13 +24,22 @@ pub fn base_tools() -> Vec<String> {
 
 /// First shipped `lib/templates/<resource>/<slug>.*` by name, as the Bash glob picks it.
 pub fn base_payload(resource: &str, slug: &str) -> Option<&'static File<'static>> {
+    base_payloads(resource, slug).first().copied()
+}
+
+/// Every shipped `lib/templates/<resource>/<slug>.*` in byte order, as the
+/// `"$templates_dir/$resource/$tool".*` glob lists them.
+pub fn base_payloads(resource: &str, slug: &str) -> Vec<&'static File<'static>> {
     let prefix = format!("{slug}.");
     let mut matches: Vec<&'static File<'static>> = files_in(resource)
         .filter(|file| file_name(file).is_some_and(|name| name.starts_with(&prefix)))
         .collect();
     matches.sort_by(|a, b| a.path().cmp(b.path()));
-    matches.first().copied()
+    matches
 }
+
+/// `lib/templates/ci/github-agentsync-check.yml`, the gate `init --ci github` writes.
+pub const CI_GITHUB_WORKFLOW: &str = include_str!("../lib/templates/ci/github-agentsync-check.yml");
 
 /// The template set `refresh` and `dedupe` walk: the shipped `AGENTS.md`, the
 /// `*.md` files of `rules`, `commands`, and `agents`, and every file below
@@ -138,6 +147,9 @@ mod tests {
         );
         assert_eq!(base_payload("hooks", "zed").map(|f| f.path()), None);
         assert!(base_payload("hooks", "claude-hub").is_none());
+        assert_eq!(base_payloads("settings", "claude").len(), 1);
+        assert_eq!(base_payloads("hooks", "code").len(), 0);
+        assert!(CI_GITHUB_WORKFLOW.contains("AGENTSYNC_VERSION=__AGENTSYNC_VERSION__ bash"));
     }
 
     #[test]

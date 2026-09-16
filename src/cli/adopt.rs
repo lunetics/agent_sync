@@ -531,7 +531,7 @@ fn hash(path: &str) -> Option<String> {
 
 /// `cp <dest> <source>` after `ensure_dir`: an existing source keeps its mode,
 /// a new one takes the destination's mode under the umask.
-fn copy_into_source(found: &Adoption) -> Result<(), Error> {
+pub(crate) fn copy_into_source(found: &Adoption) -> Result<(), Error> {
     let source = Path::new(&found.source_abs);
     if let Some(parent) = source.parent() {
         std::fs::create_dir_all(parent).map_err(|e| Error::io(parent, e))?;

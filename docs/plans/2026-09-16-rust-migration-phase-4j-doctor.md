@@ -68,7 +68,7 @@ Reused: `Project::{discover, at, enabled_tools, configured_enabled_tools, user_o
 
 **Files:** none changed.
 
-- [ ] **Step 1: Record the baseline**
+- [x] **Step 1: Record the baseline**
 
 ```bash
 git log --oneline -1
@@ -91,7 +91,7 @@ Expected: the plan's latest commit; `255 passed`, `0 passed`, `11 passed`, `1 pa
 
 **Interfaces:** none.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `tests/doctor.bats`:
 
@@ -109,7 +109,7 @@ Append to `tests/doctor.bats`:
 Run: `bats --tap -f 'summary rule' tests/doctor.bats`
 Expected: `not ok 1 doctor: the summary rule is indented and sixty characters wide`.
 
-- [ ] **Step 2: Build the rule in Bash**
+- [x] **Step 2: Build the rule in Bash**
 
 Replace `log_separator_doctor` at the end of `lib/helpers/doctor.sh` with:
 
@@ -122,7 +122,7 @@ log_separator_doctor() {
 }
 ```
 
-- [ ] **Step 3: Run the tests, confirm green**
+- [x] **Step 3: Run the tests, confirm green**
 
 ```bash
 bats --tap tests/doctor.bats | grep -c '^ok'
@@ -131,7 +131,7 @@ shellcheck -x -S warning -e SC1091 lib/helpers/doctor.sh
 
 Expected: `37`; ShellCheck exit 0.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add lib/helpers/doctor.sh tests/doctor.bats docs/plans/2026-09-16-rust-migration-phase-4j-doctor.md

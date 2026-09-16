@@ -836,6 +836,8 @@ cmd_doctor() {
 }
 
 log_separator_doctor() {
-    local width=60
-    printf '  %*s\n' "$width" '' | tr ' ' '─'
+    # GNU tr maps single bytes, so `tr ' ' '─'` garbles the rule on Linux.
+    local rule
+    printf -v rule '─%.0s' {1..60}
+    echo "  $rule"
 }

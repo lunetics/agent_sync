@@ -463,3 +463,12 @@ EOF
     [ "$status" -eq 0 ]
     [[ "$output" != *"always-on rule(s) load on every task"* ]]
 }
+
+@test "doctor: the summary rule is indented and sixty characters wide" {
+    run_agentsync init >/dev/null
+    run run_agentsync doctor
+    [ "$status" -eq 0 ]
+    local rule
+    printf -v rule '─%.0s' {1..60}
+    [[ "$output" == *$'\n'"  $rule"$'\n'* ]]
+}

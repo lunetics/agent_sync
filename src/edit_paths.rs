@@ -82,6 +82,36 @@ pub fn block(project: &Project, tool: &Tool, style: &Style) -> String {
     text
 }
 
+/// `print_tool_edit_paths_checklist`: `doctor`'s indented rows with a glyph per
+/// state; empty when the tool has no base payloads.
+pub fn checklist(project: &Project, tool: &Tool, style: &Style) -> String {
+    let rows = rows(project, tool);
+    if rows.is_empty() {
+        return String::new();
+    }
+    let mut text = format!("      {}\n", style.bold(&tool.display_name()));
+    for row in rows {
+        let (glyph, resource, render) = match row {
+            Row::Override(resource, path) => (style.green("✓"), resource, path),
+            Row::Shared(path) => (
+                style.green("✓"),
+                "mcp",
+                format!("{path} {}", style.dim("(shared)")),
+            ),
+            Row::CustomizeHint(resource, command) => {
+                (style.dim("·"), resource, style.dim(&command))
+            }
+            Row::SharedHint => (
+                style.dim("·"),
+                "mcp",
+                style.dim("agentsync add mcp <server> (shared — not yet configured)"),
+            ),
+        };
+        text.push_str(&format!("          {glyph}  {resource:<10} {render}\n"));
+    }
+    text
+}
+
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
@@ -117,5 +147,36 @@ mod tests {
         );
         let amp = Tool::load(&project, "no-such-tool").unwrap();
         assert_eq!(block(&project, &amp, &Style::plain()), "");
+    }
+
+    #[test]
+    fn the_checklist_glyphs_each_row_like_doctor() {
+        let dir = tempfile::tempdir().unwrap();
+        let project = Project::at(dir.path()).unwrap();
+        let claude = Tool::load(&project, "claude").unwrap();
+        assert_eq!(
+            checklist(&project, &claude, &Style::plain()),
+            "      Claude Code\n          ·  settings   agentsync customize claude settings\n          ·  mcp        agentsync add mcp <server> (shared — not yet configured)\n"
+        );
+        write(dir.path(), ".ai/src/tools/claude/settings.json", "{}");
+        write(dir.path(), ".ai/src/mcp.json", "{}");
+        assert_eq!(
+            checklist(&project, &claude, &Style::plain()),
+            "      Claude Code\n          ✓  settings   .ai/src/tools/claude/settings.json\n          ✓  mcp        .ai/src/mcp.json (shared)\n"
+        );
+        let cursor = Tool::load(&project, "cursor").unwrap();
+        write(dir.path(), ".ai/src/tools/cursor/hooks.json", "{}");
+        assert_eq!(
+            checklist(&project, &cursor, &Style::plain()),
+            "      Cursor\n          ✓  hooks      .ai/src/tools/cursor/hooks.json\n          ✓  mcp        .ai/src/mcp.json (shared)\n"
+        );
+        assert_eq!(
+            checklist(
+                &project,
+                &Tool::load(&project, "mytool").unwrap(),
+                &Style::plain()
+            ),
+            ""
+        );
     }
 }

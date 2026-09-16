@@ -39,6 +39,11 @@ impl Manifest {
         self.entries.iter().map(|(rel, _)| rel.clone()).collect()
     }
 
+    /// `MANIFEST_KEYS` and `MANIFEST_VALUES`, in file order.
+    pub fn entries(&self) -> &[(String, String)] {
+        &self.entries
+    }
+
     /// `manifest_check_drift`: entries whose file exists with another hash, in
     /// manifest order. A missing file is not drift.
     pub fn drift(&self, root: &str) -> Vec<String> {

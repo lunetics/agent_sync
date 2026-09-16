@@ -668,6 +668,20 @@ fn array_inner(raw: &str) -> String {
     value.to_string()
 }
 
+/// `opencode_settings_has_mcp`: whether the settings JSON has a top-level
+/// `mcp` member; malformed settings are the awk program's error 20.
+pub fn settings_has_mcp(settings: &str) -> Result<bool, ComposeError> {
+    let mut p = Parser::new();
+    let settings_text = read_text(settings);
+    if !p.walk_root(&settings_text, Mode::Settings, 20) && p.error.is_none() {
+        p.fail(20, "malformed settings JSON");
+    }
+    if let Some(error) = p.take_error() {
+        return Err(error);
+    }
+    Ok(p.settings.keys.iter().any(|k| k == "mcp"))
+}
+
 /// The composed `opencode.json` bytes, or the exit code and diagnostic line
 /// `_opencode_compose_json` reported.
 pub fn compose(settings: &str, mcp: &str) -> Result<String, ComposeError> {
@@ -763,6 +777,21 @@ mod tests {
     fn err(settings: &str, mcp: &str) -> (u8, String) {
         let e = compose(settings, mcp).unwrap_err();
         (e.code, e.message)
+    }
+
+    #[test]
+    fn a_top_level_mcp_member_is_found_like_opencode_settings_has_mcp() {
+        assert_eq!(
+            settings_has_mcp("{\"mcp\": {\"srv\": {\"type\": \"local\"}}, \"theme\": \"x\"}"),
+            Ok(true)
+        );
+        assert_eq!(
+            settings_has_mcp("{\"theme\": \"x\", \"mcpServers\": {}}"),
+            Ok(false)
+        );
+        assert_eq!(settings_has_mcp("{\"a\": {\"mcp\": {}}}"), Ok(false));
+        assert_eq!(settings_has_mcp("{\"mcp\": ").unwrap_err().code, 20);
+        assert_eq!(settings_has_mcp("").unwrap_err().code, 20);
     }
 
     #[test]

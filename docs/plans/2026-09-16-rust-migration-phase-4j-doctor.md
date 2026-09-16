@@ -156,7 +156,7 @@ impl Manifest { pub fn entries(&self) -> &[(String, String)]; }
 pub fn settings_has_mcp(settings: &str) -> Result<bool, ComposeError>;
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to the `tests` module of `src/edit_paths.rs`:
 
@@ -215,7 +215,7 @@ Add to the `tests` module of `src/opencode_json.rs`, after the `err` helper:
 Run: `cargo test checklist_glyphs mcp_member 2>&1 | grep -E '^error|test result' | head -3`
 Expected: a compile error naming `checklist` and `settings_has_mcp`.
 
-- [ ] **Step 2: Write the implementation**
+- [x] **Step 2: Write the implementation**
 
 In `src/edit_paths.rs`, after `block`:
 
@@ -278,7 +278,7 @@ pub fn settings_has_mcp(settings: &str) -> Result<bool, ComposeError> {
 }
 ```
 
-- [ ] **Step 3: Run the tests, confirm green**
+- [x] **Step 3: Run the tests, confirm green**
 
 ```bash
 cargo fmt --all
@@ -288,7 +288,7 @@ cargo clippy --all-targets -- -D warnings
 
 Expected: `257 passed`, `0`, `11`, `1`; clippy clean. The Bash answers behind the assertions: `opencode_settings_has_mcp` exits 0, 1, 1, 20, 20 on the five inputs (`phase4j/opencode_probe.sh`); the checklist rows are the `Edit paths` section of the `guard-legacy-settings` and `edit-paths-shared-mcp` scenarios.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/edit_paths.rs src/manifest.rs src/opencode_json.rs docs/plans/2026-09-16-rust-migration-phase-4j-doctor.md

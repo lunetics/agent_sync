@@ -15,6 +15,12 @@ setup() {
 
 teardown() { teardown_test_project; }
 
+backup_state() {
+    # init may already have a backup; compare content rather than assuming none.
+    [ -d .ai/backups ] || return 0
+    find .ai/backups -type f -exec cksum {} \; | LC_ALL=C sort
+}
+
 @test "merge preview reports selected actions without exposing foreign source data" {
     printf '%s\n' '{"mcpServers":{"mine":{"command":"keep","args":[],"env":{"TOKEN":"private-value"}},"remote":{"url":"https://example.invalid/old","headers":{"Authorization":"Bearer private-header"}}},"foreign":{"retain":[true,{"nested":"value"}]}}' > .ai/src/tools/claude/mcp.json
     local before
@@ -69,26 +75,30 @@ teardown() { teardown_test_project; }
     printf '%s\n' '{"mcpServers":{"http":{"type":"http","url":"https://example.invalid/mcp"}}}' > .ai/src/tools/claude/mcp.json
     local before
     before=$(file_sha256 .ai/src/tools/claude/mcp.json)
+    local backups_before
+    backups_before=$(backup_state)
 
     run run_agentsync mcp use http --tool claude --merge --apply --library "$CATALOG"
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"already matches"* ]]
     [ "$before" = "$(file_sha256 .ai/src/tools/claude/mcp.json)" ]
-    [ ! -e .ai/backups ]
+    [ "$backups_before" = "$(backup_state)" ]
 }
 
 @test "merge refuses a canonical source symlink" {
     run_agentsync mcp render http --library "$CATALOG" > existing.json
     mkdir -p .ai/src/tools/claude
     create_test_symlink "$TEST_PROJECT/existing.json" .ai/src/tools/claude/mcp.json
+    local backups_before
+    backups_before=$(backup_state)
 
     run run_agentsync mcp use http --tool claude --merge --library "$CATALOG"
 
     [ "$status" -ne 0 ]
     [[ "$output" == *"through a symlink"* ]]
     [ -L .ai/src/tools/claude/mcp.json ]
-    [ ! -e .ai/backups ]
+    [ "$backups_before" = "$(backup_state)" ]
 }
 
 @test "staged merge size includes its final newline before backup" {
@@ -109,6 +119,8 @@ teardown() { teardown_test_project; }
     mkdir .ai/src/tools/claude/mcp.json.mcp-library.lock
     local before
     before=$(file_sha256 .ai/src/tools/claude/mcp.json)
+    local backups_before
+    backups_before=$(backup_state)
 
     run run_agentsync mcp use http --tool claude --merge --apply --library "$CATALOG"
 
@@ -116,7 +128,7 @@ teardown() { teardown_test_project; }
     [[ "$output" == *"locked by another merge"* ]]
     [ "$before" = "$(file_sha256 .ai/src/tools/claude/mcp.json)" ]
     [ -d .ai/src/tools/claude/mcp.json.mcp-library.lock ]
-    [ ! -e .ai/backups ]
+    [ "$backups_before" = "$(backup_state)" ]
 }
 
 @test "merge refuses publication when the source changes during backup" {

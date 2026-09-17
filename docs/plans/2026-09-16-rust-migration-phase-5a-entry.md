@@ -630,7 +630,7 @@ git commit -m "feat(native): port help and the dispatcher's own answers"
 **Files:**
 - Modify: `.ai/src/skills/native-port/references/module-map.md`, `.ai/.sync-manifest`
 
-- [ ] **Step 1: Module map and outputs**
+- [x] **Step 1: Module map and outputs**
 
 In the "Engine modules" block, after the `lib/setup_hooks.sh` row, add:
 
@@ -708,3 +708,10 @@ The plan is closed when every box is ticked, every bats file is green under both
 - Plan amended: none.
 - Next: Task 2 Step 1.
 - Blocker: none.
+
+### 2026-09-17 — Task 2 blocked
+- Commits: this commit, docs(native): log run 2026-09-17. Step 1's edits to `.ai/src/skills/native-port/references/module-map.md` and `.ai/.sync-manifest` stay in the tree for Step 3's commit.
+- Verified: Step 1 done (the `src/cli/usage.rs` row, 68 and 9 cases with `native_dispatch.bats` moved above the 8s; `sync --dry-run` showed no drift before `sync --force`, and `.claude/commands/native-next.md` carries the Phase 5 slice rule). Step 2: `cargo test` 289/0/11/1, clippy, fmt, and ShellCheck exit 0; `native_suite.sh both` covered 28 of the 50 files, `add` through `native_dispatch`, all at `bash=0 native=0`, then macOS killed it for low memory while `native_parity` ran; `native_parity` alone under both engines passed the 10-minute mark and was killed the same way.
+- Plan amended: none.
+- Next: Task 2 Step 2, for the 22 files not yet covered: native_parity opencode outputs_mode paths profiles refresh release resource_resolver rollback_preflight rollback shared shell_init simplify source_overrides sync_options sync team_workflow tmp update_snapshot update version_pin workspace.
+- Blocker: memory on the 16 GB host. `top -o mem` showed `fseventsd` at 18G, then `java` 4897M and 1624M, WebKit 3443M; `memory_pressure` reported 27% free after the kill. No bats or agentsync process was left behind. The remaining files need the memory freed (restart `fseventsd` or reboot, stop the Java daemons) or a CI run of the branch.

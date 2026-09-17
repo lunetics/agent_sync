@@ -640,7 +640,7 @@ bin/agentsync.sh print_usage, the --help interception, *) → src/cli/usage.rs  
 
 In "bats ownership", set `tests/native_parity.bats 65` to `68` and `tests/native_dispatch.bats 8` to `9`. Regenerate outputs outside the sandbox with `AGENTSYNC_NATIVE=0 AGENTSYNC_HOME="$PWD" bash bin/agentsync.sh sync --force`.
 
-- [ ] **Step 2: Verify (outside the agent sandbox)**
+- [x] **Step 2: Verify (outside the agent sandbox)**
 
 Recreate `phase5a/native_suite.sh` when the scratchpad no longer holds it:
 
@@ -680,7 +680,7 @@ bash phase5a/native_suite.sh "$PWD" both phase5a/suite_both.out && tail -1 phase
 
 Expected: `289 passed`, `0`, `11`, `1`; lint exit 0; `TOTAL bash=0 native=0` over the 50 bats files, each run one at a time under both engines.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add .ai/src/skills/native-port/references/module-map.md .ai/.sync-manifest docs/plans/2026-09-16-rust-migration-phase-5a-entry.md

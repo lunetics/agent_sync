@@ -693,6 +693,41 @@ git commit -m "docs(native): map the phase 5a module"
 
 The plan is closed when every box is ticked, every bats file is green under both engines, the three parity fixtures pass, and a `## Completion receipt` records the fresh verification. `sync` and `check` do not change, so no timings are due. Phase 5 stays open until the plans for 5b, 5c, 5d, and 5e are closed as well.
 
+## Completion receipt
+
+### Decisions the review took
+
+All four as recommended: the maintainer asked on 2026-09-16 to start 5a from this plan, and on 2026-09-17 to continue it.
+
+### Global Constraints
+
+| Constraint | Satisfied by |
+|---|---|
+| `help` and the refusal write nothing | `src/cli/usage.rs` builds strings and writes only to the writer `main` hands `unknown_command`; `print_usage` in `src/main.rs` writes stdout alone |
+| The only Bash change is `_NATIVE_COMMANDS`; ShellCheck clean | `git diff --stat 1f20da0..HEAD -- lib bin` names only `bin/agentsync.sh`, one line changed at 280; ShellCheck exit 0 |
+| Byte-for-byte parity through the dispatcher and with the binary called directly, except the accepted deviations | `tests/native_parity.bats`: `assert_entry_parity` and the three fixtures; `entry_reference.sh` and `entry_tty.sh` in Task 1 Step 5; `version --help` and `check --only x --help` stay under the Phase 1 clap deviation and outside the fixtures |
+| `unsafe_code = "forbid"`, fmt and clippy clean, no new dependency; `main.rs` alone reads the environment and terminal state; nothing new spawned | `Cargo.toml` and `Cargo.lock` unchanged since `1f20da0`; `src/cli/usage.rs` reads no variable and spawns nothing, and `Style::for_stdout()` is called from `src/main.rs` |
+| The terminal notices stay in the dispatcher | `check_for_updates` in `bin/agentsync.sh` `main` is untouched; `usage.rs` prints no notice |
+| Expected values captured from Bash | `entry_reference.sh` (31 shapes, 2468 lines) and `entry_tty.sh` (3 scenarios, 738 lines), reproduced in Task 1 Step 5 |
+| Conventional Commits, at most 72 characters, no trailers | `1f20da0`, `c991bd3`, `7d40d04`, `2d1b99c`, and the close commit |
+| bats one file at a time | `native_suite.sh`, `suite_part.sh`, and `one_mode.sh` each run one file under one engine at a time |
+
+### Fresh verification, 2026-09-17, macOS 26.5 arm64, outside the agent sandbox where noted
+
+- `cargo test`: 289 passed (lib), 0 passed (doc), 11 passed (cli), 1 passed (interrupt).
+- `cargo clippy --all-targets -- -D warnings`: exit 0. `cargo fmt --all --check`: exit 0.
+- `shellcheck -x -S warning -e SC1091 bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh`: exit 0.
+- bats, every file alone under both engines against the release binary of `c991bd3` (no code or test changed after it): 50 files, `TOTAL bash=0 native=0`. The run took three passes because macOS killed the first two for low memory (`fseventsd` held 18G on the 16 GB host): `native_suite.sh both` covered `add` through `native_dispatch` (28 files); `one_mode.sh` ran `native_parity` (68 cases) under Bash in 425 s and natively in 399 s; `suite_part.sh` covered the other 21 files after the maintainer freed memory.
+- Wall times under that pressure are not a measurement: `rollback_preflight` took 2808 s, `profiles`, `resource_resolver`, and `shared` about 950 s each, `refresh` 627 s, `source_overrides` 572 s, while `sync` took 45 s. None of those commands changed in this slice.
+- Mutation in Task 1 Step 5: `Unknown command: {command}` → `Unknown command {command}` failed the unknown-command fixture on stderr; reverted, rebuilt, byte-identical to the verified draft.
+- `sync` and `check` are unchanged; no timings.
+
+### Skipped, deferred, open
+
+- **Windows**: native bats runs stay off Windows until 5e; `cargo test` still runs there.
+- **`update` and `release`** are refused as unknown by the binary until 5b and 5d, per decision 2; the dispatcher still serves both.
+- **Not pushed.** The branch is 5 commits ahead of `origin/feat/native-engine-phase-1`; the cutover (5e) is the first release point.
+
 ## Run log
 
 ### 2026-09-16 — Phase 5 sliced, 5a planned
@@ -715,3 +750,10 @@ The plan is closed when every box is ticked, every bats file is green under both
 - Plan amended: none.
 - Next: Task 2 Step 2, for the 22 files not yet covered: native_parity opencode outputs_mode paths profiles refresh release resource_resolver rollback_preflight rollback shared shell_init simplify source_overrides sync_options sync team_workflow tmp update_snapshot update version_pin workspace.
 - Blocker: memory on the 16 GB host. `top -o mem` showed `fseventsd` at 18G, then `java` 4897M and 1624M, WebKit 3443M; `memory_pressure` reported 27% free after the kill. No bats or agentsync process was left behind. The remaining files need the memory freed (restart `fseventsd` or reboot, stop the Java daemons) or a CI run of the branch.
+
+### 2026-09-17 — phase closed
+- Commits: `2d1b99c` docs(native): map the phase 5a module; this commit, docs(native): close phase 5a.
+- Verified: after the maintainer freed memory, `native_parity` passed alone under Bash (68 cases, 425 s) and natively (399 s), and `suite_part.sh` ran the other 21 files at `bash=0 native=0`, so all 50 files are at `TOTAL bash=0 native=0`; fresh `cargo test` 289/0/11/1, and clippy, fmt, and ShellCheck exit 0. Several files ran for 10 to 47 minutes under memory pressure; see the receipt.
+- Plan amended: none.
+- Next: Phase 5b, `release` with the crate version: its plan, per the spec's Phase 5 section.
+- Blocker: none.

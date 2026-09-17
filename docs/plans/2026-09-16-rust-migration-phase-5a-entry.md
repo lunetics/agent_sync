@@ -726,7 +726,7 @@ All four as recommended: the maintainer asked on 2026-09-16 to start 5a from thi
 
 - **Windows**: native bats runs stay off Windows until 5e; `cargo test` still runs there.
 - **`update` and `release`** are refused as unknown by the binary until 5b and 5d, per decision 2; the dispatcher still serves both.
-- **Not pushed.** The branch is 5 commits ahead of `origin/feat/native-engine-phase-1`; the cutover (5e) is the first release point.
+- **Not pushed.** The branch is 6 commits ahead of `origin/feat/native-engine-phase-1`; the cutover (5e) is the first release point.
 
 ## Run log
 

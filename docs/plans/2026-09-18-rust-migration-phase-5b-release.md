@@ -1826,6 +1826,42 @@ git commit -m "docs(native): map the phase 5b module"
 
 The plan is closed when every box is ticked, every bats file is green under both engines, the two parity fixtures pass, the crate version equals `VERSION` with `src/lib.rs` guarding it, and a `## Completion receipt` records the fresh verification. `sync` and `check` do not change, so no timings are due. Phase 5 stays open until the plans for 5c, 5d, and 5e are closed as well.
 
+## Completion receipt
+
+### Decisions the review took
+
+All five as recommended: execution started on 2026-09-18 from the plan commit `569dadb` and ran through Task 4 the same day.
+
+### Global Constraints
+
+| Constraint | Satisfied by |
+|---|---|
+| `release` writes only inside the checkout it releases: `VERSION`, `Cargo.toml`, `Cargo.lock`, one commit, one tag, and the push | `src/cli/release.rs`: `set_crate_version` rewrites the two Cargo files next to `VERSION` under `install_dir`, and `git()` runs the commit, the tag, and the push; `assert_release_parity` in `tests/native_parity.bats` compares the checkout's state after each engine's run |
+| Bash changes: the Cargo bump in `lib/helpers/release.sh` in its own commit before the port, `bin/agentsync.sh` only its `_NATIVE_COMMANDS` line; ShellCheck clean | `50da50d` touches `lib/helpers/release.sh` alone (37 lines); `git diff --stat 569dadb..HEAD -- lib bin` names only those two files, `bin/agentsync.sh` one line changed at 280 (`release` appended); ShellCheck exit 0 |
+| Byte-for-byte parity on stdout, stderr, exit status, and the checkout's state, except the three accepted deviations; terminal escapes those of `cli_colors.sh` | `tests/native_parity.bats` lines 1341–1400: `assert_release_parity` and the two `release` fixtures; `release_reference.sh` (20 situations, 423 lines, 31 differing lines all under `alpha_part` and `four_parts`, the decimal-component deviation) and `release_tty.sh` (4 scenarios, 56 dump lines, 0 differing), reproduced in Task 3 Step 5; the deviations are recorded in decision 3 and in the module map |
+| `unsafe_code = "forbid"`, fmt and clippy clean, no new dependency; `main.rs` alone reads the environment and terminal state; the binary spawns `git` alone | `Cargo.toml` diff since `569dadb` is the `version` line and its comment; `Cargo.lock` diff is line 7; `src/cli/release.rs` has no `std::env` or `is_terminal` call and every `Command::new` in it names `git` (`tree_is_dirty`, `git()`, and the test helper); `src/main.rs` derives `install_dir` from `AGENTSYNC_HOME` |
+| `Cargo.toml` and `Cargo.lock` carry `VERSION`; `src/lib.rs` tests the equality; `cargo build --release` follows every `VERSION` change | `src/lib.rs` line 51 asserts `CARGO_PKG_VERSION` equals `engine_version()`; both Cargo files say `0.36.0` with `VERSION`; the release binary was rebuilt at the close (`Finished release`, up to date) and answers `agentsync v0.36.0` |
+| `check_for_updates` and the format notice stay in the dispatcher | `bin/agentsync.sh` `main` is untouched apart from `_NATIVE_COMMANDS`; `release.rs` prints no notice |
+| `tests/release.bats` seeds from the repository's `VERSION` | `tests/release.bats` line 7 `bumped()` computes the expected values from `SEED_VERSION`; 18 cases at `bash=0 native=0` |
+| Expected values captured from Bash on 2026-09-18 | `release_reference.sh` and `release_tty.sh`, recorded in the Task 3 run-log entry and reproduced in Task 3 Step 5 |
+| Conventional Commits, at most 72 characters, no trailers | `569dadb`, `5db4fea`, `50da50d`, `54db1ec`, `51f5f54`, and the close commit |
+| bats one file at a time | `native_suite.sh` (Task 4 Step 2) runs one file under one engine at a time |
+
+### Fresh verification, 2026-09-18, macOS 26.5 arm64, inside the agent sandbox except where noted
+
+- `cargo build --release`: up to date with HEAD (`Finished release profile in 1.08s`).
+- `cargo test`: 298 passed (lib), 0 passed (doc), 11 passed (cli), 1 passed (interrupt).
+- `cargo clippy --all-targets -- -D warnings`: exit 0. `cargo fmt --all --check`: exit 0.
+- `shellcheck -x -S warning -e SC1091 bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh`: exit 0.
+- bats, every file alone under both engines against the release binary of `54db1ec` (no code or test changed after it): 50 files, `TOTAL bash=1 native=1`, the one failure in both columns being `native_parity` case 45, `diff reports overrides and payload hunks like Bash`: the native `diff` feeds the shipped template to `diff -u … -` on stdin, and inside the sandbox Apple diff answers `diff: -: Operation not permitted` (exit 2), so the hunk is empty while Bash, diffing two files, prints it. `native_parity.bats` rerun outside the sandbox under both engines: `bash=0 native=0`, 70 cases each. Every other file was `bash=0 native=0` inside the sandbox.
+- `sync` and `check` are unchanged; no timings.
+
+### Skipped, deferred, open
+
+- **Windows**: native bats runs stay off Windows until 5e; `cargo test` still runs there.
+- **`update`** is refused as unknown by the binary until 5d; the dispatcher still serves it.
+- **No release yet.** Phase 5 stays open until 5c, 5d, and 5e are planned and closed; the cutover (5e) is the first release point. The branch is fully pushed to `origin/feat/native-engine-phase-1` as of this close.
+
 ## Run log
 
 ### 2026-09-18 — Phase 5b planned
@@ -1861,4 +1897,11 @@ The plan is closed when every box is ticked, every bats file is green under both
 - Verified: `sync --force` outside the sandbox regenerated the outputs, the synced module map `same` as its source, status exactly the manifest, the module map, the spec, and the plan; `cargo test` 298/0/11/1; `cargo clippy --all-targets -- -D warnings` exit 0; `cargo fmt --all --check` exit 0; `shellcheck -x -S warning -e SC1091` over `bin/agentsync.sh`, `install.sh`, `lib/sync.sh`, `lib/check.sh`, `lib/setup_hooks.sh`, and `lib/helpers/*.sh` exit 0; `native_suite.sh` outside the sandbox, every bats file one at a time under both engines: `TOTAL bash=0 native=0` over the 50 files. `sync` and `check` did not change, so no timings.
 - Plan amended: none.
 - Next: close the plan: append the `## Completion receipt` and commit `docs(native): close phase 5b`. Phase 5 stays open until 5c, 5d, and 5e are planned and closed.
+- Blocker: none.
+
+### 2026-09-18 — phase 5b closed
+- Commits: this commit, docs(native): close phase 5b.
+- Verified: `cargo build --release` up to date; `cargo test` 298/0/11/1; `cargo clippy --all-targets -- -D warnings` exit 0; `cargo fmt --all --check` exit 0; `shellcheck -x -S warning -e SC1091` over `bin/agentsync.sh`, `install.sh`, `lib/sync.sh`, `lib/check.sh`, `lib/setup_hooks.sh`, and `lib/helpers/*.sh` exit 0; `native_suite.sh both` inside the sandbox over the 50 bats files: `TOTAL bash=1 native=1`, the single failure `native_parity` case 45 (`diff` payload hunk) because Apple `diff` refuses stdin inside the sandbox (`diff: -: Operation not permitted`); `native_parity.bats` rerun outside the sandbox: `bash=0 native=0`, 70 cases each engine. No timings, `sync` and `check` unchanged.
+- Plan amended: none.
+- Next: plan phase 5c (the release build: cargo-dist, the five targets, the release workflow, the installers, checksums, and attestations) per `.ai/src/commands/native-phase-plan.md`, commit `docs(native): plan phase 5c`, and stop for the review.
 - Blocker: none.

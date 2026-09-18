@@ -402,7 +402,7 @@ git commit -m "feat(release): dispatch the release build from auto-tag"
 **Files:**
 - Modify: `.ai/src/skills/native-port/references/module-map.md:70`, `docs/specs/2026-09-12-rust-migration-design.md:297-299`, `.ai/.sync-manifest` (regenerated)
 
-- [ ] **Step 1: Module map, spec, and outputs**
+- [x] **Step 1: Module map, spec, and outputs**
 
 In the module map's "Engine modules" block, after
 
@@ -439,7 +439,7 @@ Expected: `.ai/src/skills/native-port/references/module-map.md | 1 +` and `docs/
 
 Regenerate outputs with `AGENTSYNC_NATIVE=0 AGENTSYNC_HOME="$PWD" bash bin/agentsync.sh sync --force > /dev/null` (outside the sandbox if it refuses a write) and read `git status --short`: ` M .ai/.sync-manifest`, ` M .ai/src/skills/native-port/references/module-map.md`, ` M docs/specs/2026-09-12-rust-migration-design.md`, and the plan.
 
-- [ ] **Step 2: Verify (outside the agent sandbox where a file says so)**
+- [x] **Step 2: Verify (outside the agent sandbox where a file says so)**
 
 Set `S="$TMPDIR/phase5c"; mkdir -p "$S"` and write `$S/native_suite.sh` when it does not exist:
 
@@ -481,7 +481,7 @@ bash "$S/native_suite.sh" "$PWD" both "$S/suite_both.out" && tail -1 "$S/suite_b
 
 Expected: `Finished` (no source changed, so the release binary is up to date); `298 passed`, `0`, `11`, `1`; lint exit 0; `plan=0`; `TOTAL bash=0 native=0` over the 50 bats files, each run one at a time under both engines, with `native_parity` run outside the sandbox, which refuses the `diff -` stdin operand `src/cli/diff.rs` uses. `sync` and `check` do not change in this slice, so no timings are due.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add .ai/.sync-manifest .ai/src/skills/native-port/references/module-map.md docs/specs/2026-09-12-rust-migration-design.md
@@ -515,4 +515,11 @@ The plan is closed when every box is ticked, `dist plan --tag 0.36.0` exits 0 wi
 - Verified: `auto-tag.yaml` at `f3066db3…`, `16 ++++++++++++++++`; `yaml_check.rb` parsed both workflows with the job and step names of Step 2, `auto-tag` with `contents: write` and `actions: write`, exit 0.
 - Plan amended: none.
 - Next: Task 3 Step 1.
+- Blocker: none.
+
+### 2026-09-18 — Task 3 done
+- Commits: this commit, docs(native): map the phase 5c release build.
+- Verified: `git apply` of the parked docs patch gave `module-map.md | 1 +` and the spec `| 8 +++++---`; `sync --force` refused inside the sandbox (the backup `tar` cannot create `.mcp.json`, `Operation not permitted`, and the transaction changed nothing) and ran outside it, exit 0, the synced module map `same` as its source, status exactly the manifest, the module map, the spec, and the plan; `cargo build --release` up to date; `cargo test` 298/0/11/1; clippy, fmt, ShellCheck exit 0; `dist plan --tag 0.36.0` exit 0; `native_suite.sh both` outside the sandbox over the 50 bats files: `TOTAL bash=0 native=0`. `sync` and `check` did not change, so no timings.
+- Plan amended: none.
+- Next: close the plan: append the `## Completion receipt` and commit `docs(native): close phase 5c`. Phase 5 stays open until 5d and 5e are planned and closed.
 - Blocker: none.

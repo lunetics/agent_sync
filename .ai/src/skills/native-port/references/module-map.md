@@ -68,6 +68,7 @@ lib/setup_hooks.sh               → src/cli/setup_hooks.rs  Phase 4m, ported; g
 bin/agentsync.sh print_usage, the --help interception, *) → src/cli/usage.rs   Phase 5a, ported
 lib/helpers/update.sh            → src/cli/update.rs       Phase 5, binary self-replace
 lib/helpers/release.sh           → src/cli/release.rs      Phase 5b, ported; git through the executable, the tag message on its stdin
+.github/workflows/auto-tag.yaml  → .github/workflows/release.yml  Phase 5c; dist 0.32.0 generates it from dist-workspace.toml (workflow_dispatch), auto-tag dispatches it on the tag
 ```
 
 ## Command closure and ownership

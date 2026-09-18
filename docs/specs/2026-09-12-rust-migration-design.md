@@ -294,9 +294,11 @@ Exit: `_NATIVE_COMMANDS` lists every command; the whole suite passes with
 
 ### Phase 5 — Distribution and cutover
 
-- cargo-dist: Linux x86_64 and aarch64 (musl), macOS x86_64 and aarch64,
-  Windows x86_64; release workflow, `curl | sh` installer, PowerShell
-  installer, sha256 sums, artifact attestations.
+- cargo-dist 0.32.0 (`dist-workspace.toml`, `[package.metadata.dist]`): Linux x86_64
+  and aarch64 (musl), macOS x86_64 and aarch64, Windows x86_64; the generated
+  release workflow runs on `workflow_dispatch` with the tag, `curl | sh` and
+  PowerShell installers into `~/.agentsync/bin`, sha256 sums, artifact
+  attestations.
 - `install.sh` becomes the generated installer (or downloads the binary and
   verifies its checksum); `AGENTSYNC_VERSION=<tag>` still pins.
 - `update` replaces the binary from GitHub Releases and keeps `update <version>`

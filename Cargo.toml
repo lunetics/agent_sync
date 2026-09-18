@@ -6,8 +6,12 @@ edition = "2024"
 rust-version = "1.85"
 description = "Sync AI agent instructions from .ai/src/ to every tool."
 license = "GPL-3.0-only"
-repository = "https://github.com/yelmuratoff/agent"
+repository = "https://github.com/yelmuratoff/agent_sync"
 publish = false
+
+# publish = false hides the crate from dist; this opts it back in.
+[package.metadata.dist]
+dist = true
 
 [dependencies]
 clap = { version = "4.6", features = ["derive"] }
@@ -28,3 +32,6 @@ unsafe_code = "forbid"
 codegen-units = 1
 lto = true
 strip = true
+
+[profile.dist]
+inherits = "release"

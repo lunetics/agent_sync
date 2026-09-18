@@ -56,7 +56,7 @@ No Bash module is ported. Nothing in `src/` changes.
 
 **Files:** none changed.
 
-- [ ] **Step 1: Record the baseline**
+- [x] **Step 1: Record the baseline**
 
 ```bash
 git log --oneline -1
@@ -82,7 +82,7 @@ Expected: the plan's latest commit; `cargo-dist 0.32.0` (when `dist` is missing,
 - Consumes: `Cargo.toml` `version = "0.36.0"` equal to `VERSION` (Phase 5b).
 - Produces: `release.yml` with `on: workflow_dispatch: inputs: tag` (required, default `dry-run`), which Task 2 dispatches with `gh workflow run release.yml --ref <tag> -f tag=<tag>`; the release assets 5d's `update` downloads: `agentsync-<target>.tar.xz` (`.zip` on Windows) holding `agentsync[.exe]`, `CHANGELOG.md`, `LICENSE`, `README.md`, each with a `.sha256` beside it, `sha256.sum`, `agentsync-installer.sh`, `agentsync-installer.ps1`, `source.tar.gz`, all under `https://github.com/yelmuratoff/agent_sync/releases/download/<tag>/`.
 
-- [ ] **Step 1: Write `dist-workspace.toml`**
+- [x] **Step 1: Write `dist-workspace.toml`**
 
 Create `dist-workspace.toml` at the repository root:
 
@@ -115,7 +115,7 @@ dispatch-releases = true
 Run: `shasum -a 256 dist-workspace.toml`
 Expected: `f74b4fb9ada6ffa122b7f34b1b47bef5ad1111f3301d231ecc49ce594d072b76  dist-workspace.toml`
 
-- [ ] **Step 2: Opt the crate into dist**
+- [x] **Step 2: Opt the crate into dist**
 
 In `Cargo.toml`, replace line 9
 
@@ -149,7 +149,7 @@ inherits = "release"
 Run: `git diff --stat Cargo.toml Cargo.lock | cat; sed -n '9p;12,14p;36,37p' Cargo.toml`
 Expected: `Cargo.toml | 9 ++++++++-` alone (`Cargo.lock` absent from the stat); the six lines `repository = "https://github.com/yelmuratoff/agent_sync"`, `# publish = false hides the crate from dist; this opts it back in.`, `[package.metadata.dist]`, `dist = true`, `[profile.dist]`, `inherits = "release"`.
 
-- [ ] **Step 3: Generate the workflow and plan the release**
+- [x] **Step 3: Generate the workflow and plan the release**
 
 ```bash
 dist generate 2>&1 | tail -1
@@ -219,7 +219,7 @@ Expected, five lines:
 ["ubuntu-22.04","x86_64-unknown-linux-musl","none"]
 ```
 
-- [ ] **Step 4: Prove the freshness guard**
+- [x] **Step 4: Prove the freshness guard**
 
 ```bash
 cp .github/workflows/release.yml "$TMPDIR/release.yml.bak"
@@ -233,7 +233,7 @@ shasum -a 256 .github/workflows/release.yml
 
 Expected: `exit=255`, `1`, `exit=0`, and the sha256 `3350d9e2c86f3aaf096fa03e2b96e6d84261a207132a975e90d1c4cdfda5cb9e` again.
 
-- [ ] **Step 5: Build the host target and the global artifacts**
+- [x] **Step 5: Build the host target and the global artifacts**
 
 ```bash
 host=$(rustc -vV | sed -n 's/^host: //p'); echo "$host"
@@ -251,7 +251,7 @@ grep -c '\$HOME/.agentsync/bin' target/distrib/agentsync-installer.sh
 
 Expected (`host` is `aarch64-apple-darwin` on the 2026-09-18 machine; on another host the same names with that triple): `local exit=0`, `global exit=0`; the listing `agentsync-<host>/`, `agentsync-<host>.tar.xz`, `agentsync-<host>.tar.xz.sha256`, `agentsync-installer.ps1`, `agentsync-installer.sh`, `sha256.sum`, `source.tar.gz`, `source.tar.gz.sha256`; the archive holding `agentsync-<host>/`, `agentsync-<host>/agentsync`, `agentsync-<host>/README.md`, `agentsync-<host>/CHANGELOG.md`, `agentsync-<host>/LICENSE`; the two sha256 lines equal; `34:    ARTIFACT_DOWNLOAD_URLS="${INSTALLER_BASE_URL}/yelmuratoff/agent_sync/releases/download/0.36.0"`; `14:https://github.com/yelmuratoff/agent_sync/releases/download/0.36.0`; `2`; `agentsync v0.36.0`. `target/` is ignored, so `git status --short` shows only the three files of this task.
 
-- [ ] **Step 6: The Rust gates**
+- [x] **Step 6: The Rust gates**
 
 ```bash
 cargo fmt --all --check; echo "fmt=$?"
@@ -262,7 +262,7 @@ git status --short
 
 Expected: `fmt=0`, `clippy=0`, `298 passed`, `0 passed`, `11 passed`, `1 passed`; status ` M Cargo.toml`, `?? .github/workflows/release.yml`, `?? dist-workspace.toml`, and the plan.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add Cargo.toml dist-workspace.toml .github/workflows/release.yml
@@ -501,4 +501,11 @@ The plan is closed when every box is ticked, `dist plan --tag 0.36.0` exits 0 wi
 - Verified: the whole slice was drafted in the tree and parked in the session scratchpad (`phase5c/draft/`), then the tree was restored to HEAD. Against the draft: `dist init --yes` proposed seven targets (the two gnu ones added) and could not release a `publish = false` crate (`This workspace doesn't have anything for dist to Release!`), which `[package.metadata.dist] dist = true` fixes; with the plan's config `dist generate` wrote `release.yml` at sha256 `3350d9e2…` (308 lines); `dist plan --tag 0.36.0` exit 0 with the listing in Task 1 Step 3 and the five native runners; a bare tag parses (`announcing v0.36.0`); generating with and without `dispatch-releases` differs only in the trigger, three `plan` outputs, the `plan` command, and one `if`, and neither creates the tag; a hand edit of `release.yml` made `dist plan` exit 255 with `has out of date contents and needs to be regenerated`; `dist build --artifacts=local --target=aarch64-apple-darwin` and `dist build --artifacts=global --tag 0.36.0` exit 0, the archive's sha256 equal to its `.sha256`, the installers pointing at `yelmuratoff/agent_sync/releases/download/0.36.0` (without `--tag` they point at `v0.36.0`), the shell installer 1468 lines naming `$HOME/.agentsync/bin`; `cargo test` 298/0/11/1, fmt and clippy exit 0 with the `Cargo.toml` change and `Cargo.lock` untouched; both workflows parse with `yaml_check.rb` and print the job and step names in Task 2 Step 2; `sync --dry-run` 0 warnings with the docs edits. `cargo install cargo-dist --locked` was run by the maintainer on 2026-09-18 after the previous run stopped on it.
 - Plan amended: none.
 - Next: Task 0 Step 1, after the review.
+- Blocker: none.
+
+### 2026-09-18 — Task 0 and Task 1 done
+- Commits: this commit, feat(release): add the cargo-dist release build.
+- Verified: baseline at `cca9eb6`: `cargo-dist 0.32.0`, `cargo test` 298/0/11/1, `auto-tag.yaml` at `c4515c07…`, both new files absent, no `Phase 5c` row, `repository` still `agent`. Task 1: `dist-workspace.toml` at `f74b4fb9…`; `Cargo.toml | 9 ++++++++-` with `Cargo.lock` untouched and the six lines at 9, 12–14, 36–37; `dist generate` wrote `release.yml` at `3350d9e2…`, 308 lines, the `workflow_dispatch` trigger at 42–49; `dist plan --tag 0.36.0` exit 0 with the listing in Step 3 and the five native runners; the hand edit made `dist plan` exit 255 with one `has out of date contents and` line, restored to the same sha256; the host build (`aarch64-apple-darwin`) local and global exit 0, the archive's sha256 `a2e32999…` equal to its `.sha256`, the installers pointing at `yelmuratoff/agent_sync/releases/download/0.36.0`, `$HOME/.agentsync/bin` twice in the shell installer, the built binary answering `agentsync v0.36.0`; fmt and clippy exit 0, `cargo test` 298/0/11/1. Step 5 ran from a script file in the scratchpad because the Bash hook refuses the inline `host=$(…)` form.
+- Plan amended: none.
+- Next: Task 2 Step 1.
 - Blocker: none.

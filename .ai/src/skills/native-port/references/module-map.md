@@ -165,7 +165,7 @@ tests/generate.bats 7         generate
 tests/gitignore.bats 7        unit: gitignore.sh
 tests/workspace.bats 7        sync --workspace
 tests/update_native.bats 11   update on a binary install, the binary run directly (Phase 5d)
-tests/install.bats 6          install.sh, update <version>
+tests/install.bats 13         install.sh (binary and source installs, curl stand-in), update <version>, the switch to the binary
 tests/rollback.bats 6         rollback
 tests/update.bats 6           update
 ```

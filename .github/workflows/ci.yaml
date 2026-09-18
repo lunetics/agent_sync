@@ -123,7 +123,7 @@ jobs:
   native:
     name: Native engine (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 40
+    timeout-minutes: 100
     strategy:
       fail-fast: false
       matrix:
@@ -147,9 +147,23 @@ jobs:
           else
             brew install bats-core parallel
           fi
-      # Windows joins in Phase 5, when the binary is the entry point: under
-      # Git Bash the POSIX paths in AGENTSYNC_REPO_ROOT and TMPDIR do not reach
-      # a native executable.
+      - name: Cache bats-core
+        if: runner.os == 'Windows'
+        id: cache-bats
+        uses: actions/cache@v4
+        with:
+          path: ~/.local
+          key: bats-core-${{ runner.os }}-v1
+      - name: Install bats-core
+        if: runner.os == 'Windows' && steps.cache-bats.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          git clone --depth 1 https://github.com/bats-core/bats-core.git /tmp/bats-core
+          /tmp/bats-core/install.sh "$HOME/.local"
+      - name: Put bats on PATH
+        if: runner.os == 'Windows'
+        shell: bash
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       # Every command that writes outputs goes through the native sync from
       # Phase 3 on, so the whole suite is the native contract.
       - name: The Bash suite against the native engine
@@ -159,3 +173,13 @@ jobs:
           TERM: xterm
           AGENTSYNC_NATIVE: "1"
         run: bats --jobs 4 --tap tests/
+      # Git Bash cannot run bats --jobs; the binary forks nothing, so the
+      # suite runs serially and unsharded here (Phase 5e).
+      - name: The Bash suite against the native engine (serial)
+        if: runner.os == 'Windows'
+        shell: bash
+        timeout-minutes: 90
+        env:
+          TERM: xterm
+          AGENTSYNC_NATIVE: "1"
+        run: bats --tap tests/

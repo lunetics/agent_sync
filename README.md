@@ -45,9 +45,9 @@ The frontmatter above is the always-on default. Give a rule `paths:` frontmatter
 ## Why not just...?
 
 - **...symlink the files?** Tools demand different extensions (`.mdc`, `.instructions.md`), different frontmatter, different nesting. Symlinks can't transform content — AgentSync does.
-- **...a shell script per tool?** You'd be writing the same copy / rename / header-injection logic 13 times. AgentSync is that script, declarative (YAML), already tested on macOS, Linux, and Windows (Git Bash).
+- **...a shell script per tool?** You'd be writing the same copy / rename / header-injection logic 13 times. AgentSync is that script, declarative (YAML), already tested on macOS, Linux, and Windows.
 - **...stick to the one tool I use today?** Teammates pick different ones. Your future self might too. A single source file future-proofs you.
-- **Zero runtime dependencies.** Pure Bash. No Node, Python, `yq`, or `jq`. Install with one `curl | bash`.
+- **Zero runtime dependencies.** A single static binary. No Node, Python, `yq`, or `jq`. Install with one `curl | bash`.
 
 <details>
 <summary><strong>Table of contents</strong></summary>
@@ -91,25 +91,31 @@ The frontmatter above is the always-on default. Give a rule `paths:` frontmatter
 
 ## Installation
 
-Requirements: `git`, `bash`. Works on **macOS** and **Linux** out of the box. On **Windows**, use [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) or [Git Bash](https://gitforwindows.org/) (included with Git for Windows).
+Requirements: `curl` and `tar`. AgentSync is one static binary for **macOS** (Apple silicon and Intel), **Linux** (x86_64 and arm64) and **Windows** (x86_64).
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yelmuratoff/agent/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/yelmuratoff/agent_sync/main/install.sh | bash
+```
+
+On Windows, from PowerShell:
+
+```powershell
+irm https://github.com/yelmuratoff/agent_sync/releases/latest/download/agentsync-installer.ps1 | iex
 ```
 
 To install the exact release a project pins in `agentsync_version` — what CI should do when outputs are committed — set `AGENTSYNC_VERSION`; the same variable moves an existing install, and `agentsync update <version>` does it from the CLI:
 
 ```bash
-AGENTSYNC_VERSION=0.35.0 curl -fsSL https://raw.githubusercontent.com/yelmuratoff/agent/main/install.sh | bash
+AGENTSYNC_VERSION=0.36.0 curl -fsSL https://raw.githubusercontent.com/yelmuratoff/agent_sync/main/install.sh | bash
 ```
 
 What the installer does:
 
-1. Clones the repository to `~/.agentsync/`
-2. Creates a symlink `agentsync` in `/usr/local/bin/` (falls back to `~/.local/bin/`)
-3. Adds `AGENTSYNC_HOME` to your shell config (`~/.zshrc` or `~/.bashrc`)
+1. Downloads the release archive for your platform from GitHub Releases and verifies its sha256
+2. Places the binary at `~/.agentsync/bin/agentsync`
+3. Creates a symlink `agentsync` in `/usr/local/bin/` (falls back to `~/.local/bin/`)
 
-Restart your terminal or run `source ~/.zshrc` after installation. Running the installer again updates via `git pull`.
+`agentsync update` replaces the binary with the latest release, and `agentsync update <version>` pins one. Releases before the first binary release have no archive: pinning to one installs from source (a git clone in `~/.agentsync/` with `AGENTSYNC_HOME` in your shell config, as the installer always did), and such an install moves to the binary by itself the next time `agentsync update` reaches a release that ships one.
 
 ## Team Setup
 
@@ -235,7 +241,7 @@ agentsync <command> [options]
 | `export`                 |       | Bundle `.ai/src/` into a shareable archive                                                      |
 | `import <src>`           |       | Import config from a GitHub repo, archive, or directory                                         |
 | `list`                   | `ls`  | Show configured tools and status                                                               |
-| `update`                 |       | Self-update to the latest main, or `update <version>` to pin a release tag                     |
+| `update`                 |       | Replace the binary with the latest release, or `update <version>` to pin a release tag         |
 | `upgrade-config`         |       | Re-pin `agentsync_version` in `agent_sync.yaml`                                                 |
 | `release`                |       | Bump version, tag, and push (maintainer)                                                        |
 | `version`                | `-v`  | Print version                                                                                  |
@@ -969,8 +975,9 @@ bats --jobs "$(( $(getconf _NPROCESSORS_ONLN) * 2 ))" tests/
 bats tests/sync.bats
 ```
 
-CI runs `--jobs 4` on Linux and macOS; Windows falls back to serial because
-GNU parallel isn't available under git-bash.
+CI runs `--jobs 4` on Linux and macOS; the Bash reference on Windows falls
+back to sharded serial runs because GNU parallel isn't available under
+git-bash, and the binary runs the suite there unsharded.
 
 Git Bash copies `ln -s` targets by default. The symlink-safety tests request
 native links with `MSYS=winsymlinks:nativestrict`; enable Windows Developer Mode
@@ -978,19 +985,25 @@ or grant the `Create symbolic links` privilege before running them locally.
 
 ### Native engine
 
-Commands are moving one by one to a Rust binary
-(`docs/specs/2026-09-12-rust-migration-design.md`). The Bash CLI hands a ported
-command to the binary when one is available:
+The engine is a Rust binary; every command is ported
+(`docs/specs/2026-09-12-rust-migration-design.md`). Installs run the binary
+directly. In the repository `bin/agentsync.sh` stays the Bash reference and the
+parity harness until Phase 6 deletes it, and hands a command to the binary when
+one is built:
 
 ```bash
 cargo build --release                 # target/release/agentsync
 agentsync list                        # served natively when the binary exists
 AGENTSYNC_NATIVE=0 agentsync list     # force the Bash implementation
-AGENTSYNC_NATIVE=1 bats tests/        # run the suite against the binary for ported commands
+AGENTSYNC_NATIVE=1 bats tests/        # run the suite against the binary
+tests/update_native.bats              # update on a binary install, the binary run directly
 ```
 
 `cargo test` covers the Rust side; `tests/native_parity.bats` diffs Bash
-against native output for every ported command.
+against native output for every ported command. Releases are built by
+cargo-dist (`dist-workspace.toml`): the auto-tag workflow dispatches
+`release.yml` for the tag it creates from `VERSION`, which publishes the five
+archives, their checksums, and the installers.
 
 ## License
 
@@ -1008,7 +1021,7 @@ source code. Third-party components retain their original licenses; see
 ```bash
 # Global
 rm -rf ~/.agentsync && rm -f /usr/local/bin/agentsync
-# Remove AGENTSYNC_HOME from ~/.zshrc
+# Remove AGENTSYNC_HOME from ~/.zshrc if a source install added it
 
 # Per project
 rm -rf .ai/

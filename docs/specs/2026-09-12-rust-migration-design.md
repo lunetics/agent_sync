@@ -302,8 +302,14 @@ Exit: `_NATIVE_COMMANDS` lists every command; the whole suite passes with
   release workflow runs on `workflow_dispatch` with the tag, `curl | sh` and
   PowerShell installers into `~/.agentsync/bin`, sha256 sums, artifact
   attestations.
-- `install.sh` becomes the generated installer (or downloads the binary and
-  verifies its checksum); `AGENTSYNC_VERSION=<tag>` still pins.
+- `install.sh` stays hand-written (5e): it detects the cargo-dist target,
+  downloads `agentsync-<target>.tar.xz` (`.zip` on Windows) and its `.sha256`
+  from GitHub Releases through `curl -w %{http_code}`, verifies the sum with
+  `sha256sum` or `shasum`, unpacks it through `tar` into
+  `~/.agentsync/bin/agentsync`, and links it; `AGENTSYNC_VERSION=<tag>` still
+  pins, and a pinned tag whose archive answers 404 installs from source as
+  before (decision 3). The cargo-dist installers ship alongside it. The
+  binary's install needs no `AGENTSYNC_HOME`; a source install still gets it.
 - `update` replaces the binary from GitHub Releases and keeps `update <version>`
   pinning; the `agentsync_version` gate is unchanged. The binary's `update`
   (5d) downloads `agentsync-<target>.tar.xz` (`.zip` on Windows) and its
@@ -319,10 +325,18 @@ Exit: `_NATIVE_COMMANDS` lists every command; the whole suite passes with
   auto-tag workflow triggers the release build.
 - The installed `agentsync` link points at the binary. `bin/agentsync.sh`
   stays the dispatcher in the repository, the parity harness, until Phase 6
-  deletes it.
-- Windows: the binary is the entry point; the bats suite runs against it
-  directly, without sharding. Terminal colour on legacy consoles is enabled
-  with the `anstream` crate if needed.
+  deletes it; `_native_bin` also accepts `<engine>/bin/agentsync[.exe]`, the
+  name the installers and the source-install switch use (5e). A source
+  install moves to the binary through Bash's `update` (5e,
+  `_update_switch_to_binary`): after the git reconcile it downloads and
+  verifies the archive of the new version, places
+  `<install>/bin/agentsync[.exe]`, and points the `agentsync` link at it; a
+  version without an archive is silent, any other failure is a warning and
+  the checkout keeps running. Until then, on a terminal, `check_for_updates`
+  prints one dim line naming `agentsync update` as the way to the binary.
+- Windows: the binary is the entry point; the native CI job runs the bats
+  suite against it serially and unsharded (5e). Terminal colour on legacy
+  consoles is enabled with the `anstream` crate if needed.
 
 Planned in five slices, each its own plan, in this order because each one
 builds on the one before:

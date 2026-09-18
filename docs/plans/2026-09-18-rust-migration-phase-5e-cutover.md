@@ -929,7 +929,7 @@ git commit -m "feat(install): download the binary and move source installs to it
 **Files:**
 - Modify: `README.md`, `.ai/src/AGENTS.md`, `.github/workflows/ci.yaml`, `docs/specs/2026-09-12-rust-migration-design.md`, `.ai/src/skills/native-port/references/module-map.md`, `.ai/.sync-manifest` (regenerated)
 
-- [ ] **Step 1: Apply the docs patch and regenerate the outputs**
+- [x] **Step 1: Apply the docs patch and regenerate the outputs**
 
 Save the block below as `$TMPDIR/task2.diff` and run `git apply "$TMPDIR/task2.diff"`.
 
@@ -1229,7 +1229,7 @@ Expected: `The Bash suite against the native engine`, `The Bash suite against th
 
 Regenerate outputs with `AGENTSYNC_NATIVE=0 AGENTSYNC_HOME="$PWD" bash bin/agentsync.sh sync --force > /dev/null` (outside the sandbox if it refuses a write) and read `git status --short`: ` M .ai/.sync-manifest` alongside the five files and the plan.
 
-- [ ] **Step 2: Verify (outside the agent sandbox where a file says so)**
+- [x] **Step 2: Verify (outside the agent sandbox where a file says so)**
 
 Write `$S/native_suite.sh` when it does not exist:
 
@@ -1268,7 +1268,7 @@ bash "$S/native_suite.sh" "$PWD" both "$S/suite_both.out" && tail -1 "$S/suite_b
 
 Expected: `Finished` (no Rust source changed); lint exit 0; `TOTAL bash=0 native=0` over the 51 bats files under both engines, `native_parity` run outside the sandbox. `sync` and `check` do not change, so no timings are due.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add .ai/.sync-manifest README.md .ai/src/AGENTS.md .github/workflows/ci.yaml docs/specs/2026-09-12-rust-migration-design.md .ai/src/skills/native-port/references/module-map.md
@@ -1288,4 +1288,11 @@ The plan is closed when every box is ticked, `tests/install.bats` passes its thi
 - Verified: the slice was drafted in the tree after 5d closed, verified, and parked in the session scratchpad (`phase5e/draft/`); the plan's blocks were extracted back and compared byte for byte with the parked files. Against the draft: ShellCheck exit 0; `tests/install.bats` 13/13 (after three draft bugs: an empty `PATH` that also hid `bash`, progress lines captured into the install path, and the repository's dispatcher finding its own release build so the switch never fired); `update`, `update_snapshot`, `native_dispatch`, `cli`, `update_native`, `version_pin`, `changelog_render` at 0 failures under both engines; `clone_notice_tty.sh` the three expected lines; the CI workflow parsed with the two native bats steps and a 100-minute job timeout; `sync --force` regenerated the manifest. The full suite under both engines was started on the final tree and is recorded in the execution entry.
 - Plan amended: none.
 - Next: Task 0 Step 1; the maintainer asked on 2026-09-18 to take the decisions and finish, so execution follows in the same session.
+- Blocker: none.
+
+### 2026-09-18 — Tasks 0 to 2 done
+- Commits: `37d05f8` feat(install): download the binary and move source installs to it; this commit, docs(native): describe the single static binary. All seven review decisions taken as recommended.
+- Verified: baseline at `41aacd8` (326/0/11/1, 6 install cases, no switch helper, no `bin/agentsync"` candidate). Task 1: the four checksums as planned, ShellCheck exit 0, `install.bats` 13 ok, the seven touched files `bash=0 native=0`, `clone_notice_tty.sh` the three expected lines outside the sandbox. Task 2: the five checksums as planned, the workflow parsed with both native bats steps and the 100-minute timeout, `sync --force` outside the sandbox regenerated the manifest; `cargo build --release` up to date; `native_suite.sh both` outside the sandbox over the 51 bats files: `TOTAL bash=0 native=0`.
+- Plan amended: none.
+- Next: close the plan and Phase 5: append the `## Completion receipt`, set the spec's status, commit `docs(native): close phase 5e`.
 - Blocker: none.

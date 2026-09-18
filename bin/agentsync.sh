@@ -289,6 +289,8 @@ _native_bin() {
     for candidate in \
         "$_AGENTSYNC_ENGINE_ROOT/target/release/agentsync" \
         "$_AGENTSYNC_ENGINE_ROOT/target/release/agentsync.exe" \
+        "$_AGENTSYNC_ENGINE_ROOT/bin/agentsync" \
+        "$_AGENTSYNC_ENGINE_ROOT/bin/agentsync.exe" \
         "$_AGENTSYNC_ENGINE_ROOT/bin/agentsync-native" \
         "$_AGENTSYNC_ENGINE_ROOT/bin/agentsync-native.exe"; do
         if [[ -x "$candidate" ]]; then

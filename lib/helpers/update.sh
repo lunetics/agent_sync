@@ -46,6 +46,107 @@ _update_checkout_version() {
     )
 }
 
+# The cargo-dist target this host runs, as the release archive is named.
+_update_release_target() {
+    local os arch
+    os=$(uname -s 2>/dev/null || echo unknown)
+    arch=$(uname -m 2>/dev/null || echo unknown)
+    case "$os:$arch" in
+        Darwin:arm64|Darwin:aarch64) echo "aarch64-apple-darwin" ;;
+        Darwin:x86_64)               echo "x86_64-apple-darwin" ;;
+        Linux:aarch64|Linux:arm64)   echo "aarch64-unknown-linux-musl" ;;
+        Linux:x86_64)                echo "x86_64-unknown-linux-musl" ;;
+        MINGW*:x86_64|MSYS*:x86_64|CYGWIN*:x86_64) echo "x86_64-pc-windows-msvc" ;;
+        *) return 1 ;;
+    esac
+}
+
+_update_file_sha256() {
+    local file="$1"
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$file" | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$file" | awk '{print $1}'
+    else
+        return 1
+    fi
+}
+
+# After a source install reaches a release that ships a binary, download it,
+# verify it, place it at <install_dir>/bin/agentsync[.exe], and point the
+# agentsync link at it, so the next run is the binary and `agentsync update`
+# replaces the binary from then on. A release without an archive is silent;
+# any other failure is a warning and the checkout keeps running.
+# Usage: _update_switch_to_binary "<install_dir>" "<version>"
+_update_switch_to_binary() {
+    local install_dir="$1" version="$2"
+    if declare -F _native_bin >/dev/null 2>&1 && _native_bin >/dev/null 2>&1; then
+        return 0
+    fi
+    command -v curl >/dev/null 2>&1 || return 0
+    local target
+    target=$(_update_release_target) || return 0
+    local ext="tar.xz" exe="agentsync"
+    if [[ "$target" == *-windows-* ]]; then
+        ext="zip"; exe="agentsync.exe"
+    fi
+    local archive_name="agentsync-$target.$ext"
+    local base="https://github.com/$AGENTSYNC_REPO/releases/download/$version"
+    local work
+    work=$(tmp_dir) || return 0
+
+    local code
+    code=$(curl -sL --max-time 30 -o "$work/$archive_name" -w '%{http_code}' "$base/$archive_name" 2>/dev/null) || code="000"
+    [[ "$code" != "404" ]] || return 0
+    if [[ "$code" != "200" ]]; then
+        echo "  $(_yellow "Warning"): could not download the agentsync binary (HTTP $code); still running the Bash engine." >&2
+        return 0
+    fi
+    code=$(curl -sL --max-time 30 -o "$work/$archive_name.sha256" -w '%{http_code}' "$base/$archive_name.sha256" 2>/dev/null) || code="000"
+    if [[ "$code" != "200" ]]; then
+        echo "  $(_yellow "Warning"): could not download the checksum of $archive_name (HTTP $code); still running the Bash engine." >&2
+        return 0
+    fi
+    local expected actual
+    expected=$(awk '{print $1; exit}' "$work/$archive_name.sha256")
+    actual=$(_update_file_sha256 "$work/$archive_name") || {
+        echo "  $(_yellow "Warning"): neither sha256sum nor shasum is available to verify $archive_name; still running the Bash engine." >&2
+        return 0
+    }
+    if [[ "$expected" != "$actual" ]]; then
+        echo "  $(_yellow "Warning"): checksum mismatch for $archive_name; still running the Bash engine." >&2
+        return 0
+    fi
+    mkdir -p "$work/unpacked"
+    if ! tar -xf "$work/$archive_name" -C "$work/unpacked" 2>/dev/null; then
+        echo "  $(_yellow "Warning"): could not unpack $archive_name; still running the Bash engine." >&2
+        return 0
+    fi
+    local unpacked="" candidate
+    for candidate in "$work/unpacked/$exe" "$work/unpacked"/*/"$exe"; do
+        if [[ -f "$candidate" ]]; then
+            unpacked="$candidate"
+            break
+        fi
+    done
+    if [[ -z "$unpacked" ]]; then
+        echo "  $(_yellow "Warning"): $archive_name does not contain $exe; still running the Bash engine." >&2
+        return 0
+    fi
+    mkdir -p "$install_dir/bin"
+    cp "$unpacked" "$install_dir/bin/$exe.new"
+    chmod +x "$install_dir/bin/$exe.new"
+    mv -f "$install_dir/bin/$exe.new" "$install_dir/bin/$exe"
+
+    local current_bin
+    current_bin=$(command -v agentsync 2>/dev/null) || true
+    if [[ -n "$current_bin" ]] && [[ -L "$current_bin" ]]; then
+        ln -sf "$install_dir/bin/$exe" "$current_bin" 2>/dev/null \
+            || echo "  $(_yellow "Warning"): could not re-link $current_bin to the binary — run the installer to repair it." >&2
+    fi
+    echo "  $(_green "Switched to the agentsync binary") v$version $(_dim "at $install_dir/bin/$exe; the checkout stays beside it.")"
+}
+
 # `--force` on the tag fetch is load-bearing: the install mirrors upstream and
 # never owns tags, so when a release tag is moved upstream a plain `--tags` fetch
 # rejects it as "would clobber existing tag" and aborts the whole update. On
@@ -195,6 +296,8 @@ cmd_update() {
     if [[ "$reconcile_out" == *stashed* ]]; then
         echo "  $(_dim "Set aside local edits in the install dir — recoverable via") $(_cyan "git -C \"$install_dir\" stash list")$(_dim ".")"
     fi
+
+    _update_switch_to_binary "$install_dir" "$new_version"
 
     # Show what's new from CHANGELOG.md (all versions between old and new)
     _show_changelog_range "$install_dir" "$old_version" "$new_version"
@@ -464,6 +567,13 @@ check_for_updates() {
     local install_dir
     install_dir=$(resolve_install_dir 2>/dev/null) || return 0
     [[ -d "$install_dir/.git" ]] || return 0
+
+    # A source install without a binary (a developer checkout with a build is
+    # not one) is told once per run how to move to the binary.
+    if [[ "$install_dir" == "${AGENTSYNC_HOME:-}" ]] && [[ ! -d "$install_dir/target" ]] \
+        && declare -F _native_bin >/dev/null 2>&1 && ! _native_bin >/dev/null 2>&1; then
+        echo "  $(_dim "This install runs the Bash engine;") $(_cyan "agentsync update") $(_dim "moves it to the agentsync binary.")"
+    fi
 
     local cache_file="$install_dir/.update_cache"
 

@@ -53,7 +53,7 @@ module-map.md                    170      the install.bats row
 
 **Files:** none changed.
 
-- [ ] **Step 1: Record the baseline**
+- [x] **Step 1: Record the baseline**
 
 ```bash
 git log --oneline -1
@@ -88,7 +88,7 @@ _update_switch_to_binary <install_dir> <version>   # always returns 0
 #   target/release/agentsync[.exe], bin/agentsync[.exe], bin/agentsync-native[.exe]
 ```
 
-- [ ] **Step 1: Write `install.sh`**
+- [x] **Step 1: Write `install.sh`**
 
 <!-- file: install.sh -->
 ````bash
@@ -434,7 +434,7 @@ main() {
 main "$@"
 ````
 
-- [ ] **Step 2: Apply the update-module and dispatcher patch**
+- [x] **Step 2: Apply the update-module and dispatcher patch**
 
 Save the block below as `$TMPDIR/task1.diff` and run `git apply "$TMPDIR/task1.diff"`.
 
@@ -590,7 +590,7 @@ index 05c13e6..8c84d3a 100644
      # Show banner from cache (written by previous background fetch)
 ````
 
-- [ ] **Step 3: Write `tests/install.bats`**
+- [x] **Step 3: Write `tests/install.bats`**
 
 <!-- file: tests/install.bats -->
 ````bash
@@ -855,7 +855,7 @@ dcd8074610c453cb5bf7766e1e90179e6e2d2f46b32f348e2c97ebc86121007e  bin/agentsync.
 72de77e3c69d1760d232d5a3f053a0512169b6d536befdb12c301d7ae2569035  tests/install.bats
 ```
 
-- [ ] **Step 4: Lint and the bats files**
+- [x] **Step 4: Lint and the bats files**
 
 ```bash
 shellcheck -x -S warning -e SC1091 bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh; echo "shellcheck=$?"
@@ -869,7 +869,7 @@ done
 
 Expected: `shellcheck=0`; `13` (the fixture tags, the latest binary release linked and answering `version`, a pinned binary release, a checksum mismatch aborting before the link, an unreachable GitHub, a pinned tag without a binary installing from source with `AGENTSYNC_HOME`, an unknown tag, a moved pin, a binary release replacing a source install's link, `update <version>` pinning, an unknown tag refused, a source install switching to the binary with the link re-pointed, a bad checksum keeping the source install on Bash); `bash=0 native=0` for each of the seven files.
 
-- [ ] **Step 5: The clone notice on a pty**
+- [x] **Step 5: The clone notice on a pty**
 
 Set `S="$TMPDIR/phase5e"; mkdir -p "$S"` and write `$S/clone_notice_tty.sh`:
 
@@ -915,7 +915,7 @@ with-binary clone-notice=0
 developer clone-notice=0
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add install.sh lib/helpers/update.sh bin/agentsync.sh tests/install.bats

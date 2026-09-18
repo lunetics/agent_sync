@@ -11,6 +11,7 @@ env:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   tag:
@@ -45,3 +46,18 @@ jobs:
           printf 'v%s\n\n%s' "$version" "$tag_body" > /tmp/tag_message.txt
           git tag -a "$version" -F /tmp/tag_message.txt
           git push origin "$version"
+
+      # A tag pushed with GITHUB_TOKEN starts no workflow, and the release
+      # workflow runs on workflow_dispatch only (dist-workspace.toml,
+      # dispatch-releases), so the build is dispatched here, on the tag ref,
+      # unless the release already exists.
+      - name: Dispatch the release build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          if gh release view "$version" > /dev/null 2>&1; then
+            echo "release $version exists; nothing to dispatch"
+            exit 0
+          fi
+          gh workflow run release.yml --ref "$version" -f "tag=$version"

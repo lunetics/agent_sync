@@ -280,7 +280,7 @@ git commit -m "feat(release): add the cargo-dist release build"
 - Consumes: `release.yml`'s `workflow_dispatch` `tag` input (Task 1).
 - Produces: on a `VERSION` push to `main`, the annotated tag `<version>` as before, then `gh workflow run release.yml --ref <version> -f tag=<version>` unless `gh release view <version>` succeeds.
 
-- [ ] **Step 1: Write the workflow**
+- [x] **Step 1: Write the workflow**
 
 Replace `.github/workflows/auto-tag.yaml` whole with:
 
@@ -353,7 +353,7 @@ jobs:
 Run: `shasum -a 256 .github/workflows/auto-tag.yaml; git diff --stat .github/workflows/auto-tag.yaml | cat`
 Expected: `f3066db38851d82fde0208100d98e297f060a73a017dd700661e3ff1ab76feae`; `.github/workflows/auto-tag.yaml | 16 ++++++++++++++++`.
 
-- [ ] **Step 2: Parse both workflows**
+- [x] **Step 2: Parse both workflows**
 
 Write `$TMPDIR/yaml_check.rb` (Ruby ships with macOS and the Linux runners; it is a verification tool, not a runtime dependency):
 
@@ -388,7 +388,7 @@ Expected:
 exit=0
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add .github/workflows/auto-tag.yaml
@@ -508,4 +508,11 @@ The plan is closed when every box is ticked, `dist plan --tag 0.36.0` exits 0 wi
 - Verified: baseline at `cca9eb6`: `cargo-dist 0.32.0`, `cargo test` 298/0/11/1, `auto-tag.yaml` at `c4515c07…`, both new files absent, no `Phase 5c` row, `repository` still `agent`. Task 1: `dist-workspace.toml` at `f74b4fb9…`; `Cargo.toml | 9 ++++++++-` with `Cargo.lock` untouched and the six lines at 9, 12–14, 36–37; `dist generate` wrote `release.yml` at `3350d9e2…`, 308 lines, the `workflow_dispatch` trigger at 42–49; `dist plan --tag 0.36.0` exit 0 with the listing in Step 3 and the five native runners; the hand edit made `dist plan` exit 255 with one `has out of date contents and` line, restored to the same sha256; the host build (`aarch64-apple-darwin`) local and global exit 0, the archive's sha256 `a2e32999…` equal to its `.sha256`, the installers pointing at `yelmuratoff/agent_sync/releases/download/0.36.0`, `$HOME/.agentsync/bin` twice in the shell installer, the built binary answering `agentsync v0.36.0`; fmt and clippy exit 0, `cargo test` 298/0/11/1. Step 5 ran from a script file in the scratchpad because the Bash hook refuses the inline `host=$(…)` form.
 - Plan amended: none.
 - Next: Task 2 Step 1.
+- Blocker: none.
+
+### 2026-09-18 — Task 2 done
+- Commits: this commit, feat(release): dispatch the release build from auto-tag.
+- Verified: `auto-tag.yaml` at `f3066db3…`, `16 ++++++++++++++++`; `yaml_check.rb` parsed both workflows with the job and step names of Step 2, `auto-tag` with `contents: write` and `actions: write`, exit 0.
+- Plan amended: none.
+- Next: Task 3 Step 1.
 - Blocker: none.

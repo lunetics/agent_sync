@@ -3,6 +3,7 @@
 
 pub mod backup;
 pub mod catalog;
+pub mod changelog;
 pub mod cli;
 pub mod convert;
 pub mod edit_paths;

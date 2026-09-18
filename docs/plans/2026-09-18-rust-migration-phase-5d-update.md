@@ -68,7 +68,7 @@ Reused: `catalog::base_tools`, `catalog::base_tool_yaml`, `manifest::sha256_hex`
 
 **Files:** none changed.
 
-- [ ] **Step 1: Record the baseline**
+- [x] **Step 1: Record the baseline**
 
 ```bash
 git log --oneline -1
@@ -113,7 +113,7 @@ pub fn pending_notes(from: u32, to: u32) -> Vec<String>;
 pub fn config_path(project_dir: &Path) -> Option<PathBuf>;
 ```
 
-- [ ] **Step 1: Write `src/changelog.rs`**
+- [x] **Step 1: Write `src/changelog.rs`**
 
 Write the file with exactly this content:
 
@@ -423,7 +423,7 @@ mod tests {
 }
 ````
 
-- [ ] **Step 2: Apply the core-module patch**
+- [x] **Step 2: Apply the core-module patch**
 
 Save the block below as `$TMPDIR/task1.diff` and run `git apply "$TMPDIR/task1.diff"`. It adds the `KEYS`, `Change`, `Conflict`, `diff`, `find_conflicts`, `yaml_quote`, `pending_resolutions`, `write_pending_resolutions`, and `utc_date` to `src/snapshot.rs` with their tests, `pending_notes` and `config_path` to `src/format_rev.rs` with theirs, and `pub mod changelog;` to `src/lib.rs`.
 
@@ -861,7 +861,7 @@ a2eb03e68e2e4be5c4745553ea8cb548471c53e7b9953db50a1cfeeb022d0051  src/snapshot.r
 e86881c68707fb201f52b0e116ec08d2b7b8cb01e115d98c196bb22f7be25fbb  src/lib.rs
 ```
 
-- [ ] **Step 3: The Rust gates**
+- [x] **Step 3: The Rust gates**
 
 ```bash
 cargo fmt --all --check; echo "fmt=$?"
@@ -872,7 +872,7 @@ cargo test changelog 2>&1 | grep 'test result' | head -1
 
 Expected: `fmt=0`, `clippy=0`, `312 passed`, `0 passed`, `11 passed`, `1 passed`; the `changelog` filter `9 passed` (the module's 8 plus `release`'s `changelog_section` test). The 14 new tests: 8 in `changelog` (markers, `sort -V`, the width clamp, wrapping, `fold` breaks, the fixture of `tests/changelog_render.bats` rendered without markers, quirk 55, the range), 4 in `snapshot` (the diff and added tools, conflicts, the queue text and its round trip through `read_pending_pairs`, dates), 2 in `format_rev` (the notes, the config path).
 
-- [ ] **Step 4: Confirm the Bash values the tests assert**
+- [x] **Step 4: Confirm the Bash values the tests assert**
 
 ```bash
 bash -c 'source lib/helpers/cli_colors.sh; source lib/helpers/update.sh; _md_plain "**Bold.** rest"; echo "$REPLY"'
@@ -894,7 +894,7 @@ Expected: `Bold. rest`; the `od` line `a   b      \n   c   d       e   f  \n` (f
 
 and `2000-02-29`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/changelog.rs src/snapshot.rs src/format_rev.rs src/lib.rs

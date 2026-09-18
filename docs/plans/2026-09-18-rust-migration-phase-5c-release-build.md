@@ -494,6 +494,47 @@ git commit -m "docs(native): map the phase 5c release build"
 
 The plan is closed when every box is ticked, `dist plan --tag 0.36.0` exits 0 with the listing in Task 1 Step 3, `release.yml` carries the recorded sha256, the host build in Task 1 Step 5 verifies its own checksum, every bats file is green under both engines, and a `## Completion receipt` records the fresh verification. The receipt lists as deferred everything only a real release exercises: the dispatch from `auto-tag.yaml`, the five runners, the attestation, the GitHub release, and the installers against a published asset; the 5e cutover release is their first run. Phase 5 stays open until the plans for 5d and 5e are closed as well.
 
+## Completion receipt
+
+### Decisions the review took
+
+All seven as recommended: the maintainer asked on 2026-09-18 to continue from the plan and then to finish the slice.
+
+### Global Constraints
+
+| Constraint | Satisfied by |
+|---|---|
+| Only the named files change | `git diff --stat cca9eb6..HEAD` names `Cargo.toml`, `dist-workspace.toml`, `.github/workflows/release.yml`, `.github/workflows/auto-tag.yaml`, the module map, the spec, `.ai/.sync-manifest`, and the plan |
+| No Bash changes; ShellCheck clean | `git diff --stat cca9eb6..HEAD -- bin lib install.sh` is empty; ShellCheck exit 0 |
+| `release.yml` is exactly what `dist generate` writes; `dist plan` guards it | sha256 `3350d9e2…`, 308 lines, at the close; the hand edit in Task 1 Step 4 made `dist plan` exit 255; the `plan` job in `release.yml` lines 53–94 runs on `pull_request` |
+| The five targets on native runners | `dist-workspace.toml` `targets`; `dist plan --tag 0.36.0 --output-format=json` matrix: `macos-14`, `ubuntu-22.04-arm`, `macos-15-intel`, `windows-2022`, `ubuntu-22.04`, no container |
+| Bare tags; installers point at the tag CI passes | Task 1 Step 5: `releases/download/0.36.0` in both installers when built with `--tag 0.36.0` |
+| Rust gates, no new dependency, `Cargo.lock` unchanged, the crate version equal to `VERSION` | `Cargo.lock` absent from `git diff --stat cca9eb6..HEAD`; `src/lib.rs` line 51 still asserts the pair; fmt, clippy, `cargo test` at the close |
+| `release.yml` permissions as generated; `auto-tag.yaml` adds `actions: write` only | `yaml_check.rb` in Task 2 Step 2: `release.yml` `{"contents"=>"write"}`, `auto-tag.yaml` `{"contents"=>"write", "actions"=>"write"}`; `git diff cca9eb6..HEAD -- .github/workflows/auto-tag.yaml` is the permission line and the dispatch step |
+| Dispatch only without a release, on the tag ref, with `-f tag=` | `auto-tag.yaml` lines 50–63 |
+| No release, push, or tag made | `git tag --contains cca9eb6` is empty; `git status -sb` shows the branch ahead of origin, nothing pushed by the plan |
+| Expected values captured 2026-09-18 from cargo-dist 0.32.0 | the plan's run-log entry "Phase 5c planned" |
+| Conventional Commits, no trailers | `cca9eb6`, `105e194`, `971d84d`, the docs commit, and the close commit |
+| bats one file at a time | `native_suite.sh` (Task 3 Step 2) |
+
+### Fresh verification, 2026-09-18, macOS 26.5 arm64
+
+- `cargo build --release`: up to date (`Finished release profile in 0.30s`); no source changed in this slice.
+- `cargo test`: 298 passed (lib), 0 passed (doc), 11 passed (cli), 1 passed (interrupt).
+- `cargo clippy --all-targets -- -D warnings`: exit 0. `cargo fmt --all --check`: exit 0.
+- `shellcheck -x -S warning -e SC1091 bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh`: exit 0.
+- `dist plan --tag 0.36.0`: exit 0.
+- bats, every file alone under both engines outside the agent sandbox (Apple `diff` refuses stdin inside it, which fails one `native_parity` case): 50 files, `TOTAL bash=0 native=0`, `native_parity` 70 cases under each engine.
+- `sync` and `check` are unchanged; no timings.
+
+### Skipped, deferred, open
+
+- **First run in CI is the 5e cutover release.** Nothing here has run on GitHub: the `workflow_dispatch` from `auto-tag.yaml` (`actions: write` with `GITHUB_TOKEN`), the five runners including `ubuntu-22.04-arm` and `macos-15-intel`, `actions/attest@v4`, `gh release create` on the pre-existing annotated tag, and the installers against a published asset. The 5e plan lists them as its acceptance.
+- **Windows**: native bats runs stay off Windows until 5e; `cargo test` still runs there.
+- **`update`** is refused as unknown by the binary until 5d; the dispatcher still serves it.
+- **The binary's name for the dispatcher** (`agentsync-native` in the spec, `agentsync` from the installers) is decided in 5e.
+- **No release yet.** Phase 5 stays open until 5d and 5e are planned and closed; the cutover (5e) is the first release point.
+
 ## Run log
 
 ### 2026-09-18 — Phase 5c planned
@@ -522,4 +563,11 @@ The plan is closed when every box is ticked, `dist plan --tag 0.36.0` exits 0 wi
 - Verified: `git apply` of the parked docs patch gave `module-map.md | 1 +` and the spec `| 8 +++++---`; `sync --force` refused inside the sandbox (the backup `tar` cannot create `.mcp.json`, `Operation not permitted`, and the transaction changed nothing) and ran outside it, exit 0, the synced module map `same` as its source, status exactly the manifest, the module map, the spec, and the plan; `cargo build --release` up to date; `cargo test` 298/0/11/1; clippy, fmt, ShellCheck exit 0; `dist plan --tag 0.36.0` exit 0; `native_suite.sh both` outside the sandbox over the 50 bats files: `TOTAL bash=0 native=0`. `sync` and `check` did not change, so no timings.
 - Plan amended: none.
 - Next: close the plan: append the `## Completion receipt` and commit `docs(native): close phase 5c`. Phase 5 stays open until 5d and 5e are planned and closed.
+- Blocker: none.
+
+### 2026-09-18 — phase 5c closed
+- Commits: this commit, docs(native): close phase 5c.
+- Verified: the receipt's evidence is the Task 3 Step 2 run of this same session on the same tree (no file changed after it except the plan): `cargo build --release` up to date; `cargo test` 298/0/11/1; clippy, fmt, ShellCheck exit 0; `dist plan --tag 0.36.0` exit 0; `native_suite.sh both` outside the sandbox: `TOTAL bash=0 native=0` over the 50 bats files. No timings, `sync` and `check` unchanged.
+- Plan amended: none.
+- Next: plan phase 5d (`update` and the update notice: the binary replaced from GitHub Releases, `update <version>`, `--strict` conflicts from the catalogs embedded in the old and the new binary, the changelog embedded, and `check_for_updates` with the format notice moved into the binary) per `.ai/src/commands/native-phase-plan.md`, commit `docs(native): plan phase 5d`, and stop for the review.
 - Blocker: none.

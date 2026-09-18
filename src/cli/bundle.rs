@@ -324,16 +324,15 @@ fn github_segments(source: &str) -> Option<(&str, &str)> {
 
 /// A scratch directory under the system temp dir, removed on drop as the run
 /// directory was.
-struct Scratch(PathBuf);
+pub(crate) struct Scratch(pub(crate) PathBuf);
 
 impl Scratch {
-    fn create() -> Result<Self, Error> {
+    pub(crate) fn create(prefix: &str) -> Result<Self, Error> {
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_nanos())
             .unwrap_or(0);
-        let dir =
-            std::env::temp_dir().join(format!("agentsync-import.{}.{nanos}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("{prefix}.{}.{nanos}", std::process::id()));
         std::fs::create_dir_all(&dir).map_err(|e| Error::io(&dir, e))?;
         Ok(Self(dir))
     }
@@ -617,7 +616,7 @@ pub fn import(
         format!("\n{}\n\n", style.bold("  AgentSync Import")).as_bytes(),
     )?;
     out.flush().map_err(|e| Error::io("<stdout>", e))?;
-    let scratch = Scratch::create()?;
+    let scratch = Scratch::create("agentsync-import")?;
     let tmp = scratch.0.as_path();
     let error = style.red("Error");
 

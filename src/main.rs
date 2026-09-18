@@ -26,6 +26,50 @@ fn main() -> ExitCode {
 
 fn run(args: Vec<OsString>) -> Result<u8, Error> {
     guard_engine_version()?;
+    let first = args.first().and_then(|a| a.to_str()).unwrap_or("");
+    if cli::notice::wants_notice(first) {
+        check_for_updates()?;
+    }
+    if first == cli::update::CATALOG_COMMAND {
+        let mut out = std::io::stdout().lock();
+        return out
+            .write_all(cli::update::catalog_dump().as_bytes())
+            .map(|()| 0)
+            .map_err(|e| Error::io("<stdout>", e));
+    }
+    if first == "__update-cache" {
+        if let Some(cache) = args.get(1) {
+            cli::notice::refresh_cache(Path::new(cache));
+        }
+        return Ok(0);
+    }
+    if first == "update" {
+        let rest: Vec<String> = args[1..]
+            .iter()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        let exe = current_exe().map_err(|e| Error::io("<exe>", e))?;
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let mut env = cli::update::Env {
+            exe,
+            project_dir: notice_root()?,
+            today: agentsync::snapshot::utc_date(now),
+            width: cli::update::terminal_width(),
+            fetch: &mut cli::update::curl_fetch,
+            extract: &mut cli::update::tar_extract,
+            ask: &mut cli::update::ask_binary,
+        };
+        return cli::update::update(
+            &rest,
+            &Style::for_stdout(),
+            &mut env,
+            &mut std::io::stdout(),
+            &mut std::io::stderr(),
+        );
+    }
     let words: Vec<String> = args
         .iter()
         .map(|a| a.to_string_lossy().into_owned())
@@ -554,6 +598,60 @@ fn project_root() -> Result<String, Error> {
         )));
     }
     Ok(root)
+}
+
+/// The running binary with symlinks resolved.
+fn current_exe() -> std::io::Result<PathBuf> {
+    std::env::current_exe()?.canonicalize()
+}
+
+/// `${AGENTSYNC_REPO_ROOT:-$PWD}`, spelled logically.
+fn notice_root() -> Result<String, Error> {
+    let env_root = var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty());
+    let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
+    Ok(paths::logical_root(
+        env_root.as_deref(),
+        &cwd,
+        var("PWD").as_deref(),
+    ))
+}
+
+/// `check_for_updates`: on a terminal, unless `AGENTSYNC_NO_UPDATE_CHECK` is
+/// set, the project-format notice, the banner from the cache beside the
+/// install's `bin/`, and a detached `__update-cache` run that refreshes the
+/// cache for the next time.
+fn check_for_updates() -> Result<(), Error> {
+    if !std::io::stdout().is_terminal()
+        || var("AGENTSYNC_NO_UPDATE_CHECK").is_some_and(|v| !v.is_empty())
+    {
+        return Ok(());
+    }
+    let style = Style::for_stdout();
+    let root = notice_root()?;
+    let mut out = std::io::stdout().lock();
+    out.write_all(cli::notice::format_notice(Path::new(&root), &style).as_bytes())
+        .map_err(|e| Error::io("<stdout>", e))?;
+    let Some(cache) = current_exe()
+        .ok()
+        .and_then(|exe| Some(exe.parent()?.parent()?.join(cli::notice::CACHE_FILE)))
+    else {
+        return Ok(());
+    };
+    if let Ok(text) = std::fs::read_to_string(&cache) {
+        out.write_all(cli::notice::update_banner(&text, engine_version(), &style).as_bytes())
+            .map_err(|e| Error::io("<stdout>", e))?;
+    }
+    out.flush().map_err(|e| Error::io("<stdout>", e))?;
+    if let Ok(exe) = std::env::current_exe() {
+        let _ = std::process::Command::new(exe)
+            .arg("__update-cache")
+            .arg(&cache)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn();
+    }
+    Ok(())
 }
 
 fn print_usage() -> Result<u8, Error> {

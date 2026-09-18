@@ -299,6 +299,15 @@ _native_bin() {
     return 1
 }
 
+# True when _native_try will hand the command to a binary, which then prints
+# the update notice itself.
+_native_will_serve() {
+    local command="$1"
+    [[ "${AGENTSYNC_NATIVE:-}" != "0" ]] || return 1
+    [[ "$_NATIVE_COMMANDS" == *" $command "* ]] || return 1
+    _native_bin > /dev/null 2>&1
+}
+
 # Delegate the whole argument list to the native binary when the command is
 # ported and a binary is available. Exits with the binary's status; returns 1
 # to fall through to the Bash implementation.
@@ -332,7 +341,7 @@ main() {
         sync|init|rollback|check|list|ls|setup-hooks|export|import|refresh|enable|disable|add|adopt|customize|simplify|migrate|show|diff|resolve|doctor|dedupe|profile|help|--help|-h)
             # yaml/format back the project-format notice inside the check.
             _need yaml format
-            check_for_updates
+            _native_will_serve "$command" || check_for_updates
             ;;
     esac
 

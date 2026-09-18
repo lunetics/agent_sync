@@ -953,7 +953,7 @@ _native_will_serve() { local command="$1"; ...; }   # AGENTSYNC_NATIVE != 0, lis
 _native_will_serve "$command" || check_for_updates
 ```
 
-- [ ] **Step 1: Write `src/cli/notice.rs`**
+- [x] **Step 1: Write `src/cli/notice.rs`**
 
 <!-- file: src/cli/notice.rs -->
 ````rust
@@ -1181,7 +1181,7 @@ mod tests {
 }
 ````
 
-- [ ] **Step 2: Write `src/cli/update.rs`**
+- [x] **Step 2: Write `src/cli/update.rs`**
 
 <!-- file: src/cli/update.rs -->
 ````rust
@@ -2222,7 +2222,7 @@ mod tests {
 }
 ````
 
-- [ ] **Step 3: Apply the wiring patch**
+- [x] **Step 3: Apply the wiring patch**
 
 Save the block below as `$TMPDIR/task2.diff` and run `git apply "$TMPDIR/task2.diff"`. It adds the notice, the two hidden commands, and the `update` arm to `src/main.rs` (before `wants_usage`, so `check --help` prints the notice first as Bash does), registers the two modules in `src/cli/mod.rs`, opens `Scratch` to the crate with a prefix in `src/cli/bundle.rs`, and adds `_native_will_serve` with the guard to `bin/agentsync.sh`.
 
@@ -2428,7 +2428,7 @@ index 6f787ae..f40645c 100755
  
 ````
 
-- [ ] **Step 4: Write `tests/update_native.bats`**
+- [x] **Step 4: Write `tests/update_native.bats`**
 
 <!-- file: tests/update_native.bats -->
 ````bash
@@ -2647,7 +2647,7 @@ a2b1a038d7ce78f0dcebca58dfd0f0bed6f9ac6cb1df6e626bf4b81a7faa25fc  src/cli/mod.rs
 086dce3d6d5a97057059a6cde473f8328a81f625f71d8dfc105724d8cc065073  bin/agentsync.sh
 ```
 
-- [ ] **Step 5: The Rust gates and the release build**
+- [x] **Step 5: The Rust gates and the release build**
 
 ```bash
 cargo fmt --all --check; echo "fmt=$?"
@@ -2661,7 +2661,7 @@ target/release/agentsync update --help | head -1
 
 Expected: `fmt=0`, `clippy=0`, `326 passed`, `0 passed`, `11 passed`, `1 passed` (14 new: 4 in `notice`, 10 in `update`, of which 6 drive the whole flow through the fake GitHub); `Finished`; `shellcheck=0`; `13`; `Usage: agentsync update [<version>] [--strict]`.
 
-- [ ] **Step 6: The bats files**
+- [x] **Step 6: The bats files**
 
 ```bash
 bats --tap tests/update_native.bats
@@ -2682,7 +2682,7 @@ printf 'native_parity bash=%s native=%s\n' \
 
 Expected: `native_parity bash=0 native=0` (70 cases each).
 
-- [ ] **Step 7: The notice on a pty, once per engine**
+- [x] **Step 7: The notice on a pty, once per engine**
 
 Set `S="$TMPDIR/phase5d"; mkdir -p "$S"` and write `$S/notice_tty.sh`:
 
@@ -2740,7 +2740,7 @@ piped notices=0
 
 Bash prints both notices when it serves `list`; through the dispatcher with a binary the binary prints them and Bash does not (one of each, not two); the binary alone prints them, before the usage for `check --help`; `AGENTSYNC_NO_UPDATE_CHECK=1` and a pipe print nothing. The harness removes the two `.update_cache` files it wrote; `git status --short` shows only this task's files.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/cli/notice.rs src/cli/update.rs tests/update_native.bats src/main.rs src/cli/mod.rs src/cli/bundle.rs bin/agentsync.sh

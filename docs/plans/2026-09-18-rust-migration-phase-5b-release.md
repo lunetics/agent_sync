@@ -1905,3 +1905,10 @@ All five as recommended: execution started on 2026-09-18 from the plan commit `5
 - Plan amended: none.
 - Next: plan phase 5c (the release build: cargo-dist, the five targets, the release workflow, the installers, checksums, and attestations) per `.ai/src/commands/native-phase-plan.md`, commit `docs(native): plan phase 5c`, and stop for the review.
 - Blocker: none.
+
+### 2026-09-18 — Phase 5c plan blocked
+- Commits: this commit, docs(native): log run 2026-09-18.
+- Verified: `which dist cargo-dist` found nothing and `cargo dist --version` answered `no such command`, so the tool 5c is built on is absent; the closure the 5c plan reads is mapped: `.github/workflows/auto-tag.yaml` (47 lines, one `tag` job that reads `VERSION` and pushes the tag with `GITHUB_TOKEN`), `.github/workflows/ci.yaml` (161 lines), `install.sh` (209 lines, `git clone` of `yelmuratoff/agent` at lines 82–110, `AGENTSYNC_VERSION` pin at line 20), `tests/install.bats`, README lines 50 and 97–103, `.ai/src/AGENTS.md` line 25, and `Cargo.toml` (`version = "0.36.0"`, no dist metadata).
+- Plan amended: none.
+- Next: install cargo-dist, then write the 5c plan per `.ai/src/commands/native-phase-plan.md` (draft `dist init` in the tree with the five targets, the shell and PowerShell installers, checksums, and attestations; verify `dist plan` and a host `dist build`; park the draft; embed every generated file whole), commit `docs(native): plan phase 5c`, and stop for the review.
+- Blocker: `curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/latest/download/cargo-dist-installer.sh -o "$TMPDIR/dist-installer.sh"` was denied by the permission gate, so `dist` was not installed. The plan cannot carry the files `dist init` and `dist generate` produce without the tool. Needed: the maintainer installs cargo-dist (`cargo install cargo-dist --locked`, or the installer above piped to `sh`) or allows this command to, then reruns `/native-next`.

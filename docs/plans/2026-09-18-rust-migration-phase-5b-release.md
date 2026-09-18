@@ -52,7 +52,7 @@ Reused: `style::Style`, `cli::customize::put`, `paths::logical_root`.
 
 **Files:** none changed.
 
-- [ ] **Step 1: Record the baseline**
+- [x] **Step 1: Record the baseline**
 
 ```bash
 git log --oneline -1
@@ -77,7 +77,7 @@ Expected: the plan's latest commit; `289 passed`, `0 passed`, `11 passed`, `1 pa
 **Interfaces:**
 - Produces: the invariant `env!("CARGO_PKG_VERSION") == agentsync::engine_version()`, tested in `src/lib.rs`; Task 2's `release` keeps it, Phase 5c's cargo-dist reads it.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `src/lib.rs`:
 
@@ -101,7 +101,7 @@ assertion `left == right` failed
  right: "0.36.0"
 ```
 
-- [ ] **Step 2: Set the crate version**
+- [x] **Step 2: Set the crate version**
 
 In `Cargo.toml`, replace lines 3-5:
 
@@ -128,7 +128,7 @@ sed -n '7p' Cargo.lock
 
 Expected: `290 passed`, `0 passed`, `11 passed`, `1 passed`; ` Cargo.lock | 2 +-` (cargo rewrote the crate's own entry); `version = "0.36.0"`.
 
-- [ ] **Step 3: The rule and its outputs**
+- [x] **Step 3: The rule and its outputs**
 
 In `.ai/src/rules/native-engine.md`, replace line 16:
 
@@ -153,7 +153,7 @@ git status --short
 
 Expected: `0` warnings; `same`; the status lists exactly ` M .ai/.sync-manifest`, ` M .ai/src/rules/native-engine.md`, ` M Cargo.lock`, ` M Cargo.toml`, ` M src/lib.rs` (the generated `.claude/`, `.agents/`, and `.codex/` outputs are gitignored). If the sandbox refuses a write, run the `sync --force` line outside it.
 
-- [ ] **Step 4: Lint and commit**
+- [x] **Step 4: Lint and commit**
 
 ```bash
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings
@@ -1833,4 +1833,11 @@ The plan is closed when every box is ticked, every bats file is green under both
 - Verified: the whole slice was drafted in the tree and parked in the session scratchpad (`phase5b/draft/`), then the tree was restored to HEAD. Against the draft: `cargo test` 298/0/11/1, fmt and clippy exit 0, ShellCheck exit 0 on `bin/agentsync.sh` and `lib/helpers/release.sh`; `release.bats` 18 cases at `bash=0 native=0`; the two parity fixtures `ok`, `not ok` with `output differs for [release patch --no-push]` on the Step 5 mutation, and `not ok` with `bash=0 native=1` (16 of 18 native `release.bats` cases failing) against a binary without the port; `release_reference.sh` 423 lines over 20 situations with 31 differing lines, all under `alpha_part` and `four_parts`; `release_tty.sh` 56 dump lines, 25 with escapes, 0 differing, run outside the sandbox because `openpty` is refused inside it. The `lib.rs` guard fails against `version = "0.0.0"` with the assertion quoted in Task 1 Step 1; Task 2's tests fail 4 of 18 against the committed `release.sh`; the tests-first `release.rs` fails to compile with the two errors quoted in Task 3 Step 2. The Bash probe found end of input at the prompt exiting 1 silently (quirk 54), `1.a.0` bumping to `1.a.1`, `1.2.3.4` dying in arithmetic, and a missing Cargo entry ignored; the first is reproduced, the next two are accepted deviations, the last is what Task 2 fixes. `target/release/agentsync` still carries the draft build until Task 0 rebuilds it.
 - Plan amended: none.
 - Next: Task 0 Step 1, after the review.
+- Blocker: none.
+
+### 2026-09-18 — Task 0 and Task 1 done
+- Commits: this commit, feat(native): carry VERSION in Cargo.toml and Cargo.lock.
+- Verified: baseline at `569dadb`: `cargo test` 289/0/11/1; `cargo build --release` rebuilt the binary from HEAD, replacing the draft build; `release`, `native_dispatch`, and `native_parity` at bash=0, the last outside the sandbox; 10 and 68 cases; `version = "0.0.0"` on line 5 of `Cargo.toml` and line 7 of `Cargo.lock`. Task 1: the `src/lib.rs` guard failed with left `"0.0.0"`, right `"0.36.0"`; after the bump `cargo test` 290/0/11/1, `Cargo.lock | 2 +-`, its line 7 `version = "0.36.0"`; `sync --dry-run` 0 warnings; `sync --force` refused inside the sandbox (the backup `tar` cannot create under `.claude/commands/`, `.claude/agents/`, and `.mcp.json`, `Operation not permitted`, and the transaction changed nothing) and run outside it; `.claude/rules/native-engine.md` `same` as its source; status exactly the five files; `cargo fmt --all --check` and `cargo clippy --all-targets -- -D warnings` exit 0.
+- Plan amended: none.
+- Next: Task 2 Step 1.
 - Blocker: none.

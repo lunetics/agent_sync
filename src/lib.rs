@@ -43,3 +43,11 @@ pub use error::Error;
 pub fn engine_version() -> &'static str {
     include_str!("../VERSION").trim()
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn the_crate_version_carries_version() {
+        assert_eq!(env!("CARGO_PKG_VERSION"), super::engine_version());
+    }
+}

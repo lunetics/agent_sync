@@ -13,7 +13,7 @@ The Rust crate at the repo root replaces the Bash engine one command at a time b
 ## Toolchain
 
 - Edition 2024, `rust-version = "1.85"`, `unsafe_code = "forbid"`. `cargo fmt --all --check` and `cargo clippy --all-targets -- -D warnings` stay clean.
-- `VERSION` is the only version source. The crate reads it with `include_str!`; `Cargo.toml` stays at `0.0.0` until Phase 5 wires cargo-dist.
+- `VERSION` is the release source of truth. The crate reads it with `include_str!`, `Cargo.toml` and `Cargo.lock` carry the same value, `agentsync release` bumps the three together, and a test in `src/lib.rs` fails when the crate version and `VERSION` disagree.
 - Templates embed from `lib/templates/` through `include_dir!`. The binary never looks up an engine directory at runtime.
 - Dependencies: clap, include_dir, sha2, signal-hook, thiserror; dev: assert_cmd, predicates, tempfile. Add a crate only for a concrete command need. A YAML parser is never added: `yaml_subset` mirrors `lib/helpers/yaml.sh` by design.
 

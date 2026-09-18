@@ -1725,7 +1725,7 @@ git commit -m "feat(native): port release"
 **Files:**
 - Modify: `.ai/src/skills/native-port/references/module-map.md`, `docs/specs/2026-09-12-rust-migration-design.md:117,304-305`, `.ai/.sync-manifest`
 
-- [ ] **Step 1: Module map, spec, and outputs**
+- [x] **Step 1: Module map, spec, and outputs**
 
 In the module map's "Engine modules" block, replace
 
@@ -1773,7 +1773,7 @@ with
 
 Regenerate outputs with `AGENTSYNC_NATIVE=0 AGENTSYNC_HOME="$PWD" bash bin/agentsync.sh sync --force > /dev/null` (outside the sandbox if it refuses a write) and read `git status --short`: ` M .ai/.sync-manifest`, ` M .ai/src/skills/native-port/references/module-map.md`, ` M docs/specs/2026-09-12-rust-migration-design.md`, and the plan.
 
-- [ ] **Step 2: Verify (outside the agent sandbox)**
+- [x] **Step 2: Verify (outside the agent sandbox)**
 
 Recreate `phase5b/native_suite.sh` when the scratchpad no longer holds it:
 
@@ -1813,7 +1813,7 @@ bash phase5b/native_suite.sh "$PWD" both phase5b/suite_both.out && tail -1 phase
 
 Expected: `298 passed`, `0`, `11`, `1`; lint exit 0; `TOTAL bash=0 native=0` over the 50 bats files, each run one at a time under both engines. `sync` and `check` do not change in this slice, so no timings are due.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add .ai/src/skills/native-port/references/module-map.md .ai/.sync-manifest docs/specs/2026-09-12-rust-migration-design.md docs/plans/2026-09-18-rust-migration-phase-5b-release.md
@@ -1854,4 +1854,11 @@ The plan is closed when every box is ticked, every bats file is green under both
 - Verified: Step 1 against the binary without the port: both parity cases `not ok` with `exit status differs for [release patch --no-push]: bash=0 native=1` and `[release --no-push]: bash=0 native=1`, 16 of 18 native `release.bats` cases failing; Step 2: `cargo test cli::release` failed with 6 × E0433 `Bump` and 5 × E0425 `set_crate_version`; Step 4: `cargo test` 298/0/11/1, `release.bats` bash=0 native=0, both parity cases `ok`, 70 and 18 cases; Step 5: the `→` to `:` mutation gave `not ok 1` with `output differs for [release patch --no-push]`, reverted and rebuilt; `release_reference.sh` 423 lines over 20 situations, 31 differing lines all inside `### alpha_part` (213–241) and `### four_parts` (242–255), 2 of them `Cannot parse VERSION`; `release_tty.sh` outside the sandbox: 56 dump lines, 25 with escapes, 0 `script` errors, 0 differing; `shellcheck -x -S warning -e SC1091 bin/agentsync.sh` exit 0, `cargo fmt --all --check` exit 0, `cargo clippy --all-targets -- -D warnings` exit 0. The harness scripts were recreated in this session's scratchpad (`phase5b/`) from Task 3 Step 5.
 - Plan amended: none.
 - Next: Task 4 Step 1.
+- Blocker: none.
+
+### 2026-09-18 — Task 4 done
+- Commits: this commit, docs(native): map the phase 5b module.
+- Verified: `sync --force` outside the sandbox regenerated the outputs, the synced module map `same` as its source, status exactly the manifest, the module map, the spec, and the plan; `cargo test` 298/0/11/1; `cargo clippy --all-targets -- -D warnings` exit 0; `cargo fmt --all --check` exit 0; `shellcheck -x -S warning -e SC1091` over `bin/agentsync.sh`, `install.sh`, `lib/sync.sh`, `lib/check.sh`, `lib/setup_hooks.sh`, and `lib/helpers/*.sh` exit 0; `native_suite.sh` outside the sandbox, every bats file one at a time under both engines: `TOTAL bash=0 native=0` over the 50 files. `sync` and `check` did not change, so no timings.
+- Plan amended: none.
+- Next: close the plan: append the `## Completion receipt` and commit `docs(native): close phase 5b`. Phase 5 stays open until 5c, 5d, and 5e are planned and closed.
 - Blocker: none.

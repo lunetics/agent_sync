@@ -114,7 +114,7 @@ are language-agnostic, and only the crate would have been replaced.
 ### Layout
 
 ```text
-Cargo.toml                 # crate `agentsync`, version stays 0.0.0 (VERSION file rules)
+Cargo.toml                 # crate `agentsync`, version equal to VERSION (release bumps both)
 src/main.rs                # args → run(); exit codes; the only process-aware file
 src/lib.rs                 # module tree; engine_version()
 src/cli/<command>.rs       # one file per command: args → core calls → text
@@ -301,8 +301,8 @@ Exit: `_NATIVE_COMMANDS` lists every command; the whole suite passes with
   verifies its checksum); `AGENTSYNC_VERSION=<tag>` still pins.
 - `update` replaces the binary from GitHub Releases and keeps `update <version>`
   pinning; the `agentsync_version` gate is unchanged.
-- `release` bumps `VERSION` and `Cargo.toml` together; the auto-tag workflow
-  triggers the release build.
+- `release` bumps `VERSION`, `Cargo.toml`, and `Cargo.lock` together; the
+  auto-tag workflow triggers the release build.
 - The installed `agentsync` link points at the binary. `bin/agentsync.sh`
   stays the dispatcher in the repository, the parity harness, until Phase 6
   deletes it.

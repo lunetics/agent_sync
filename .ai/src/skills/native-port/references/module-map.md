@@ -67,7 +67,7 @@ lib/helpers/shell_init.sh        → src/cli/shell_init.rs   Phase 4m, ported; s
 lib/setup_hooks.sh               → src/cli/setup_hooks.rs  Phase 4m, ported; git through the executable
 bin/agentsync.sh print_usage, the --help interception, *) → src/cli/usage.rs   Phase 5a, ported
 lib/helpers/update.sh            → src/cli/update.rs       Phase 5, binary self-replace
-lib/helpers/release.sh           → src/cli/release.rs      Phase 5, bumps VERSION and Cargo.toml
+lib/helpers/release.sh           → src/cli/release.rs      Phase 5b, ported; git through the executable, the tag message on its stdin
 ```
 
 ## Command closure and ownership
@@ -104,7 +104,7 @@ import         yaml export import                                               
 refresh        yaml export prompts template_manifest refresh                        yes  diff find         .ai/src/*, template manifest
 update         yaml snapshot (+ update)                                             no   git curl          install dir
 upgrade-config prompts yaml tool_resolver init                                      no   awk sed           agent_sync.yaml
-release        release                                                              yes  git awk           VERSION, tag, push
+release        release                                                              yes  git awk           VERSION, Cargo.toml, Cargo.lock, tag, push
 version        none                                                                 no   none              none
 help           none                                                                 no   none              none
 ```
@@ -114,7 +114,7 @@ Known gaps in the `_need` lists: `doctor` and `dedupe` omit `logging` although t
 ## bats ownership
 
 ```
-tests/native_parity.bats 68   Bash vs native per ported command (Phase 1 on)
+tests/native_parity.bats 70   Bash vs native per ported command (Phase 1 on)
 tests/sync.bats 55            sync end to end
 tests/refresh.bats 38         refresh
 tests/init.bats 37            init, add, customize, enable, sync
@@ -133,6 +133,7 @@ tests/opencode.bats 19        sync OpenCode composition
 tests/resource_resolver.bats 19  resolution order via sync, customize, init
 tests/backup.bats 18          unit: paths.sh + backup.sh
 tests/guard.bats 18           guard output, adopt, doctor, init, profile
+tests/release.bats 18         release
 tests/backup_retention.bats 17  backup pruning by count and age through real commands
 tests/sync_options.bats 17    --only/--skip, check, disable
 tests/bundle.bats 16          export, import (archive, directory, curl stand-in)
@@ -152,7 +153,6 @@ tests/baseline.bats 11        first-sync replacement warning, adopt, rollback
 tests/format_migration.bats 11  migrate, init, doctor, sync, upgrade-config
 tests/check.bats 10           check
 tests/outputs_mode.bats 10    init --outputs, sync, profile
-tests/release.bats 10         release
 tests/native_dispatch.bats 9  dispatcher gating (Phase 1)
 tests/cli.bats 8              help, version, unknown command, rollback --help
 tests/list.bats 8             list, ls, enable

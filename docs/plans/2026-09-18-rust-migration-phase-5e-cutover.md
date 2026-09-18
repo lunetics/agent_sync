@@ -1281,6 +1281,40 @@ git commit -m "docs(native): describe the single static binary"
 
 The plan is closed when every box is ticked, `tests/install.bats` passes its thirteen cases, every bats file is green under both engines, the pty harness shows the clone notice once for a source install and never otherwise, and a `## Completion receipt` records the fresh verification. The receipt lists as deferred everything only a published release or a Windows host exercises: the installer and the switch against a real GitHub release, the cargo-dist installers, the five runners, the attestation, and the Windows native bats run. Closing this plan closes Phase 5: the migration branch is merged and the first binary release is cut by the maintainer, never by this plan.
 
+## Completion receipt
+
+### Decisions the review took
+
+All seven as recommended: the maintainer asked on 2026-09-18 to take the decisions and finish Phase 5.
+
+### Global Constraints
+
+| Constraint | Satisfied by |
+|---|---|
+| The installer and the switch write only the binary, the link, and the shell config | `install.sh` `install_binary`, `install_from_source`, `main`; `lib/helpers/update.sh` `_update_switch_to_binary`; `tests/install.bats` asserts the install, the link, and `.zshrc` after each run |
+| No Rust change | `git diff --stat 41aacd8..HEAD -- src Cargo.toml Cargo.lock` is empty |
+| Bash changes limited to the installer, the update module, and the dispatcher candidates; `_NATIVE_COMMANDS` unchanged; ShellCheck clean | `git diff --stat 41aacd8..HEAD -- bin lib install.sh` names the three files; ShellCheck exit 0 at the close |
+| Every bats file green under both engines; `install.bats` 13 cases without network | `native_suite.sh both` `TOTAL bash=0 native=0` over 51 files; the `curl` stand-in in `tests/install.bats` |
+| The clone notice on a terminal for a source install only | `clone_notice_tty.sh`: `source-install 1`, `with-binary 0`, `developer 0` |
+| CI: Windows runs the suite against the binary serially; the shard matrix stays | `.github/workflows/ci.yaml` native job, parsed with `ruby -ryaml` |
+| Expected values captured 2026-09-18 on macOS 26.5 arm64 | every checksum and count in Tasks 1 and 2 matched on execution |
+| Conventional Commits, no trailers | `3877c64`, `37d05f8`, `c09ff99`, and the close commit |
+| bats one file at a time | `native_suite.sh` |
+
+### Fresh verification, 2026-09-18, macOS 26.5 arm64
+
+- `cargo build --release`: up to date; `cargo test` 326/0/11/1, fmt and clippy exit 0 at the 5d close on the same Rust source.
+- `shellcheck -x -S warning -e SC1091 bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh`: exit 0.
+- bats, every file alone under both engines outside the agent sandbox, on the final tree: 51 files, `TOTAL bash=0 native=0`; `install.bats` 13 cases; `native_parity` 70 cases under each engine.
+- `clone_notice_tty.sh` on a pty outside the sandbox: the three expected lines.
+- `sync` and `check` are unchanged; no timings.
+
+### Skipped, deferred, open
+
+- **The first release.** Nothing here has run against GitHub: `install.sh` and the switch against a published archive, the `auto-tag.yaml` dispatch, `release.yml` on its five runners, the attestation, the cargo-dist installers, and the binary's `update` against a real release. The cutover release, cut by the maintainer after the merge, is their first run.
+- **Windows.** The native CI job now runs the bats suite against the binary serially on `windows-latest`; whether Git Bash hands the suite's POSIX paths to the binary in a form it accepts is unverified on this host. The Bash shard matrix stays until Phase 6, so a red native leg does not hide the Bash reference.
+- **Phase 5 is closed with this plan.** Phase 6 (retire Bash) and Phase 7 (retire bats) start after the cutover release.
+
 ## Run log
 
 ### 2026-09-18 — Phase 5e planned
@@ -1295,4 +1329,11 @@ The plan is closed when every box is ticked, `tests/install.bats` passes its thi
 - Verified: baseline at `41aacd8` (326/0/11/1, 6 install cases, no switch helper, no `bin/agentsync"` candidate). Task 1: the four checksums as planned, ShellCheck exit 0, `install.bats` 13 ok, the seven touched files `bash=0 native=0`, `clone_notice_tty.sh` the three expected lines outside the sandbox. Task 2: the five checksums as planned, the workflow parsed with both native bats steps and the 100-minute timeout, `sync --force` outside the sandbox regenerated the manifest; `cargo build --release` up to date; `native_suite.sh both` outside the sandbox over the 51 bats files: `TOTAL bash=0 native=0`.
 - Plan amended: none.
 - Next: close the plan and Phase 5: append the `## Completion receipt`, set the spec's status, commit `docs(native): close phase 5e`.
+- Blocker: none.
+
+### 2026-09-18 — phase 5e closed, Phase 5 closed
+- Commits: this commit, docs(native): close phase 5e.
+- Verified: the receipt's evidence is the Task 1 and Task 2 runs of this same session on the same tree: ShellCheck exit 0, `native_suite.sh both` outside the sandbox `TOTAL bash=0 native=0` over 51 files, `clone_notice_tty.sh` three lines; Rust unchanged since the 5d close (326/0/11/1). No timings.
+- Plan amended: none.
+- Next: the cutover is the maintainer's: merge `feat/native-engine-phase-1` into `main`, run `agentsync release`, watch the first `release.yml` run and the first Windows native bats run. Phase 6 begins after that release.
 - Blocker: none.

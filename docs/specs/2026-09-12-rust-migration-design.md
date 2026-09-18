@@ -8,9 +8,11 @@ closed in `docs/plans/2026-09-14-rust-migration-phase-3-native-sync.md`.
 Phase 3b, release 0.36.0's Bash changes, is closed in four family plans ending
 with `docs/plans/2026-09-14-rust-migration-phase-3b-rollback-witness.md`.
 Phase 4 is closed in thirteen command-family plans, the last being
-`docs/plans/2026-09-16-rust-migration-phase-4m-tail.md`. Phase 5 is in
-progress in five slice plans, the first being
-`docs/plans/2026-09-16-rust-migration-phase-5a-entry.md`.
+`docs/plans/2026-09-16-rust-migration-phase-4m-tail.md`. Phase 5 is closed in
+five slice plans, from `docs/plans/2026-09-16-rust-migration-phase-5a-entry.md`
+to `docs/plans/2026-09-18-rust-migration-phase-5e-cutover.md`, on 2026-09-18:
+the cutover release, the first to ship the binary, is the maintainer's to cut
+after merging the migration branch. Phase 6 starts after it.
 
 ## Objective
 

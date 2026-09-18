@@ -528,6 +528,8 @@ cleanup has a list:
     menu choice or the description is complete.
 53. `setup-hooks` reads its options in order and refuses the first unknown
     one, so `--bogus --help` prints the unknown-option error, not the help.
+54. `release` exits 1 with nothing after its `Continue? [Y/n]:` prompt when
+    stdin ends there: `read -r confirm` fails and errexit ends the run.
 
 ## Accepted deviations
 
@@ -633,6 +635,16 @@ Appended one line at a time as they are found, with the phase:
   found it; the tip is printed only on a terminal.
 - Phase 4m: `shell-init`'s refusals are log lines coloured from stdout, as
   `_use_colors` decided, through `Log::capturing`.
+- Phase 5b: `release` requires the three `VERSION` components to be decimal
+  integers and refuses others with `Cannot parse VERSION`; Bash evaluated them
+  as shell arithmetic, so `1.a.0` bumped to `1.a.1` and `1.2.3.4` died with
+  the shell's syntax error.
+- Phase 5b: `release` reports the Rust I/O error when `git` cannot be started
+  or `CHANGELOG.md` cannot be read, where Bash printed the shell's `command not
+  found` (status 127) or awk's message (status 2); the tag is missing in both.
+- Phase 5b: outside a checkout, `release` falls back to `AGENTSYNC_HOME` alone,
+  when it holds a `.git`; Bash also tried the dispatcher's own checkout, which
+  the binary has no counterpart for.
 
 ## Risks
 

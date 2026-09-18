@@ -151,6 +151,32 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
             &mut std::io::stderr(),
         );
     }
+    if args.first().and_then(|a| a.to_str()) == Some("release") {
+        let rest: Vec<String> = args[1..]
+            .iter()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
+        let mut read_line = || {
+            let mut line = String::new();
+            match std::io::stdin().read_line(&mut line) {
+                Ok(0) | Err(_) => None,
+                Ok(_) => Some(line.trim_end_matches('\n').to_string()),
+            }
+        };
+        let mut env = cli::release::Env {
+            cwd: paths::logical_root(None, &cwd, var("PWD").as_deref()),
+            install_dir: var("AGENTSYNC_HOME").filter(|home| Path::new(home).join(".git").is_dir()),
+            read_line: &mut read_line,
+        };
+        return cli::release::release(
+            &rest,
+            &Style::for_stdout(),
+            &mut env,
+            &mut std::io::stdout(),
+            &mut std::io::stderr(),
+        );
+    }
     if let Some(command @ ("export" | "import")) = args.first().and_then(|a| a.to_str()) {
         let rest: Vec<String> = args[1..]
             .iter()

@@ -13,6 +13,7 @@ pub mod list;
 pub mod migrate;
 pub mod profile;
 pub mod refresh;
+pub mod release;
 pub mod resolve;
 pub mod rollback;
 pub mod setup_hooks;

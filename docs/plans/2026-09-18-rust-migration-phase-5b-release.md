@@ -624,7 +624,7 @@ pub fn release(args: &[String], style: &Style, env: &mut Env, out: &mut dyn Writ
 
 - Consumes: Task 2's messages and write order; `Style`, `put`, `paths::logical_root`.
 
-- [ ] **Step 1: Parity fixtures, failing against a binary without the port**
+- [x] **Step 1: Parity fixtures, failing against a binary without the port**
 
 Append to `tests/native_parity.bats`:
 
@@ -762,7 +762,7 @@ AGENTSYNC_NATIVE=1 bats --tap tests/release.bats 2>&1 | grep -c '^not ok'
 
 Expected: `not ok 1` with `exit status differs for [release patch --no-push]: bash=0 native=1` and `not ok 2` with `exit status differs for [release --no-push]: bash=0 native=1`, because the binary refuses `release` as an unknown command; `16` of the 18 native `release.bats` cases fail (the two asserting status 1 pass by coincidence).
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 Add `pub mod release;` to `src/cli/mod.rs` between `pub mod refresh;` and `pub mod resolve;`. Create `src/cli/release.rs` with the module comment, the imports, the fixtures, and the two test modules:
 
@@ -1107,7 +1107,7 @@ Expected:
    5 error[E0425]: cannot find function `set_crate_version` in this scope
 ```
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Insert into `src/cli/release.rs`, between `use crate::style::Style;` and the `#[cfg(test)]` fixtures:
 
@@ -1521,7 +1521,7 @@ and after the last accepted deviation (`- Phase 4m: `shell-init`'s refusals are 
   the binary has no counterpart for.
 ```
 
-- [ ] **Step 4: Run the tests, confirm green**
+- [x] **Step 4: Run the tests, confirm green**
 
 ```bash
 cargo fmt --all
@@ -1536,7 +1536,7 @@ grep -c '^@test' tests/native_parity.bats tests/release.bats
 
 Expected: `298 passed`, `0 passed`, `11 passed`, `1 passed`; `release bash=0 native=0`; `ok 1 parity: release bumps, commits, tags, and pushes like Bash`, `ok 2 parity: release cancels, refuses, and stops where Bash does`; `70` and `18` cases. The two git-spawning test modules run on unix alone (`#[cfg(all(test, unix))]`), as `setup_hooks.rs`'s do.
 
-- [ ] **Step 5: Prove the fixture bites, run the references, lint, commit**
+- [x] **Step 5: Prove the fixture bites, run the references, lint, commit**
 
 Change `"  Updated {} → {new_version}\n", style.cyan("VERSION")` to `"  Updated {}: {new_version}\n", style.cyan("VERSION")` in `src/cli/release.rs`, `cargo build --release`, rerun `bats --tap -f 'parity: release bumps' tests/native_parity.bats`: `not ok 1` with `# output differs for [release patch --no-push]`; revert and rebuild.
 
@@ -1847,4 +1847,11 @@ The plan is closed when every box is ticked, every bats file is green under both
 - Verified: the 18-case `tests/release.bats` against the committed `release.sh` failed exactly cases 4, 8, 12, and 13; against the new `release.sh` 0 failures over 18 cases, and 0 under `AGENTSYNC_NATIVE=1` as well, since `release` is not in `_NATIVE_COMMANDS` yet and both engines run Bash; `shellcheck -x -S warning -e SC1091 lib/helpers/release.sh bin/agentsync.sh` exit 0.
 - Plan amended: none.
 - Next: Task 3 Step 1.
+- Blocker: none.
+
+### 2026-09-18 — Task 3 done
+- Commits: this commit, feat(native): port release.
+- Verified: Step 1 against the binary without the port: both parity cases `not ok` with `exit status differs for [release patch --no-push]: bash=0 native=1` and `[release --no-push]: bash=0 native=1`, 16 of 18 native `release.bats` cases failing; Step 2: `cargo test cli::release` failed with 6 × E0433 `Bump` and 5 × E0425 `set_crate_version`; Step 4: `cargo test` 298/0/11/1, `release.bats` bash=0 native=0, both parity cases `ok`, 70 and 18 cases; Step 5: the `→` to `:` mutation gave `not ok 1` with `output differs for [release patch --no-push]`, reverted and rebuilt; `release_reference.sh` 423 lines over 20 situations, 31 differing lines all inside `### alpha_part` (213–241) and `### four_parts` (242–255), 2 of them `Cannot parse VERSION`; `release_tty.sh` outside the sandbox: 56 dump lines, 25 with escapes, 0 `script` errors, 0 differing; `shellcheck -x -S warning -e SC1091 bin/agentsync.sh` exit 0, `cargo fmt --all --check` exit 0, `cargo clippy --all-targets -- -D warnings` exit 0. The harness scripts were recreated in this session's scratchpad (`phase5b/`) from Task 3 Step 5.
+- Plan amended: none.
+- Next: Task 4 Step 1.
 - Blocker: none.

@@ -19,7 +19,7 @@ lib/helpers/resolve.sh           → (none)                  engine dir lookup; 
 Tier 1
 lib/helpers/version.sh           → src/version.rs          version_pin mode, mismatch error and hint; engine_version stays in src/lib.rs
 lib/helpers/project_config.sh    → src/project_config.rs   project_config_path_r over an is_file probe; shared by sync, check, list
-lib/helpers/format.sh            → src/format_rev.rs       engine and project revision (Phase 4g), read by doctor (4j); the terminal notice stays in the dispatcher
+lib/helpers/format.sh            → src/format_rev.rs       engine and project revision (Phase 4g), read by doctor (4j); pending_notes and config_path for the notice (5d)
 lib/helpers/paths.sh             → src/paths.rs            normalise, containment (lexical for check, through the disk for sync), repo-relative, ai_dir_enclosing_root, find_workspace_ai_dirs, find_parent_ai_src; explicit source roots trusted through AGENTSYNC_EXTERNAL_SOURCE_ROOTS, escaping source-link scan
 lib/helpers/tool_resolver.sh     → src/tool.rs, src/catalog.rs, src/payload.rs; source.tools as Session::tools_dir
 lib/helpers/profiles.sh          → src/profiles.rs         names, overlay dir, tools, active, rewrite_dest
@@ -38,7 +38,8 @@ lib/helpers/backup.sh            → src/backup.rs           same on-disk layout
 lib/helpers/backup_state.sh      → src/witness.rs          after.tsv post-state-v2: print, seal, preflight, first difference
 lib/helpers/yaml_edit.sh         → src/yaml_edit.rs        set_scalar, list_append, list_remove, find_key_line (Phase 4a), remove_key (Phase 4c); rename_key waits for a caller
 lib/helpers/template_manifest.sh → src/template_manifest.rs   hash (4e); load, lookup, remove, write (4g); record and heal (4h)
-lib/helpers/snapshot.sh          → src/snapshot.rs         read_pending_pairs, clear_pending (Phase 4c); save, diff, conflicts wait for update
+lib/helpers/snapshot.sh          → src/snapshot.rs         read_pending_pairs, clear_pending (Phase 4c); diff, find_conflicts, the pending queue, utc_date (5d)
+lib/helpers/update.sh (changelog) → src/changelog.rs       md_plain, fold -s wrap, sections, versions_in_range, sort -V (5d)
 lib/helpers/prompts.sh           → src/prompts.rs          confirm on /dev/tty (Phase 3); multiselect through stty (4i)
 lib/helpers/edit_paths.sh        → src/edit_paths.rs       block for enable (Phase 4a); checklist for doctor (4j)
 
@@ -66,7 +67,8 @@ lib/helpers/generate.sh          → src/cli/generate.rs     Phase 4m, ported; p
 lib/helpers/shell_init.sh        → src/cli/shell_init.rs   Phase 4m, ported; stdout carries the snippet alone
 lib/setup_hooks.sh               → src/cli/setup_hooks.rs  Phase 4m, ported; git through the executable
 bin/agentsync.sh print_usage, the --help interception, *) → src/cli/usage.rs   Phase 5a, ported
-lib/helpers/update.sh            → src/cli/update.rs       Phase 5, binary self-replace
+lib/helpers/update.sh            → src/cli/update.rs       Phase 5d, ported for a binary install; curl, tar, and the new binary's __catalog through the executables; not in _NATIVE_COMMANDS, a checkout keeps Bash's git update until Phase 6
+lib/helpers/update.sh check_for_updates → src/cli/notice.rs   Phase 5d; the binary prints the format notice and the banner for the commands it serves, the dispatcher for the rest; __update-cache refreshes the cache
 lib/helpers/release.sh           → src/cli/release.rs      Phase 5b, ported; git through the executable, the tag message on its stdin
 .github/workflows/auto-tag.yaml  → .github/workflows/release.yml  Phase 5c; dist 0.32.0 generates it from dist-workspace.toml (workflow_dispatch), auto-tag dispatches it on the tag
 ```
@@ -162,6 +164,7 @@ tests/config_safety.bats 7    config selection fails closed before a write sync;
 tests/generate.bats 7         generate
 tests/gitignore.bats 7        unit: gitignore.sh
 tests/workspace.bats 7        sync --workspace
+tests/update_native.bats 11   update on a binary install, the binary run directly (Phase 5d)
 tests/install.bats 6          install.sh, update <version>
 tests/rollback.bats 6         rollback
 tests/update.bats 6           update

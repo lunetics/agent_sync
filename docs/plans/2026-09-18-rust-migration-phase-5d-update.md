@@ -2754,7 +2754,7 @@ git commit -m "feat(native): port update and the update notice"
 **Files:**
 - Modify: `docs/specs/2026-09-12-rust-migration-design.md` (the dispatcher section, the `update` bullet of Phase 5, quirk 55, five accepted deviations), `.ai/src/skills/native-port/SKILL.md:51`, `.ai/src/skills/native-port/references/module-map.md` (lines 22, 41, 69, the bats table), `.ai/.sync-manifest` (regenerated)
 
-- [ ] **Step 1: Apply the docs patch and regenerate the outputs**
+- [x] **Step 1: Apply the docs patch and regenerate the outputs**
 
 Save the block below as `$TMPDIR/task3.diff` and run `git apply "$TMPDIR/task3.diff"`.
 
@@ -2896,7 +2896,7 @@ and the stat `SKILL.md | 2 +-`, `module-map.md | 9 +-`, the spec `| 35 ++-`.
 
 Regenerate outputs with `AGENTSYNC_NATIVE=0 AGENTSYNC_HOME="$PWD" bash bin/agentsync.sh sync --force > /dev/null` (outside the sandbox if it refuses a write) and read `git status --short`: ` M .ai/.sync-manifest`, ` M .ai/src/skills/native-port/SKILL.md`, ` M .ai/src/skills/native-port/references/module-map.md`, ` M docs/specs/2026-09-12-rust-migration-design.md`, and the plan. `cmp .ai/src/skills/native-port/SKILL.md .claude/skills/native-port/SKILL.md` prints nothing.
 
-- [ ] **Step 2: Verify (outside the agent sandbox where a file says so)**
+- [x] **Step 2: Verify (outside the agent sandbox where a file says so)**
 
 Write `$S/native_suite.sh` when it does not exist:
 
@@ -2939,7 +2939,7 @@ bash "$S/native_suite.sh" "$PWD" both "$S/suite_both.out" && tail -1 "$S/suite_b
 
 Expected: `Finished` (no source changed since Task 2's build); `326 passed`, `0`, `11`, `1`; lint exit 0; an empty stat; `TOTAL bash=0 native=0` over the 51 bats files, each run one at a time under both engines, with `native_parity` run outside the sandbox. `sync` and `check` do not change in this slice, so no timings are due.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add .ai/.sync-manifest .ai/src/skills/native-port/SKILL.md .ai/src/skills/native-port/references/module-map.md docs/specs/2026-09-12-rust-migration-design.md
@@ -2959,4 +2959,11 @@ The plan is closed when every box is ticked, `tests/update_native.bats` passes i
 - Verified: the whole slice was drafted in the tree, verified, parked in the session scratchpad (`phase5d/draft/`), and the tree restored to HEAD; the plan's blocks were extracted back and compared byte for byte with the parked files (`extract.sh`, `cmp`), and the three patches applied in order from HEAD with `git apply --check`. Against the draft: `cargo test` 326/0/11/1 (312 with Task 1 alone), fmt and clippy exit 0 at both points, `cargo build --release`; `tests/update_native.bats` 11/11 against the release binary with real `tar -cJf`/`tar -xf` and the `curl` stand-in; `update_snapshot`, `update`, `install`, `changelog_render`, `version_pin`, `native_dispatch`, `cli`, `bundle`, `customize` at 0 failures under both engines; `native_parity` 70/70 under both engines outside the sandbox; ShellCheck exit 0; `notice_tty.sh` outside the sandbox printed the six expected lines (each notice once for Bash-served, binary-served through the dispatcher, and the binary alone; none when quiet or piped). Bash confirmed the values the tests assert: `_md_plain`, `fold -s -w 5` on `ab cd ef` (`ab ` then `cd ef`), `_show_changelog_sections` rendering both `## 9.9.90` and `## 9.9.9` under `9.9.9` (quirk 55), `_snapshot_keys` at 26 keys, `date -u` on four epochs. Two draft bugs were found and fixed before parking: a bats `local a="$1" b="$a"` that expanded `$a` before `local` ran (the fixture tag was empty), and two test expectations that contradicted `fold` and Bash.
 - Plan amended: none.
 - Next: Task 0 Step 1, after the review.
+- Blocker: none.
+
+### 2026-09-18 — Tasks 0 to 3 done
+- Commits: `055a650` feat(native): port the changelog renderer and the catalog diff; `2df955d` feat(native): port update and the update notice; this commit, docs(native): map the phase 5d update. The maintainer asked on 2026-09-18 to take the review decisions and finish; all eight taken as recommended.
+- Verified: baseline at `1985328` (298/0/11/1, four files absent, no `_native_will_serve`, 70/20/13 cases, 50 bats files). Task 1: the four checksums as planned, fmt and clippy exit 0, `cargo test` 312/0/11/1, the `changelog` filter 9. Task 2: the seven checksums as planned, fmt and clippy exit 0, `cargo test` 326/0/11/1, `cargo build --release`, ShellCheck exit 0, `__catalog` 13 framed tools, the usage line; `update_native.bats` 11 ok; the nine touched bats files `bash=0 native=0`; `native_parity bash=0 native=0` outside the sandbox; `notice_tty.sh` the six expected lines. Task 3: the three checksums and the `2 +-`, `9 +-`, `35 ++-` stat as planned; `sync --force` outside the sandbox, the synced skill `same`; `cargo build --release` up to date; `Cargo.lock` stat empty; `native_suite.sh both` outside the sandbox over the 51 bats files: `TOTAL bash=0 native=0`.
+- Plan amended: none.
+- Next: close the plan: append the `## Completion receipt` and commit `docs(native): close phase 5d`.
 - Blocker: none.

@@ -130,7 +130,10 @@ tests/*.rs                 # cargo integration tests
 ### Dispatcher
 
 `bin/agentsync.sh` gains `_native_try`, called after `check_for_updates` and
-the `--help` interception, before the command `case`:
+the `--help` interception, before the command `case`. From Phase 5d
+`check_for_updates` runs in Bash only when `_native_will_serve` says the
+binary will not answer the command; the binary prints the same notice for
+the commands it serves.
 
 - `AGENTSYNC_NATIVE=0` — always Bash.
 - `AGENTSYNC_NATIVE=1` — require a binary; fail loudly without one.
@@ -302,7 +305,16 @@ Exit: `_NATIVE_COMMANDS` lists every command; the whole suite passes with
 - `install.sh` becomes the generated installer (or downloads the binary and
   verifies its checksum); `AGENTSYNC_VERSION=<tag>` still pins.
 - `update` replaces the binary from GitHub Releases and keeps `update <version>`
-  pinning; the `agentsync_version` gate is unchanged.
+  pinning; the `agentsync_version` gate is unchanged. The binary's `update`
+  (5d) downloads `agentsync-<target>.tar.xz` (`.zip` on Windows) and its
+  `.sha256` through `curl`, verifies the sum in-process, unpacks through
+  `tar`, asks the new binary for `version` and `__catalog`, diffs the two
+  embedded catalogs against the project's overrides, and renames the new
+  binary over the running one; the changelog comes from the archive. The
+  update banner reads `.update_cache` beside the install's `bin/`, refreshed
+  by a detached `__update-cache` run from `releases/latest`. `update` is not
+  in `_NATIVE_COMMANDS`: a checkout keeps Bash's git-based `update` until
+  Phase 6, and `tests/update_native.bats` runs the binary directly.
 - `release` bumps `VERSION`, `Cargo.toml`, and `Cargo.lock` together; the
   auto-tag workflow triggers the release build.
 - The installed `agentsync` link points at the binary. `bin/agentsync.sh`
@@ -532,6 +544,9 @@ cleanup has a list:
     one, so `--bogus --help` prints the unknown-option error, not the help.
 54. `release` exits 1 with nothing after its `Continue? [Y/n]:` prompt when
     stdin ends there: `read -r confirm` fails and errexit ends the run.
+55. `update`'s changelog renderer matches a `## <version>` heading by prefix,
+    so `## 9.9.90` renders under `9.9.9`, and a later heading that matches
+    again appends its section instead of ending the first.
 
 ## Accepted deviations
 
@@ -647,6 +662,22 @@ Appended one line at a time as they are found, with the phase:
 - Phase 5b: outside a checkout, `release` falls back to `AGENTSYNC_HOME` alone,
   when it holds a `.git`; Bash also tried the dispatcher's own checkout, which
   the binary has no counterpart for.
+- Phase 5d: `update` on a binary install has no git reconcile, no autostash
+  line, and no relink warning; it refuses an unknown tag with a link to the
+  releases page, a tag older than the binary releases with the installer
+  command that pins it, a checksum mismatch, and an archive whose binary does
+  not answer `version` or `__catalog`, each with status 1 and the old binary
+  kept. `update --help` says "the latest release" where Bash said "the latest
+  main".
+- Phase 5d: a conflict whose base value is empty before or after the update
+  keeps its five columns in the report and the queue; Bash's tab-separated
+  `read` collapsed the empty field and shifted the values.
+- Phase 5d: the changelog wraps by character count where `fold -s` counted
+  bytes (GNU) or columns (BSD); the width still comes from `tput cols`.
+- Phase 5d: the update banner's cache is `.update_cache` beside the install's
+  `bin/` (`target/.update_cache` for a developer build), refreshed from the
+  latest GitHub release rather than the newest tag; the checkout's
+  `.update_cache` stays Bash's.
 
 ## Risks
 

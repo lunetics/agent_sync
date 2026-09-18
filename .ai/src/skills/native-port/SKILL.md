@@ -48,7 +48,7 @@ Decide in this order; the first matching line wins.
 
 - `_native_try` runs the binary as a child process, never through `exec`: the EXIT trap must still remove the run tmpdir.
 - The dispatcher passes `AGENTSYNC_ENGINE_VERSION`; a stale `target/release` build refuses to run. Run `cargo build --release` after every `VERSION` change.
-- `check_for_updates` and the format notice run in Bash before delegation and only on a terminal; the binary must not reimplement them.
+- `check_for_updates` and the format notice print once, only on a terminal: from the binary (`src/cli/notice.rs`) for the commands it serves, from Bash when `_native_will_serve` says the binary will not answer. `update` itself stays Bash-served in a checkout; the binary's `update` (Phase 5d) is for a binary install and `tests/update_native.bats` runs it directly.
 - Colour is decided once from stdout being a terminal and `NO_COLOR` being unset or empty; Bash applies the stdout decision to stderr lines too. bats never sees colours, so a terminal-only difference needs a manual check with `script` and a note in the plan.
 - `printf '%-Ns'` in Bash pads styled strings including their escape bytes; `style::pad_right` reproduces that on purpose.
 - `\n` inside a quoted YAML header stays literal until write time (`printf '%b'`). Expand it at the write, never in `yaml_subset`.

@@ -1,6 +1,26 @@
 #!/usr/bin/env bash
 # agentsync release — bump version, tag, and push.
 
+# Print the crate version: the first `version = "…"` line after
+# `name = "agentsync"`, which names the crate in Cargo.toml and its entry in
+# Cargo.lock alike. Status 1 when the file has none.
+_release_crate_version() {
+    awk '
+        $0 == "name = \"agentsync\"" { hit = 1; next }
+        hit && /^version = "/ { sub(/^version = "/, ""); sub(/"$/, ""); print; found = 1; exit }
+        END { exit !found }' "$1"
+}
+
+# Rewrite that line with the new version, staging beside the file.
+_release_set_crate_version() {
+    local file="$1" new_version="$2" tmp
+    tmp="$(tmp_sibling "$file")" || return 1
+    awk -v ver="$new_version" '
+        $0 == "name = \"agentsync\"" { hit = 1 }
+        hit && /^version = "/ { $0 = "version = \"" ver "\""; hit = 0 }
+        { print }' "$file" > "$tmp" && mv "$tmp" "$file"
+}
+
 cmd_release() {
     local bump_type="patch"
     local skip_push=false
@@ -53,6 +73,15 @@ cmd_release() {
         exit 1
     fi
 
+    # Cargo.toml and Cargo.lock carry VERSION; checked before anything is written
+    local crate_file
+    for crate_file in Cargo.toml Cargo.lock; do
+        if ! _release_crate_version "$crate_file" >/dev/null 2>&1; then
+            echo "$(_red "Error"): Cannot find the agentsync crate version in $crate_file" >&2
+            exit 1
+        fi
+    done
+
     # Bump
     case "$bump_type" in
         major)
@@ -85,12 +114,16 @@ cmd_release() {
         return 0
     fi
 
-    # Update VERSION
+    # Update VERSION, Cargo.toml, Cargo.lock
     echo "$new_version" > VERSION
     echo "  Updated $(_cyan "VERSION") → $new_version"
+    for crate_file in Cargo.toml Cargo.lock; do
+        _release_set_crate_version "$crate_file" "$new_version"
+        echo "  Updated $(_cyan "$crate_file") → $new_version"
+    done
 
     # Commit + tag
-    git add VERSION
+    git add VERSION Cargo.toml Cargo.lock
     git commit -m "release: v$new_version" --quiet
     echo "  Created commit: $(_dim "release: v$new_version")"
 

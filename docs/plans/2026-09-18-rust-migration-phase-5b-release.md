@@ -173,7 +173,7 @@ Expected: both exit 0.
 **Interfaces:**
 - Produces, for Task 3 to mirror: the pre-write refusal `Error: Cannot find the agentsync crate version in <Cargo.toml|Cargo.lock>` (status 1, nothing written, before the header), the lines `  Updated Cargo.toml → <version>` and `  Updated Cargo.lock → <version>` after `  Updated VERSION → <version>`, and `git add VERSION Cargo.toml Cargo.lock` before the commit. The version line rewritten is the first `version = "…"` after the line `name = "agentsync"` in either file.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Replace `tests/release.bats` with:
 
@@ -406,7 +406,7 @@ not ok 12 release fails when Cargo.lock has no agentsync entry and writes nothin
 not ok 13 release fails without Cargo.toml
 ```
 
-- [ ] **Step 2: Write the implementation**
+- [x] **Step 2: Write the implementation**
 
 Replace `lib/helpers/release.sh` with:
 
@@ -583,7 +583,7 @@ grep -c '^@test' tests/release.bats
 
 Expected: `0`; `18`.
 
-- [ ] **Step 3: Lint and commit**
+- [x] **Step 3: Lint and commit**
 
 ```bash
 shellcheck -x -S warning -e SC1091 lib/helpers/release.sh bin/agentsync.sh
@@ -1840,4 +1840,11 @@ The plan is closed when every box is ticked, every bats file is green under both
 - Verified: baseline at `569dadb`: `cargo test` 289/0/11/1; `cargo build --release` rebuilt the binary from HEAD, replacing the draft build; `release`, `native_dispatch`, and `native_parity` at bash=0, the last outside the sandbox; 10 and 68 cases; `version = "0.0.0"` on line 5 of `Cargo.toml` and line 7 of `Cargo.lock`. Task 1: the `src/lib.rs` guard failed with left `"0.0.0"`, right `"0.36.0"`; after the bump `cargo test` 290/0/11/1, `Cargo.lock | 2 +-`, its line 7 `version = "0.36.0"`; `sync --dry-run` 0 warnings; `sync --force` refused inside the sandbox (the backup `tar` cannot create under `.claude/commands/`, `.claude/agents/`, and `.mcp.json`, `Operation not permitted`, and the transaction changed nothing) and run outside it; `.claude/rules/native-engine.md` `same` as its source; status exactly the five files; `cargo fmt --all --check` and `cargo clippy --all-targets -- -D warnings` exit 0.
 - Plan amended: none.
 - Next: Task 2 Step 1.
+- Blocker: none.
+
+### 2026-09-18 — Task 2 done
+- Commits: this commit, feat(release): bump Cargo.toml and Cargo.lock with VERSION.
+- Verified: the 18-case `tests/release.bats` against the committed `release.sh` failed exactly cases 4, 8, 12, and 13; against the new `release.sh` 0 failures over 18 cases, and 0 under `AGENTSYNC_NATIVE=1` as well, since `release` is not in `_NATIVE_COMMANDS` yet and both engines run Bash; `shellcheck -x -S warning -e SC1091 lib/helpers/release.sh bin/agentsync.sh` exit 0.
+- Plan amended: none.
+- Next: Task 3 Step 1.
 - Blocker: none.

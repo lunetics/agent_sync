@@ -2952,6 +2952,42 @@ git commit -m "docs(native): map the phase 5d update"
 
 The plan is closed when every box is ticked, `tests/update_native.bats` passes its eleven cases against the release binary, every bats file is green under both engines, the pty harness shows each notice once per engine, the crate version still equals `VERSION`, and a `## Completion receipt` records the fresh verification. The receipt lists as deferred everything only a published release or a Windows host exercises: `update` against a real GitHub release (the first is the 5e cutover), the detached refresh against the real API, and the `.exe` rename on Windows. `sync` and `check` do not change, so no timings are due. Phase 5 stays open until the 5e plan is closed as well.
 
+## Completion receipt
+
+### Decisions the review took
+
+All eight as recommended: the maintainer asked on 2026-09-18 to take the decisions and finish the slice.
+
+### Global Constraints
+
+| Constraint | Satisfied by |
+|---|---|
+| `update` writes only the binary, `.update_cache`, and the queue; the notice writes the cache alone | `src/cli/update.rs` `replace_binary`, `cache_file`, `snapshot::write_pending_resolutions`; `src/cli/notice.rs` `refresh_cache`; `tests/update_native.bats` asserts the project and the install after each run |
+| Bash changes limited to `_native_will_serve` and its guard; `_NATIVE_COMMANDS` unchanged; ShellCheck clean | `git diff 1985328..HEAD -- bin lib install.sh` is the two hunks of `bin/agentsync.sh`; ShellCheck exit 0 at the close |
+| No parity fixture for the changed mechanics; the surviving Bash texts asserted by unit tests; the notice checked on a pty; every bats file green under both engines | `src/cli/update.rs`, `src/cli/notice.rs`, `src/changelog.rs`, `src/snapshot.rs` tests; `notice_tty.sh` six lines; `native_suite.sh both` `TOTAL bash=0 native=0` over 51 files |
+| Rust gates, no new dependency, `Cargo.lock` unchanged, `main.rs` alone reads the process | fmt, clippy, `cargo test` at the close; `Cargo.lock` absent from `git diff --stat 1985328..HEAD`; the seams in `update::Env` are wired in `src/main.rs` only |
+| `__catalog` and `__update-cache` hidden | `src/main.rs` answers them before clap; `src/cli/usage.rs` untouched; `parse_catalog_dump` refuses malformed input (unit test) |
+| Expected values captured 2026-09-18 on macOS 26.5 arm64 | every checksum and count in Tasks 1 to 3 matched on execution |
+| Conventional Commits, no trailers | `055a650`, `2df955d`, `73a338c`, and the close commit |
+| bats one file at a time | `native_suite.sh` |
+
+### Fresh verification, 2026-09-18, macOS 26.5 arm64
+
+- `cargo build --release`: up to date after Task 2's build (`Finished release profile in 0.18s`).
+- `cargo test`: 326 passed (lib), 0 passed (doc), 11 passed (cli), 1 passed (interrupt), at Task 2 on the same source.
+- `cargo clippy --all-targets -- -D warnings`: exit 0. `cargo fmt --all --check`: exit 0.
+- `shellcheck -x -S warning -e SC1091 bin/agentsync.sh install.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh`: exit 0.
+- bats, every file alone under both engines outside the agent sandbox: 51 files, `TOTAL bash=0 native=0`; `native_parity` 70 cases under each engine; `update_native` 11 cases against the release binary.
+- `notice_tty.sh` on a pty outside the sandbox: `bash 1/1`, `native 1/1`, `direct 1/1`, `direct-help 1/1 + usage`, `quiet 0/0`, `piped 0`.
+- `sync` and `check` are unchanged; no timings.
+
+### Skipped, deferred, open
+
+- **A real release.** `update` against a published GitHub release, the detached `__update-cache` against the real API, and the installers are first exercised by the 5e cutover release.
+- **Windows.** `replace_binary`'s rename-aside of a running `.exe`, `tar -xf` on the `.zip`, and the `x86_64-pc-windows-msvc` target are written, not run; 5e brings the suite to Windows against the binary.
+- **`update` in a checkout** stays Bash's git-based flow until Phase 6; 5e adds the switch to the binary there.
+- **No release yet.** Phase 5 stays open until the 5e plan is closed; the cutover is the first release point.
+
 ## Run log
 
 ### 2026-09-18 — Phase 5d planned
@@ -2966,4 +3002,11 @@ The plan is closed when every box is ticked, `tests/update_native.bats` passes i
 - Verified: baseline at `1985328` (298/0/11/1, four files absent, no `_native_will_serve`, 70/20/13 cases, 50 bats files). Task 1: the four checksums as planned, fmt and clippy exit 0, `cargo test` 312/0/11/1, the `changelog` filter 9. Task 2: the seven checksums as planned, fmt and clippy exit 0, `cargo test` 326/0/11/1, `cargo build --release`, ShellCheck exit 0, `__catalog` 13 framed tools, the usage line; `update_native.bats` 11 ok; the nine touched bats files `bash=0 native=0`; `native_parity bash=0 native=0` outside the sandbox; `notice_tty.sh` the six expected lines. Task 3: the three checksums and the `2 +-`, `9 +-`, `35 ++-` stat as planned; `sync --force` outside the sandbox, the synced skill `same`; `cargo build --release` up to date; `Cargo.lock` stat empty; `native_suite.sh both` outside the sandbox over the 51 bats files: `TOTAL bash=0 native=0`.
 - Plan amended: none.
 - Next: close the plan: append the `## Completion receipt` and commit `docs(native): close phase 5d`.
+- Blocker: none.
+
+### 2026-09-18 — phase 5d closed
+- Commits: this commit, docs(native): close phase 5d.
+- Verified: the receipt's evidence is the Task 2 and Task 3 runs of this same session on the same tree: `cargo test` 326/0/11/1, fmt, clippy, ShellCheck exit 0, `cargo build --release` up to date, `native_suite.sh both` outside the sandbox `TOTAL bash=0 native=0` over 51 files, `notice_tty.sh` six lines. No timings.
+- Plan amended: none.
+- Next: plan phase 5e (the cutover: `install.sh` downloads and verifies the binary, a source install switches to the binary through `update`, `_native_bin` accepts `bin/agentsync[.exe]`, Windows runs the suite against the binary unsharded, README and `.ai/src/AGENTS.md` describe a single static binary), commit `docs(native): plan phase 5e`.
 - Blocker: none.

@@ -37,7 +37,7 @@ When a doc gap is real, fix it in the **same release commit** (or a separate com
    - Bold the feature/component name: `- **Export command:** added --dry-run support.`
    - Describe user-facing impact, not implementation details.
    - Match the tone and format of existing entries.
-5. **Update the version** — Write the new number to `VERSION` (no `v` prefix, no trailing newline) and the same value to `Cargo.toml` and `Cargo.lock`; the test in `src/lib.rs` fails when they disagree.
+5. **Update the version** — Write the new number to `VERSION` (no `v` prefix, one trailing newline, as `agentsync release` writes it) and the same value to `Cargo.toml` and `Cargo.lock`; the test in `src/lib.rs` fails when they disagree.
 6. **Commit** — `git add VERSION Cargo.toml Cargo.lock CHANGELOG.md <any doc files fixed above> && git commit -m "release: vX.Y.Z"`.
 7. **Leave the push to the user** — CI handles the rest:
    - `auto-tag.yaml` creates the annotated git tag when VERSION changes on `main`, using the CHANGELOG section as the tag message, and dispatches `release.yml`.

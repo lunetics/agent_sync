@@ -123,7 +123,7 @@ pub fn check(root: &str, env: &Env) -> Result<Report, Error> {
         report.out(line);
     }
     report.out("");
-    report.out("Please run: lib/sync.sh");
+    report.out("Please run: agentsync sync");
     report.status = 1;
     Ok(report)
 }
@@ -317,7 +317,7 @@ mod tests {
         assert_eq!(report.status, 1);
         assert!(report.stdout.starts_with("Checking AgentSync configuration synchronization...\n\n⚠️  AgentSync configurations are out of sync with source.\nDifferences detected (showing up to 20):\n"));
         assert!(report.stdout.contains("Missing: CLAUDE.md\n"));
-        assert!(report.stdout.ends_with("\nPlease run: lib/sync.sh\n"));
+        assert!(report.stdout.ends_with("\nPlease run: agentsync sync\n"));
     }
 
     #[test]

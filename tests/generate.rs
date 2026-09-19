@@ -93,7 +93,7 @@ fn generate_prompt_mentions_all_source_types() {
         .stdout(predicate::str::contains("skills/"))
         .stdout(predicate::str::contains("commands/"))
         .stdout(predicate::str::contains("agents/"))
-        .stdout(predicate::str::contains("settings/"));
+        .stdout(predicate::str::contains("settings.json"));
 }
 
 #[test]

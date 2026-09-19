@@ -4,7 +4,7 @@ Read this when running `agentsync update`, `agentsync resolve`, `agentsync simpl
 
 ## Resolving upstream drift
 
-When you run `agentsync update`, the CLI snapshots the install-dir tool catalog before pulling the new release, then compares it against the newly-pulled catalog field-by-field. For every upstream change to a field you have overridden, the update prints a warning and writes the list to `.ai/.pending-resolutions.yaml`:
+When you run `agentsync update`, the CLI compares the tool catalog built into the running binary against the catalog built into the downloaded one, field-by-field. For every upstream change to a field you have overridden, the update prints a warning and writes the list to `.ai/.pending-resolutions.yaml`:
 
 ```yaml
 schema: 1

@@ -81,7 +81,7 @@ pub enum Command {
     /// Verify generated outputs match what sync would write.
     #[command(disable_help_flag = true)]
     Check,
-    /// Distribute `.ai/src` to every enabled tool. `lib/sync.sh` parses its
+    /// Distribute `.ai/src` to every enabled tool. Bash's `lib/sync.sh` parsed its
     /// own options, messages and usage included, so they pass through as text.
     #[command(disable_help_flag = true)]
     Sync {

@@ -17,7 +17,7 @@ Before editing:
    installed CLI metadata, manifests, and configuration shape. The context above
    is a hint, not a substitute for inspecting the repository.
 3. Determine the latest stable AgentSync release from official sources. Use the
-   AgentSync repository at `https://github.com/yelmuratoff/agent`: inspect release
+   AgentSync repository at `https://github.com/yelmuratoff/agent_sync`: inspect release
    tags, `CHANGELOG.md`, the latest `README.md`, and the bundled AgentSync skill
    and templates for that same version. Do not rely on memory or third-party
    summaries.

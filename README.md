@@ -94,7 +94,7 @@ recorded before the migration started.
 - [Models and Providers Are Not Tools](#models-and-providers-are-not-tools)
 - [Adding a New Tool](#adding-a-new-tool)
 - [Automation](#automation)
-- [Gitignore](#gitignore)
+- [Where generated files live](#where-generated-files-live)
 - [How Sync Works](#how-sync-works)
 - [Customization workflow](#customization-workflow)
 - [How Resources Resolve](#how-resources-resolve)
@@ -105,7 +105,7 @@ recorded before the migration started.
   - [What gets overwritten](#what-gets-overwritten)
   - [Drift detection](#drift-detection)
   - [`agentsync adopt` — promote an IDE edit back into source](#agentsync-adopt--promote-an-ide-edit-back-into-source)
-  - [Disabling sync for specific tools](#disabling-sync-for-specific-tools)
+  - [Disabling sync for tools or categories](#disabling-sync-for-tools-or-categories)
 - [Workspaces — nested AgentSync projects](#workspaces--nested-agentsync-projects)
 - [Profiles — multiple config homes per tool](#profiles--multiple-config-homes-per-tool)
 - [Development](#development)
@@ -182,7 +182,7 @@ agentsync sync                        # 5. Re-distribute after any change to .ai
 
 4. **`agentsync generate`** — Prints a detailed prompt that you paste into any AI (Claude, ChatGPT, Gemini). The AI analyzes your project description and generates a complete `.ai/src/` config tailored to your stack: project-specific AGENTS.md, rules, skills, commands, agents, and settings. Pass optional context: `agentsync generate "React + Next.js + Prisma"`. Use `| pbcopy` (macOS) or `| xclip` (Linux) to copy to clipboard.
 
-5. **`agentsync sync`** — Reads each enabled tool's config (user override + shipped base — see [How Resources Resolve](#how-resources-resolve)), then copies and transforms your source files into tool-specific formats. Rules get renamed (`.mdc` for Cursor, `.instructions.md` for Copilot), frontmatter headers are added, commands are converted to TOML for Gemini, agents get the right extensions, and settings/MCP/hooks are placed where each tool expects them. Also updates `.gitignore` to exclude generated files.
+5. **`agentsync sync`** — Reads each enabled tool's config (user override + shipped base — see [How Resources Resolve](#how-resources-resolve)), then copies and transforms your source files into tool-specific formats. Rules get renamed (`.mdc` for Cursor, `.instructions.md` for Copilot), frontmatter headers are added, commands are converted to TOML for Gemini, agents get the right extensions, and settings/MCP/hooks are placed where each tool expects them. Also manages the `.gitignore` block that matches your `outputs:` mode — see [Where generated files live](#where-generated-files-live).
 
 After `sync`, tool-specific directories appear (`.claude/`, `.cursor/`, `.github/`, `.windsurf/`, etc.), each with instructions in that tool's expected format.
 
@@ -260,7 +260,7 @@ agentsync <command> [options]
 | `profile <cmd>`          |       | Manage config-home profiles: `add`, `list`, `remove` (work/personal tool variants)             |
 | `doctor`                 |       | Validate setup and surface drift / config warnings / cross-project advisories                  |
 | `generate [context]`     | `gen` | Print AI prompt for project-specific config generation                                         |
-| `setup-hooks`            |       | Install git hooks for auto-sync on pull/checkout (`--pre-commit` to add a pre-commit hook)      |
+| `setup-hooks`            |       | Install the git hooks that suit the project's `outputs:` mode (`--pre-commit` in `local` mode)  |
 | `shell-init [zsh\|bash]` |       | Print a shell hook that auto-syncs the nearest project on directory change                      |
 | `export`                 |       | Bundle `.ai/src/` into a shareable archive                                                      |
 | `import <src>`           |       | Import config from a GitHub repo, archive, or directory                                         |
@@ -486,11 +486,11 @@ Prefer to avoid the per-session `agentsync` call? Freeze a copy instead with `ag
 ### Git hooks
 
 ```bash
-agentsync setup-hooks                 # post-merge + post-checkout
-agentsync setup-hooks --pre-commit    # also add a pre-commit hook
+agentsync setup-hooks                 # the hooks this project's outputs: mode needs
+agentsync setup-hooks --pre-commit    # local mode: also add a pre-commit sync
 ```
 
-Runs `agentsync sync` automatically after `git pull` / `git checkout`, so pulling a teammate's `.ai/src/` change regenerates your outputs. `--pre-commit` adds a hook that runs `sync --if-stale` before each commit. Every hook is non-fatal: a failed sync warns but never blocks the git operation. Safe to run multiple times (the block is replaced in place).
+`setup-hooks` installs what the project's `outputs:` mode calls for. With `committed` (the default) that is a single pre-commit gate: it runs `sync --if-stale` and **fails the commit** when a generated file would be left out of it, so outputs never lag source. With `local` it installs `post-merge` and `post-checkout` hooks that run `agentsync sync` after `git pull` / `git checkout`, and `--pre-commit` adds a hook that runs `sync --if-stale` before each commit; those three are non-fatal — a failed sync warns but never blocks the git operation. `AGENTSYNC_SKIP_HOOKS=1` turns any installed hook into a no-op. Safe to run multiple times: an AgentSync block already in a hook is left alone.
 
 ### Manual / CI
 
@@ -514,7 +514,7 @@ In both modes `agentsync sync` manages a block in `.gitignore` between `AI SYNC 
 
 ### Engine-owned skills
 
-The `agentsync` skill documents AgentSync itself, so it is versioned with the engine instead of being copied into every project where it would go stale. It lives in the install dir under `lib/templates/base-src/skills/` and is resolved at sync time, after any `shared:` parent, so precedence reads project → shared parent → engine. Upgrade the engine and the next `sync` in any project emits the current version, with no prompt and no merge.
+The `agentsync` skill documents AgentSync itself, so it is versioned with the engine instead of being copied into every project where it would go stale. It ships inside the binary, built from `lib/templates/base-src/skills/`, and is resolved at sync time, after any `shared:` parent, so precedence reads project → shared parent → engine. Upgrade the engine and the next `sync` in any project emits the current version, with no prompt and no merge.
 
 To diverge, keep your own `.ai/src/skills/agentsync/` — a project copy always wins. To drop the layer entirely, set `base_skills: false` in `.ai/agent_sync.yaml`.
 
@@ -583,7 +583,7 @@ Three commands cover every customization, each with a single responsibility.
 - Shared MCP is the default. `add mcp` writes canonical `mcpServers` to `.ai/src/mcp.json`; OpenCode converts that map and composes it with its settings atomically.
 - `customize` is the escape hatch. Use it only when you need a per-tool override that diverges from the shared source, or when `enable --no-scaffold` skipped materializing a file you later want.
 
-All three write to **`.ai/src/tools/<tool>/`** (per-tool) or **`.ai/src/mcp.json`** (shared). Nothing is scattered across `.ai/src/hooks/`, `.ai/src/mcp/`, `.ai/src/settings/` — the old flat layout is kept around for backward compatibility (see [migrate](#migrating-from-the-0-10-flat-layout)).
+All three write to **`.ai/src/tools/<tool>/`** (per-tool) or **`.ai/src/mcp.json`** (shared). Nothing is scattered across `.ai/src/hooks/`, `.ai/src/mcp/`, `.ai/src/settings/` — the old flat layout is kept around for backward compatibility (see [migrate](#migrating-from-the-010-flat-layout)).
 
 ## How Resources Resolve
 
@@ -591,7 +591,7 @@ Every payload resource — tool YAML, hooks, MCP config, settings — follows th
 
 ```
 ┌─ 1. Per-tool override ─────────┐   ┌─ 2. Shared MCP (mcp only) ──────┐   ┌─ 3. Shipped base ──────────────────────┐
-│ .ai/src/tools/<tool>/          │   │ .ai/src/mcp.json                │   │ <install-dir>/lib/templates/<resource>/│
+│ .ai/src/tools/<tool>/          │   │ .ai/src/mcp.json                │   │ embedded lib/templates/<resource>/     │
 │   <resource>.<ext>             │►► │ (compatible MCP targets)        │►► │   <tool>.<ext>                         │
 └────────────────────────────────┘   └─────────────────────────────────┘   └────────────────────────────────────────┘
 
@@ -610,7 +610,7 @@ The legacy flat-layout overrides (`.ai/src/hooks/<tool>.<ext>`, `.ai/src/mcp/<to
 **Why it matters:**
 
 - **Lean by default.** `agentsync init` creates `.ai/agent_sync.yaml`, `AGENTS.md`, and your chosen content sections — no pre-written hooks / MCP / settings for 13 tools you don't use.
-- **Updates flow through.** Because the base lives in the install dir, `agentsync update` improves every project that hasn't locked the file in as an override.
+- **Updates flow through.** Because the base ships with the engine, `agentsync update` improves every project that hasn't locked the file in as an override.
 - **Shared MCP is converted where schemas differ.** One `.ai/src/mcp.json` reaches every enabled MCP target. OpenCode's adapter validates local and remote transports, then atomically composes the result into `opencode.json`.
 - **Opt in per tool.** Need to edit Cursor's hooks? `agentsync customize cursor hooks` copies the current base into `.ai/src/tools/cursor/hooks.json`. Delete the file later to resume inheriting.
 - **Safe hooks.** `customize <tool> hooks` prints the base content first and requires `--yes` in non-interactive mode — you never scaffold executable intent silently.
@@ -881,6 +881,7 @@ After every successful sync, AgentSync writes `.ai/.sync-manifest` — one line 
 
   These files would be silently overwritten. Choose one:
     • Move your edits into .ai/src/, then re-run sync
+    • If a tool wrote here out of band, run 'agentsync adopt <file>' to pull it into .ai/src/
     • Re-run with --force to discard the edits and rewrite from source
 ```
 

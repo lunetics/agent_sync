@@ -19,7 +19,7 @@ The Rust crate at the repo root is the whole engine: one binary, `agentsync`, bu
 ## Structure
 
 - `src/main.rs` is the only process-aware file: arguments, environment, `ExitCode`. Everything else is a library with a `Result<_, Error>` API.
-- `src/cli/<cmd>.rs` owns one command as `render(…) -> Result<String, Error>` plus `run(…, &mut impl Write)`. A command with its own exit status returns it from `run` — `check` through a `Report`, `sync` and `rollback` as a `u8` — and writes only through the writers or the log sink `main` hands it. Core modules never print.
+- `src/cli/<cmd>.rs` owns one command through a public entry point named for it (`init`, `doctor`, `refresh`, …; `run` where the name would collide) that takes `out`/`err` writers and returns the exit status as `Result<u8, Error>` — or a bare `u8` where the module reports its own failures (`sync`, `rollback`). A pure `render(…) -> Result<String, Error>` beside `run` keeps the output testable when a command has one. Writes go only through those writers or the log sink `main` hands it; core modules never print.
 - `src/error.rs` is the single error type. Each variant's `Display` text is the message the user sees, and `main` maps the variant to the exit code.
 - Two output voices, kept apart: `style` for command modules; `log` for the engine. Neither leaks into the other's module.
 - Engine paths are `/`-separated strings, drive-aware on Windows (`paths`). A disk path enters through `from_disk`/`DiskText`; arguments stay verbatim.

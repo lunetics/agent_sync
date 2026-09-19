@@ -1087,9 +1087,9 @@ defaults:
   enabled: false
   cleanup: true
 
-# Post-sync hooks run arbitrary shell — enabling them requires an out-of-repo
-# signal (AGENTSYNC_ALLOW_POST_SYNC=true or allow: true in the install-dir
-# config.yaml), never this in-repo file. `skip: true` here always disables them.
+# Post-sync hooks run arbitrary shell — enabling them requires the out-of-repo
+# signal AGENTSYNC_ALLOW_POST_SYNC=true, never this in-repo file.
+# `skip: true` here always disables them.
 post_sync:
   skip: false
 

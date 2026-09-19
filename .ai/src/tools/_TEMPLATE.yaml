@@ -50,7 +50,7 @@ targets:
     # every task. Rules without `paths:` fall back to the always-on `header` above.
     # scoped_header: "---\nglobs: '{globs}'\nalwaysApply: false\n---"
 
-    # Optional: Filter rules (bash globs). Each accepts a scalar ("a b c"),
+    # Optional: Filter rules (globs). Each accepts a scalar ("a b c"),
     # an inline list ([a, b]), or a block list (one `- glob` per line).
     # include: "flutter-*.md"
     # exclude: "secret-*.md"
@@ -91,6 +91,7 @@ targets:
   # commands:
   #   dest: ".tool/commands"
   #   # extension: ".cmd.md"      # Optional: change file extension
+  #   # format: toml              # Optional: convert each command to TOML (Gemini CLI)
   #   # include: "*.md"           # Optional: filter (space-separated globs)
   #   # exclude: "draft-*.md"     # Optional: filter (space-separated globs)
   #
@@ -111,7 +112,8 @@ targets:
   # subagents:
   #   dest: ".tool/agents"
   #   # extension: ".agent.md"    # Optional: change file extension
-  #   # format: opencode_md        # Optional: convert portable frontmatter
+  #   # format: opencode_md       # Optional: convert portable frontmatter —
+  #   #                           # opencode_md, toml, or amazonq_json
 
   # Settings/permissions (optional, file copy)
   # settings:
@@ -128,6 +130,18 @@ targets:
   # hooks:
   #   source: ".ai/src/hooks/tool.json"
   #   dest: ".tool/hooks.json"
+
+  # Guard (optional, file copy + chmod +x) — a script the tool runs before it
+  # edits a file, to refuse writes to generated output. AgentSync ships a base
+  # guard per tool; a project overrides it at .ai/src/tools/<tool>/guard.sh.
+  # Register it from the tool's settings.
+  # guard:
+  #   dest: ".tool/hooks/agentsync-guard.sh"
+  #   profile_scoped: false   # config-home profiles share one copy at this path
+
+  # `profile_scoped: false` works on any target: `agentsync profile add` keeps
+  # the base dest instead of rewriting it into the profile's config home, for
+  # project-level content every home shares.
 
 # Optional: Command to run after sync (e.g. linter or formatter)
 # post_sync: "npx prettier --write .tool/rules/*.mdc"

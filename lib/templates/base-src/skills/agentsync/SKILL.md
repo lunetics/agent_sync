@@ -231,7 +231,7 @@ shared:
   inherit: rules,skills,commands,agents
 ```
 
-At sync time, AgentSync builds a transient shadow `.ai/src/` (child files first, then parent fillers; child wins on path collisions) and points `SOURCE_*` at it. Sync then walks the shadow tree, so every enabled tool — including ones without parent-loading semantics (Codex, Cursor, Junie, Cline, Amazon Q) — receives the inherited content materialised into its own output. The shadow tree never touches disk outside `$TMPDIR` and is torn down via an `EXIT` trap. **Inherited files do not enter the child's `.template-manifest`** — refresh continues to consider only the child's own files; the parent owns its content.
+At sync time, AgentSync builds a transient shadow `.ai/src/` (child files first, then parent fillers; child wins on path collisions) and reads its sources from there. Sync then walks the shadow tree, so every enabled tool — including ones without parent-loading semantics (Codex, Cursor, Junie, Cline, Amazon Q) — receives the inherited content materialised into its own output. The shadow tree is built in memory and never touches disk. **Inherited files do not enter the child's `.template-manifest`** — refresh continues to consider only the child's own files; the parent owns its content.
 
 **Interactive cleanup — `agentsync dedupe`.** When the child has copy-paste duplicates of parent files in its own `.ai/src/`, dedupe surfaces them by hash:
 
@@ -286,7 +286,7 @@ Pass `--adopt` to pull the existing contents of `~/.<tool>-<name>/` into the ove
 
 Two layers, and the difference decides whether an upgrade reaches you:
 
-- **Engine-owned** — this skill. It lives in the install dir (`lib/templates/base-src/skills/`) and is resolved at sync time, so an engine upgrade updates it in every project. Keep your own `.ai/src/skills/agentsync/` to diverge (it wins), or set `base_skills: false` to drop it.
+- **Engine-owned** — this skill. It ships inside the `agentsync` binary and is resolved at sync time, so an engine upgrade updates it in every project. Keep your own `.ai/src/skills/agentsync/` to diverge (it wins), or set `base_skills: false` to drop it.
 - **Project-owned** — everything else under `.ai/src/`. Scaffolded once by `init`, updated only when you accept it via `agentsync refresh`, never overwritten by an upgrade.
 
 `format:` in `agent_sync.yaml` records which migrations the project has been through. When the engine ships a newer revision, the next command says so; `agentsync migrate` previews it and `migrate --apply` performs it.

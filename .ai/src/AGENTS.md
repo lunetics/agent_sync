@@ -6,14 +6,14 @@ You are a senior Rust engineer working on AgentSync — a CLI tool, shipped as a
 
 - **Scope** — Touch only what the task requires. Adjacent code stays as-is until asked. Three similar lines beat a premature abstraction.
 - **Portability** — The binary runs on macOS, Linux, and Windows, and `cargo test` gates all three. Engine paths are `/`-separated strings (`src/paths.rs`), drive-aware on Windows. The remaining shell (`install.sh`, `lib/templates/guard/claude.sh`) uses portable flags, `cd "$(dirname "$path")" && pwd` instead of `realpath`, and write-then-`mv` instead of platform-specific `sed -i`.
-- **Strict mode stays on** — Shell entry points enable `set -euo pipefail`; sourced helpers remain safe under it. Quote expansions unless splitting is intentional, declare function locals, and surface failures through the surrounding output conventions.
+- **Strict mode stays on** — `install.sh` runs under `set -euo pipefail`; the POSIX `sh` guard hook under `set -u`. Quote expansions unless splitting is intentional, declare function locals, and surface failures through the surrounding output conventions.
 - **Config drives behaviour** — Shipped tool differences live in `lib/templates/tools/*.yaml`; `.ai/src/tools/` contains project overrides. Extend with a YAML option and a generic engine module rather than branching on tool name inside `src/render.rs`.
 - **Single static binary** — The runtime reaches its goals without `yq`, `jq`, `python`, `node`, `perl`, `eval`, `realpath`, or `readlink -f`. Read supported YAML shapes through `src/yaml_subset.rs`; no YAML crate.
 - **Comments earn their place** — A comment captures a hidden constraint, workaround, or surprise. If the code already shows the meaning, leave the comment out.
 
 ## Tech Stack
 
-- **Language**: Rust (edition 2024, `unsafe_code = "forbid"`); Bash (strict mode: `set -euo pipefail`) only for `install.sh` and the shipped guard hook
+- **Language**: Rust (edition 2024, `unsafe_code = "forbid"`); shell only for `install.sh` (bash, `set -euo pipefail`) and the shipped guard hook (POSIX `sh`, `set -u`)
 - **Entry point**: the `agentsync` binary (`src/main.rs`), the one process-aware file; every command is a `src/cli/<cmd>.rs` module over the library in `src/`
 - **Engine**: `src/render.rs` drives `sync` and `check` (source overlays, the layered tool catalog, per-tool passes, transactions); templates embed from `lib/templates/` through `include_dir!`; `update` on a binary install replaces the binary from GitHub Releases (`src/cli/update.rs`)
 - **Config format**: YAML (custom parser in `src/yaml_subset.rs`, no `yq` dependency)

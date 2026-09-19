@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # AgentSync Installer
 # Usage: curl -fsSL https://raw.githubusercontent.com/yelmuratoff/agent_sync/main/install.sh | bash
-#        AGENTSYNC_VERSION=0.36.0 curl -fsSL .../install.sh | bash   # pin a release tag
+#        AGENTSYNC_VERSION=0.37.0 curl -fsSL .../install.sh | bash   # pin a release tag
 #
 # What it does:
 #   1. Downloads the agentsync binary for this platform from GitHub Releases
 #      and verifies its sha256, into ~/.agentsync/bin/agentsync
 #   2. Creates a symlink: /usr/local/bin/agentsync → ~/.agentsync/bin/agentsync
+#      (~/.local/bin when /usr/local/bin is not writable)
 #
-# A release tag older than the first binary release has no archive; pinning to
-# one clones the repository into ~/.agentsync/ and links bin/agentsync.sh, as
-# the installer did before the binary.
+# A release tag older than 0.37.0, the first binary release, has no archive;
+# pinning to one clones the repository into ~/.agentsync/ and links
+# bin/agentsync.sh, as the installer did before the binary.
 #
 # AGENTSYNC_REPO_URL, AGENTSYNC_INSTALL_DIR, and AGENTSYNC_BIN_DIR override the
 # defaults so the installer can run against local fixtures in tests.

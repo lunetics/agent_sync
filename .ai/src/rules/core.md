@@ -4,9 +4,9 @@ The binary runs on macOS, Linux, and Windows, and `cargo test` gates all three. 
 
 ## Shell Script Quality
 
-Applies to the shell that remains: `install.sh` and `lib/templates/guard/claude.sh`.
+Applies to the shell CI gates: `install.sh` and `lib/templates/guard/claude.sh`.
 
-- Keep `set -euo pipefail` enabled in executable entry points. Sourced helpers inherit the caller's shell options.
+- Keep strict mode on: `install.sh` is bash with `set -euo pipefail`; the guard hook is POSIX `sh`, where `set -u` is the whole of it — `pipefail` is not POSIX.
 - Quote expansions unless intentional splitting or glob expansion is part of the contract.
 - Declare function-scoped variables with `local`.
 - Reach for `[[ ]]` over `[ ]`, and `$(command)` over backticks.

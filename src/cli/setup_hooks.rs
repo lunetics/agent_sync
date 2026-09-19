@@ -50,10 +50,8 @@ fn sync_body(sync_args: &str) -> String {
 if command -v agentsync >/dev/null 2>&1; then
     echo \"AgentSync: syncing AI config...\"
     agentsync {sync_args} || echo \"AgentSync: sync skipped — run 'agentsync sync' to see why.\" >&2
-elif [ -f \"lib/sync.sh\" ]; then
-    bash lib/sync.sh || true
-elif [ -f \"agent/lib/sync.sh\" ]; then
-    bash agent/lib/sync.sh || true
+else
+    echo \"AgentSync: agentsync is not on PATH; skipping. Install it or set AGENTSYNC_SKIP_HOOKS=1.\" >&2
 fi"
     )
 }

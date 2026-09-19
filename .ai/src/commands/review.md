@@ -12,7 +12,7 @@ description: Review the current branch diff for issues before merging
 
 Review the above changes to AgentSync for:
 
-1. **Portability** — macOS, Linux, and Git Bash on Windows. No GNU-specific flags.
+1. **Portability** — the binary on macOS, Linux, and Windows; no GNU-specific flags in the remaining shell.
 2. **Correctness** — logic errors, unquoted variables, missing edge cases
 3. **Idempotency** — will `agentsync sync` still produce identical output on repeated runs?
 4. **Error handling** — proper exit codes, `Error` variants, and `src/log.rs` / `src/style.rs` usage

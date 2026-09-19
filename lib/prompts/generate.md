@@ -1,6 +1,6 @@
 I need you to generate AI agent configuration files for my project using the AgentSync format.
 
-AgentSync keeps all AI instructions in `.ai/src/` and distributes them to tool-specific directories (Claude, Cursor, Copilot, Gemini, Codex, Windsurf, Junie, Aider, Cline, Amazon Q, Augment, Zed, Continue, Antigravity) via `agentsync sync`. Your job is to study my project and produce tailored, specific configuration.
+AgentSync keeps all AI instructions in `.ai/src/` and distributes them to tool-specific directories (Claude Code, Cursor, Copilot, Gemini CLI, Codex, Windsurf, Junie, Cline, Amazon Q, Zed, Antigravity, Kimi Code, OpenCode) via `agentsync sync`. Your job is to study my project and produce tailored, specific configuration.
 
 ## How to start
 
@@ -177,7 +177,7 @@ Only create agents if the project has distinct domains that benefit from special
 - `security-auditor.md` — security-focused review (for projects with auth/payments)
 - `db-specialist.md` — database migration/query expert (for data-heavy projects)
 
-### 6. `.ai/src/settings/claude.json` — Permissions (Claude Code)
+### 6. `.ai/src/tools/claude/settings.json` — Permissions (Claude Code)
 
 Generate a Claude Code settings file with appropriate allow/deny rules for this project's tech stack:
 
@@ -232,7 +232,7 @@ Output each file with its full path as a header:
 [content]
 ```
 
-### `.ai/src/settings/claude.json`
+### `.ai/src/tools/claude/settings.json`
 
 ```json
 [content]

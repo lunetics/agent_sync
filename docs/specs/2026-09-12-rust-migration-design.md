@@ -370,7 +370,8 @@ builds on the one before:
   pushes with `GITHUB_TOKEN` starts no other workflow, so the auto-tag
   workflow dispatches the release build. The repository is
   `yelmuratoff/agent_sync`; `yelmuratoff/agent`, which `install.sh` and the
-  README still name, redirects to it, and no GitHub release exists yet.
+  README named when this slice was planned, redirects to it, and no GitHub
+  release existed yet.
 - 5d `update` and the update notice: the binary replaced from GitHub Releases,
   `update <version>`, `--strict` conflicts from the catalogs embedded in the
   old and the new binary, the changelog embedded, and `check_for_updates` with
@@ -410,18 +411,18 @@ Phase 7 retires them; remove `_native_try`, `AGENTSYNC_NATIVE`, and the
 Windows shard matrix; ShellCheck covers only the guard and installer scripts
 that remain.
 
-In progress in `docs/plans/2026-09-19-rust-migration-phase-6-retire-bash.md`.
-The suite runs against the binary on Linux, macOS, and Windows; the Windows
-shard matrix stays for the binary because Git Bash cannot run `bats --jobs`
-(a deviation recorded in that plan). The Bash engine is deleted, ShellCheck
-lints `install.sh` and `lib/templates/guard/claude.sh`, and
-`scripts/perf/bench.sh` compares against a 0.37.0 checkout named by
-`AGENTSYNC_BASH_CLI`.
+Closed in `docs/plans/2026-09-19-rust-migration-phase-6-retire-bash.md`.
+The suite ran against the binary on Linux, macOS, and Windows; the Windows
+shard matrix stayed for the binary because Git Bash cannot run `bats --jobs`
+(a deviation recorded in that plan), until Phase 7 retired bats and the shards
+with it. The Bash engine is deleted, ShellCheck lints `install.sh` and
+`lib/templates/guard/claude.sh`, and `scripts/perf/bench.sh` compares against a
+0.37.0 checkout named by `AGENTSYNC_BASH_CLI`.
 
 ### Phase 7 — Retire bats
 
-The CLI-level conformance suite (43 `.bats` files, 733 tests at the start of
-Phase 1) is now Rust integration tests on `assert_cmd`, the shape
+The CLI-level conformance suite (41 `.bats` files, 727 cases at the start of
+Phase 7) is now Rust integration tests on `assert_cmd`, the shape
 `tests/cli.rs` already used: one commit per bats file, Rust test names copied
 from the bats test names so a reviewer maps them one to one.
 `tests/common/mod.rs` carries the fixtures `tests/test_helper.bash` gave the
@@ -727,6 +728,13 @@ Appended one line at a time as they are found, with the phase:
   directory without `Cargo.toml` is refused as `Must be run from the AgentSync
   repository.`; Bash looked for `bin/agentsync.sh`, which Phase 6 deletes, and
   reported the missing manifest as a missing crate version.
+- After Phase 7: two strings that named the deleted Bash entry point are
+  corrected. `check` ends a drift report with `Please run: agentsync sync`
+  where it printed `Please run: lib/sync.sh`, and the hooks `setup-hooks`
+  installs no longer fall back to `bash lib/sync.sh` when `agentsync` is not on
+  `PATH` — that file cannot exist in a user's project any more, so the hook
+  says so and skips instead. Both were byte-identical to Bash until here, and
+  both would have told a user to run something that does not exist.
 
 ## Risks
 

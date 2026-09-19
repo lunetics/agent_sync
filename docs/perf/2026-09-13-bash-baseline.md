@@ -12,8 +12,14 @@ Reproduce with:
 
 ```bash
 cargo build --release      # needed for the native column
-bash scripts/perf/bench.sh --runs 3
+git worktree add /tmp/agentsync-0.37.0 0.37.0   # the Bash column, retired in Phase 6
+AGENTSYNC_BASH_CLI=/tmp/agentsync-0.37.0/bin/agentsync.sh \
+  bash scripts/perf/bench.sh --runs 3 --engines both
 ```
+
+When this file was written the Bash engine was still in the tree and
+`bench.sh --runs 3` measured both columns. Phase 6 deleted it, so the Bash
+column now needs the checkout above; `--engines native` is the default.
 
 ## Fixture
 

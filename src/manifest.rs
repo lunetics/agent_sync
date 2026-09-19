@@ -172,6 +172,7 @@ pub fn write(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::paths::DiskText;
 
     #[test]
     fn digests_match_sha256sum() {
@@ -204,7 +205,7 @@ mod tests {
     #[test]
     fn one_entry_is_replaced_and_every_other_line_is_kept_as_bash_reads_it() {
         let dir = tempfile::tempdir().unwrap();
-        let root = dir.path().to_string_lossy().into_owned();
+        let root = dir.path().disk_text();
         std::fs::create_dir_all(dir.path().join(".ai")).unwrap();
         std::fs::write(
             dir.path().join(REL),
@@ -229,7 +230,7 @@ mod tests {
     #[test]
     fn drift_is_a_changed_file_in_manifest_order_and_a_missing_file_is_not() {
         let dir = tempfile::tempdir().unwrap();
-        let root = dir.path().to_string_lossy().into_owned();
+        let root = dir.path().disk_text();
         std::fs::write(dir.path().join("b.md"), "edited\n").unwrap();
         std::fs::write(dir.path().join("a.md"), "hello\n").unwrap();
         std::fs::write(dir.path().join("c.md"), "edited\n").unwrap();
@@ -247,7 +248,7 @@ mod tests {
     #[test]
     fn writing_keeps_untouched_entries_hashes_touched_files_and_sorts_bytewise() {
         let dir = tempfile::tempdir().unwrap();
-        let root = dir.path().to_string_lossy().into_owned();
+        let root = dir.path().disk_text();
         std::fs::create_dir_all(dir.path().join(".claude")).unwrap();
         std::fs::write(dir.path().join("CLAUDE.md"), "hello\n").unwrap();
         std::fs::write(dir.path().join(".claude/x.md"), "").unwrap();

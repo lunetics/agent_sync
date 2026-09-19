@@ -1,5 +1,6 @@
 //! Templates shipped with the engine, embedded at build time from `lib/templates/`.
 
+use crate::paths::DiskText;
 use include_dir::{Dir, File, include_dir};
 
 static TEMPLATES: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/lib/templates");
@@ -105,7 +106,7 @@ fn collect_files(dir: &'static Dir<'static>, out: &mut Vec<(String, &'static [u8
         let rel: Vec<String> = file
             .path()
             .components()
-            .map(|c| c.as_os_str().to_string_lossy().into_owned())
+            .map(|c| c.as_os_str().disk_text())
             .collect();
         out.push((format!("lib/templates/{}", rel.join("/")), file.contents()));
     }

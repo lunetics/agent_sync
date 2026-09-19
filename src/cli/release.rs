@@ -442,6 +442,7 @@ mod tests {
 #[cfg(all(test, unix))]
 mod checkout_tests {
     use super::*;
+    use crate::paths::DiskText;
 
     fn sh(dir: &Path, args: &[&str]) -> String {
         let output = Command::new("git")
@@ -492,8 +493,8 @@ mod checkout_tests {
         let mut answer = answer.map(str::to_string);
         let mut read_line = || answer.take();
         let mut env = Env {
-            cwd: cwd.to_string_lossy().into_owned(),
-            install_dir: install_dir.map(|dir| dir.to_string_lossy().into_owned()),
+            cwd: cwd.disk_text(),
+            install_dir: install_dir.map(|dir| dir.disk_text()),
             read_line: &mut read_line,
         };
         let (mut out, mut err) = (Vec::new(), Vec::new());
@@ -664,7 +665,7 @@ mod checkout_tests {
         sh(remote.path(), &["init", "-q", "--bare"]);
         sh(
             &root,
-            &["remote", "add", "origin", &remote.path().to_string_lossy()],
+            &["remote", "add", "origin", &remote.path().disk_text()],
         );
         let (status, out, err) = run(&["patch"], &root, None, Some("y"));
         assert_eq!((status, err.as_str()), (0, ""));

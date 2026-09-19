@@ -1,6 +1,7 @@
 //! `agentsync simplify`: `cmd_simplify` of `lib/helpers/simplify.sh`, which
 //! drops override fields equal to the base and byte-identical payload copies.
 
+use crate::paths::DiskText;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -315,7 +316,7 @@ fn sorted_entries(dir: &Path) -> Vec<(String, PathBuf)> {
         .map(|entries| {
             entries
                 .filter_map(|e| e.ok())
-                .map(|e| (e.file_name().to_string_lossy().into_owned(), e.path()))
+                .map(|e| (e.file_name().disk_text(), e.path()))
                 .filter(|(name, _)| !name.starts_with('.'))
                 .collect()
         })
@@ -495,10 +496,7 @@ mod tests {
 
     fn project() -> (tempfile::TempDir, String) {
         let dir = tempfile::tempdir().unwrap();
-        let root = std::fs::canonicalize(dir.path())
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
+        let root = std::fs::canonicalize(dir.path()).unwrap().disk_text();
         std::fs::create_dir_all(format!("{root}/.ai/src/tools")).unwrap();
         std::fs::write(
             format!("{root}/.ai/agent_sync.yaml"),

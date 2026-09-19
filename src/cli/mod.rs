@@ -27,6 +27,7 @@ pub mod upgrade_config;
 pub mod usage;
 pub mod workspace;
 
+use crate::paths::DiskText;
 use std::io::Write;
 
 use clap::{Parser, Subcommand};
@@ -45,7 +46,7 @@ pub(crate) fn refuse_outside_tools_dir(
         format!(
             "{}: source.tools resolves outside the project: {}\nAgentSync only reads that catalog; edit its tool overrides where they live.\n",
             style.red("Error"),
-            project.user_tools_dir().to_string_lossy()
+            project.user_tools_dir().disk_text()
         )
         .as_bytes(),
     )

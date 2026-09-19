@@ -4,6 +4,7 @@
 //! or a GitHub archive back in. Archives go through the `tar` and `curl`
 //! executables, as Bash ran them.
 
+use crate::paths::DiskText;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -409,7 +410,7 @@ fn find_ai_src(search_root: &Path) -> Option<PathBuf> {
         .ok()?
         .filter_map(|e| e.ok())
         .filter(|e| e.path().is_dir())
-        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .map(|e| e.file_name().disk_text())
         .filter(|name| !name.starts_with('.'))
         .collect();
     names.sort();
@@ -731,7 +732,7 @@ pub fn import(
         let shown = if std::fs::canonicalize(&shown).ok().as_deref() == Some(canonical.as_path()) {
             shown
         } else {
-            canonical.to_string_lossy().into_owned()
+            canonical.disk_text()
         };
         put(
             out,
@@ -1000,10 +1001,7 @@ mod tests {
     #[cfg(unix)]
     fn tiny_project() -> (tempfile::TempDir, String) {
         let dir = tempfile::tempdir().unwrap();
-        let root = std::fs::canonicalize(dir.path())
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
+        let root = std::fs::canonicalize(dir.path()).unwrap().disk_text();
         write(dir.path(), ".ai/src/AGENTS.md", "# Agents\n");
         write(dir.path(), ".ai/src/rules/a.md", "# A rule\n");
         write(dir.path(), ".ai/src/skills/x/SKILL.md", "# Skill\n");
@@ -1039,12 +1037,12 @@ mod tests {
         let legacy = tempfile::tempdir().unwrap();
         write(legacy.path(), ".ai/AGENTS.md", "# Old\n");
         write(legacy.path(), ".ai/rules/r.md", "# R\n");
-        let sources = resolve_sources(&legacy.path().to_string_lossy());
+        let sources = resolve_sources(&legacy.path().disk_text());
         assert_eq!(sources.base, ".ai");
         assert_eq!(sources.agents, ".ai/AGENTS.md");
         assert_eq!(sources.dirs[0], ("rules", ".ai/rules".to_string()));
         assert_eq!(
-            resolve_sources(&dir.path().join("custom").to_string_lossy()).base,
+            resolve_sources(&dir.path().join("custom").disk_text()).base,
             ""
         );
     }
@@ -1101,7 +1099,7 @@ mod tests {
             (1, "Error: --output requires a path\n")
         );
         let empty = tempfile::tempdir().unwrap();
-        let empty_root = empty.path().to_string_lossy().into_owned();
+        let empty_root = empty.path().disk_text();
         let (status, _, err) = run_export(&empty_root, &[]);
         assert_eq!(status, 1);
         assert_eq!(
@@ -1115,10 +1113,7 @@ mod tests {
     fn a_directory_import_copies_then_reports_up_to_date_like_cmd_import() {
         let (_source, source_root) = tiny_project();
         let target = tempfile::tempdir().unwrap();
-        let target_root = std::fs::canonicalize(target.path())
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
+        let target_root = std::fs::canonicalize(target.path()).unwrap().disk_text();
         let (status, out, err) = run_import(&target_root, &[&source_root]);
         assert_eq!((status, err.as_str()), (0, ""));
         assert_eq!(

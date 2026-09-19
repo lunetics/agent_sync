@@ -983,16 +983,14 @@ mod tests {
     use std::collections::VecDeque;
 
     use super::*;
+    use crate::paths::DiskText;
     use crate::template_manifest::REL;
 
     /// A project `init` scaffolded: every template under `.ai/src/` and a
     /// manifest recording each hash.
     fn seeded() -> (tempfile::TempDir, String) {
         let dir = tempfile::tempdir().unwrap();
-        let root = std::fs::canonicalize(dir.path())
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
+        let root = std::fs::canonicalize(dir.path()).unwrap().disk_text();
         let base = Path::new(&root).join(".ai/src");
         let mut manifest = TemplateManifest::default();
         for (rel, bytes) in catalog::template_files() {

@@ -324,6 +324,7 @@ fn report_conflict(err: &mut dyn Write, id: &str, path: &str, is_latest: bool) {
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
+    use crate::paths::DiskText;
 
     struct Output {
         status: u8,
@@ -351,10 +352,7 @@ mod tests {
 
     fn project() -> (tempfile::TempDir, String) {
         let dir = tempfile::tempdir().unwrap();
-        let root = std::fs::canonicalize(dir.path())
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
+        let root = std::fs::canonicalize(dir.path()).unwrap().disk_text();
         std::fs::write(dir.path().join("CLAUDE.md"), "before\n").unwrap();
         (dir, root)
     }

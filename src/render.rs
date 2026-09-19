@@ -3,6 +3,7 @@
 //! workspace, disabled tools cleaned. `check` renders forced and in memory;
 //! `cli::sync` runs the stages on disk with its transaction between them.
 
+use crate::paths::DiskText;
 use std::collections::BTreeSet;
 
 use crate::overlay::{self, Sources};
@@ -401,7 +402,7 @@ pub fn refuse_escaping_source_links(s: &mut Session, run: &Run) -> Step {
         .map(|entries| {
             entries
                 .filter_map(|e| e.ok())
-                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .map(|e| e.file_name().disk_text())
                 .collect()
         })
         .unwrap_or_default();

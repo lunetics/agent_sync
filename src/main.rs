@@ -1,3 +1,4 @@
+use agentsync::paths::DiskText;
 use std::ffi::OsString;
 use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
@@ -44,10 +45,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
         return Ok(0);
     }
     if first == "update" {
-        let rest: Vec<String> = args[1..]
-            .iter()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect();
+        let rest: Vec<String> = args[1..].iter().map(|a| a.disk_text()).collect();
         let exe = current_exe().map_err(|e| Error::io("<exe>", e))?;
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -70,10 +68,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
             &mut std::io::stderr(),
         );
     }
-    let words: Vec<String> = args
-        .iter()
-        .map(|a| a.to_string_lossy().into_owned())
-        .collect();
+    let words: Vec<String> = args.iter().map(|a| a.disk_text()).collect();
     if cli::usage::wants_usage(&words) {
         return print_usage();
     }
@@ -85,10 +80,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
         return print_version();
     }
     if args.first().and_then(|a| a.to_str()) == Some("dedupe") {
-        let rest: Vec<String> = args[1..]
-            .iter()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect();
+        let rest: Vec<String> = args[1..].iter().map(|a| a.disk_text()).collect();
         let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
         let cwd = paths::logical_root(None, &cwd, var("PWD").as_deref());
         return cli::dedupe::dedupe(
@@ -102,10 +94,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
         );
     }
     if args.first().and_then(|a| a.to_str()) == Some("migrate") {
-        let rest: Vec<String> = args[1..]
-            .iter()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect();
+        let rest: Vec<String> = args[1..].iter().map(|a| a.disk_text()).collect();
         let prompt_root = match path_var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty()) {
             Some(root) => root,
             None => {
@@ -138,10 +127,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
         args.first().and_then(|a| a.to_str()),
         Some("generate" | "gen")
     ) {
-        let rest: Vec<String> = args[1..]
-            .iter()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect();
+        let rest: Vec<String> = args[1..].iter().map(|a| a.disk_text()).collect();
         let mut read_line = || {
             let mut line = String::new();
             match std::io::stdin().read_line(&mut line) {
@@ -164,10 +150,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
         );
     }
     if args.first().and_then(|a| a.to_str()) == Some("shell-init") {
-        let rest: Vec<String> = args[1..]
-            .iter()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect();
+        let rest: Vec<String> = args[1..].iter().map(|a| a.disk_text()).collect();
         return cli::shell_init::shell_init(
             &rest,
             var("SHELL").as_deref(),
@@ -178,10 +161,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
         );
     }
     if args.first().and_then(|a| a.to_str()) == Some("setup-hooks") {
-        let rest: Vec<String> = args[1..]
-            .iter()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect();
+        let rest: Vec<String> = args[1..].iter().map(|a| a.disk_text()).collect();
         let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
         let env_root = path_var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty());
         let root = match env_root {
@@ -196,10 +176,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
         );
     }
     if args.first().and_then(|a| a.to_str()) == Some("release") {
-        let rest: Vec<String> = args[1..]
-            .iter()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect();
+        let rest: Vec<String> = args[1..].iter().map(|a| a.disk_text()).collect();
         let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
         let mut read_line = || {
             let mut line = String::new();
@@ -222,10 +199,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
         );
     }
     if let Some(command @ ("export" | "import")) = args.first().and_then(|a| a.to_str()) {
-        let rest: Vec<String> = args[1..]
-            .iter()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect();
+        let rest: Vec<String> = args[1..].iter().map(|a| a.disk_text()).collect();
         let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
         let logical_cwd = paths::logical_root(None, &cwd, var("PWD").as_deref());
         let env_root = path_var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty());
@@ -261,10 +235,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
         );
     }
     if args.first().and_then(|a| a.to_str()) == Some("add") {
-        let rest: Vec<String> = args[1..]
-            .iter()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect();
+        let rest: Vec<String> = args[1..].iter().map(|a| a.disk_text()).collect();
         let env_root = path_var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty());
         let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
         let root = paths::logical_root(env_root.as_deref(), &cwd, var("PWD").as_deref());
@@ -290,10 +261,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
         );
     }
     if args.first().and_then(|a| a.to_str()) == Some("init") {
-        let rest: Vec<String> = args[1..]
-            .iter()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect();
+        let rest: Vec<String> = args[1..].iter().map(|a| a.disk_text()).collect();
         let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
         let cwd = paths::logical_root(None, &cwd, var("PWD").as_deref());
         let style = Style::for_stdout();
@@ -325,10 +293,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
         );
     }
     if args.first().and_then(|a| a.to_str()) == Some("refresh") {
-        let rest: Vec<String> = args[1..]
-            .iter()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect();
+        let rest: Vec<String> = args[1..].iter().map(|a| a.disk_text()).collect();
         let root = match path_var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty()) {
             Some(root) => root,
             None => {
@@ -365,10 +330,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
         | "profile" | "adopt"),
     ) = args.first().and_then(|a| a.to_str())
     {
-        let rest: Vec<String> = args[1..]
-            .iter()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect();
+        let rest: Vec<String> = args[1..].iter().map(|a| a.disk_text()).collect();
         let style = Style::for_stdout();
         let (mut out, mut err) = (std::io::stdout(), std::io::stderr());
         return match command {
@@ -696,7 +658,7 @@ fn guard_engine_version() -> Result<(), Error> {
     let Some(engine) = std::env::var_os("AGENTSYNC_ENGINE_VERSION") else {
         return Ok(());
     };
-    let engine = engine.to_string_lossy().into_owned();
+    let engine = engine.disk_text();
     if engine.is_empty() || engine == engine_version() {
         return Ok(());
     }

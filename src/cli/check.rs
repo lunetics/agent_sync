@@ -289,6 +289,7 @@ fn merge_shared_parent(ws: &mut Workspace, root: &str, config: Option<&str>) -> 
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
+    use crate::paths::DiskText;
 
     fn write(root: &Path, rel: &str, text: &str) {
         let path = root.join(rel);
@@ -305,7 +306,7 @@ mod tests {
             ".ai/agent_sync.yaml",
             "tools:\n  enabled: [claude]\n",
         );
-        let root = root.to_string_lossy().into_owned();
+        let root = root.disk_text();
         (dir, root)
     }
 
@@ -409,7 +410,7 @@ mod tests {
     #[test]
     fn a_missing_ai_directory_fails_the_workspace() {
         let dir = tempfile::tempdir().unwrap();
-        let root = dir.path().to_string_lossy().into_owned();
+        let root = dir.path().disk_text();
         let report = check(&root, &Env::default()).unwrap();
         assert_eq!(
             report,

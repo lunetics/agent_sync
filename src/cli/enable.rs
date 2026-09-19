@@ -1,6 +1,7 @@
 //! `agentsync enable` and `agentsync disable`: `cmd_enable` and `cmd_disable`
 //! of `lib/helpers/enable.sh`, editing `tools.enabled` with `yaml_edit`.
 
+use crate::paths::DiskText;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -215,7 +216,7 @@ pub fn enable(
         };
         if write {
             for (path, bytes) in &work {
-                let dir = paths::parent(&path.to_string_lossy());
+                let dir = paths::parent(&path.disk_text());
                 std::fs::create_dir_all(&dir).map_err(|e| Error::io(&dir, e))?;
                 std::fs::write(path, bytes).map_err(|e| Error::io(path, e))?;
             }

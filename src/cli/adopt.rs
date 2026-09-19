@@ -1,6 +1,7 @@
 //! `agentsync adopt`: `cmd_adopt` of `lib/helpers/adopt.sh`, which promotes a
 //! manual edit in a generated file back into its source.
 
+use crate::paths::DiskText;
 use std::io::Write;
 use std::path::Path;
 use std::process::Command;
@@ -96,7 +97,7 @@ pub struct Resolver<'a> {
 
 impl<'a> Resolver<'a> {
     pub fn new(project: &'a Project, sources: Sources) -> Result<Self, Error> {
-        let root = project.root.to_string_lossy().into_owned();
+        let root = project.root.disk_text();
         let mut tools = catalog::base_tools();
         tools.extend(project.user_override_tools()?);
         tools.sort();
@@ -111,7 +112,7 @@ impl<'a> Resolver<'a> {
     }
 
     fn root(&self) -> String {
-        self.project.root.to_string_lossy().into_owned()
+        self.project.root.disk_text()
     }
 
     fn strip_root(&self, abs: &str) -> String {
@@ -277,7 +278,7 @@ impl<'a> Resolver<'a> {
         };
         let root = self.root();
         let chosen = if let Some(path) = existing {
-            Some(path.to_string_lossy().into_owned())
+            Some(path.disk_text())
         } else {
             let declared = if self.project.user_tool_file(&tool.slug).is_file() {
                 tool.user_value(&format!("targets.{resource}.source"))
@@ -292,8 +293,7 @@ impl<'a> Resolver<'a> {
             if declared_abs.starts_with(&format!("{root}/")) {
                 Some(declared_abs)
             } else {
-                payload::override_path(self.project, tool, resource)
-                    .map(|path| path.to_string_lossy().into_owned())
+                payload::override_path(self.project, tool, resource).map(|path| path.disk_text())
             }
         };
         let Some(abs) = chosen else {
@@ -469,7 +469,7 @@ pub fn adopt(
                 format!(
                     "{}: AGENTSYNC_CONFIG_PATH is set but file not found: {}\n",
                     style.red("Error"),
-                    path.to_string_lossy()
+                    path.disk_text()
                 )
                 .as_bytes(),
             )?;
@@ -481,7 +481,7 @@ pub fn adopt(
         return super::refuse_outside_tools_dir(&project, style, err);
     }
     let sources = discover_sources(&project)?;
-    let root = project.root.to_string_lossy().into_owned();
+    let root = project.root.disk_text();
     let loaded = Manifest::load(&root)?;
     if loaded.is_none() && all {
         put(
@@ -864,10 +864,7 @@ mod tests {
 
     fn project(files: &[(&str, &str)]) -> (tempfile::TempDir, String) {
         let dir = tempfile::tempdir().unwrap();
-        let root = std::fs::canonicalize(dir.path())
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
+        let root = std::fs::canonicalize(dir.path()).unwrap().disk_text();
         for (rel, text) in files {
             let path = format!("{root}/{rel}");
             std::fs::create_dir_all(paths::parent(&path)).unwrap();

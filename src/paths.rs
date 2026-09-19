@@ -56,6 +56,18 @@ pub fn from_disk(path: &Path) -> String {
     text.replace('\\', "/")
 }
 
+/// [`from_disk`] as a method, for every `Path`, `PathBuf`, and `OsStr` the
+/// engine turns into one of its `/`-separated strings.
+pub trait DiskText {
+    fn disk_text(&self) -> String;
+}
+
+impl<T: AsRef<std::ffi::OsStr> + ?Sized> DiskText for T {
+    fn disk_text(&self) -> String {
+        from_disk(Path::new(self))
+    }
+}
+
 /// A path Git Bash handed over: a `/`-rooted one is translated through
 /// `cygpath -w` when `msystem` (the `MSYSTEM` variable) is set, so `/tmp/x`
 /// and `/c/Users/x` reach the Windows binary as paths it can open; any other
@@ -64,8 +76,9 @@ pub fn from_msys(path: &str, msystem: Option<&str>) -> String {
     if msystem.is_none() || !path.starts_with('/') {
         return path.to_string();
     }
+    // `-l` asks for the long form: the runner's `TEMP` is spelled `RUNNER~1`.
     let output = std::process::Command::new("cygpath")
-        .args(["-w", path])
+        .args(["-wl", path])
         .stdin(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .output();
@@ -255,7 +268,7 @@ pub fn find_workspace_ai_dirs(root: &str) -> Vec<String> {
             return;
         };
         for entry in entries.filter_map(|e| e.ok()) {
-            let child = entry.file_name().to_string_lossy().into_owned();
+            let child = entry.file_name().disk_text();
             walk(&format!("{}/{child}", dir.trim_end_matches('/')), found);
         }
     }
@@ -584,7 +597,7 @@ fn collect_links(dir: &str, links: &mut Vec<String>) {
         return;
     };
     for entry in entries.filter_map(|e| e.ok()) {
-        let path = format!("{dir}/{}", entry.file_name().to_string_lossy());
+        let path = format!("{dir}/{}", entry.file_name().disk_text());
         match entry.file_type() {
             Ok(kind) if kind.is_symlink() => links.push(path),
             Ok(kind) if kind.is_dir() => collect_links(&path, links),
@@ -622,7 +635,7 @@ mod tests {
     #[test]
     fn workspace_projects_are_listed_deepest_first_and_skip_vendored_trees() {
         let dir = tempfile::tempdir().unwrap();
-        let root = dir.path().to_string_lossy().into_owned();
+        let root = dir.path().disk_text();
         for rel in [
             ".ai/src",
             "b/.ai/src",
@@ -736,7 +749,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().join("proj");
         std::fs::create_dir(&root).unwrap();
-        let root = root.to_string_lossy().into_owned();
+        let root = root.disk_text();
         let p = Paths::for_disk_root(&root);
         let mut log = Log::default();
         assert_eq!(
@@ -754,7 +767,7 @@ mod tests {
         std::fs::create_dir_all(dir.path().join("outside")).unwrap();
         std::fs::create_dir(&root).unwrap();
         std::os::unix::fs::symlink(dir.path().join("outside"), root.join(".claude")).unwrap();
-        let root = root.to_string_lossy().into_owned();
+        let root = root.disk_text();
         let mut log = Log::default();
 
         let lexical = Paths::for_disk_root(&root);
@@ -782,7 +795,7 @@ mod tests {
             log.tail(1),
             [format!(
                 "[ERROR] targets.rules.dest for Claude Code resolves outside repository root: .claude/rules -> {}/rules",
-                outside.to_string_lossy()
+                outside.disk_text()
             )]
         );
         assert_eq!(
@@ -799,11 +812,11 @@ mod tests {
         std::fs::create_dir(&real).unwrap();
         let link = dir.path().join("link");
         std::os::unix::fs::symlink(&real, &link).unwrap();
-        let link_text = link.to_string_lossy().into_owned();
+        let link_text = link.disk_text();
         assert_eq!(logical_root(None, &real, Some(&link_text)), link_text);
         assert_eq!(
             logical_root(None, &real, Some("/nonexistent")),
-            real.to_string_lossy()
+            real.disk_text()
         );
         assert_eq!(logical_root(Some("/x/y/.."), &real, None), "/x");
     }
@@ -811,10 +824,7 @@ mod tests {
     #[cfg(unix)]
     fn disk() -> (tempfile::TempDir, String, String) {
         let dir = tempfile::tempdir().unwrap();
-        let base = std::fs::canonicalize(dir.path())
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
+        let base = std::fs::canonicalize(dir.path()).unwrap().disk_text();
         let root = format!("{base}/proj");
         std::fs::create_dir_all(format!("{root}/.ai/src/rules")).unwrap();
         std::fs::create_dir_all(format!("{base}/outside/rules")).unwrap();
@@ -879,7 +889,7 @@ mod tests {
     #[test]
     fn the_parent_ai_src_is_the_nearest_ancestors_inside_the_git_repository() {
         let dir = tempfile::tempdir().unwrap();
-        let t = disk_canonical(&dir.path().to_string_lossy()).unwrap();
+        let t = disk_canonical(&dir.path().disk_text()).unwrap();
         for sub in [
             "a/.ai/src",
             "a/b/c/.ai/src",

@@ -1,6 +1,7 @@
 //! `agentsync upgrade-config`: `cmd_upgrade_config` of `lib/helpers/init.sh`,
 //! which pins `agentsync_version` to the running engine.
 
+use crate::paths::DiskText;
 use std::io::Write;
 use std::path::Path;
 
@@ -67,7 +68,7 @@ pub fn run(
             format!(
                 "{}: No agent_sync.yaml found in {}\nRun {} first.\n",
                 style.red("Error"),
-                root.to_string_lossy(),
+                root.disk_text(),
                 style.cyan("agentsync init")
             )
             .as_bytes(),
@@ -77,7 +78,7 @@ pub fn run(
     let bytes = std::fs::read(&config).map_err(|e| Error::io(&config, e))?;
     let (text, added) = upgrade_text(&String::from_utf8_lossy(&bytes), version);
     staging::write_beside(&config, text.as_bytes())?;
-    let shown = style.dim(&config.to_string_lossy());
+    let shown = style.dim(&config.disk_text());
     let line = if added {
         format!(
             "{}: agentsync_version: {version} → {shown}\n",

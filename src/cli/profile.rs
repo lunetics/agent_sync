@@ -1,6 +1,7 @@
 //! `agentsync profile`: `cmd_profile` of `lib/helpers/profile.sh`, which
 //! scaffolds, lists, and removes config-home variants of tools.
 
+use crate::paths::DiskText;
 use std::io::Write;
 use std::path::Path;
 
@@ -71,7 +72,7 @@ fn context(
                 format!(
                     "{}: AGENTSYNC_CONFIG_PATH is set but file not found: {}\n",
                     style.red("Error"),
-                    path.to_string_lossy()
+                    path.disk_text()
                 )
                 .as_bytes(),
             )?;
@@ -94,7 +95,7 @@ fn config_shown(project: &Project) -> String {
     project
         .config_path
         .as_ref()
-        .map(|p| p.to_string_lossy().into_owned())
+        .map(|p| p.disk_text())
         .unwrap_or_default()
 }
 
@@ -174,7 +175,7 @@ fn add(
             format!(
                 "{} in {}\n",
                 style.yellow(&format!("Profile '{name}' already exists")),
-                config.to_string_lossy()
+                config.disk_text()
             )
             .as_bytes(),
         )?;
@@ -374,10 +375,7 @@ fn adopt_home(
                 .filter_map(|e| e.ok())
                 .map(|e| e.path())
                 .filter(|p| {
-                    let name = p
-                        .file_name()
-                        .map(|n| n.to_string_lossy().into_owned())
-                        .unwrap_or_default();
+                    let name = p.file_name().map(|n| n.disk_text()).unwrap_or_default();
                     !name.starts_with('.') && name.ends_with(".md") && p.is_file()
                 })
                 .collect()
@@ -508,7 +506,7 @@ fn remove(
         put(out, format!("{}\n", style.dim("Cancelled.")).as_bytes())?;
         return Ok(0);
     }
-    let paths = Paths::on_disk(&project.root.to_string_lossy());
+    let paths = Paths::on_disk(&project.root.disk_text());
     for variant in &variants {
         let home = Tool::load(&project, variant)?.value("profile_home");
         if !home.is_empty() {
@@ -551,10 +549,7 @@ mod tests {
 
     fn project() -> (tempfile::TempDir, String) {
         let dir = tempfile::tempdir().unwrap();
-        let root = std::fs::canonicalize(dir.path())
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
+        let root = std::fs::canonicalize(dir.path()).unwrap().disk_text();
         std::fs::create_dir_all(format!("{root}/.ai")).unwrap();
         std::fs::write(
             format!("{root}/.ai/agent_sync.yaml"),

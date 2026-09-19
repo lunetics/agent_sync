@@ -3,6 +3,7 @@
 //! `targets.tsv`, a `files/` mirror, and `.complete`; the store keeps `.latest`
 //! and a `.gitignore` of `*`. A Bash `rollback` reads what this writes.
 
+use crate::paths::DiskText;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -224,7 +225,7 @@ fn validate_store(canonical_root: &str) -> Result<String, Error> {
     {
         return Err(refuse("Backup store resolves outside the repository root"));
     }
-    Ok(store.to_string_lossy().into_owned())
+    Ok(store.disk_text())
 }
 
 /// `mktemp "$store/<prefix>XXXXXX"` then `mv` onto `<store>/<name>`: a
@@ -288,7 +289,7 @@ fn sweep_stale_staging(store: &str, now: SystemTime, retention: Retention) {
         return;
     };
     for entry in entries.filter_map(|e| e.ok()) {
-        let name = entry.file_name().to_string_lossy().into_owned();
+        let name = entry.file_name().disk_text();
         if !(name.starts_with(".tmp.")
             || name.starts_with(".latest.tmp.")
             || name.starts_with(".gitignore.tmp."))
@@ -360,7 +361,11 @@ fn copy_preserving(src: &Path, dst: &Path) -> std::io::Result<()> {
         }
     }
     std::fs::copy(src, dst)?;
-    std::fs::File::open(dst)?.set_modified(meta.modified()?)
+    // Windows refuses `set_modified` on a read-only handle.
+    OpenOptions::new()
+        .write(true)
+        .open(dst)?
+        .set_modified(meta.modified()?)
 }
 
 /// `backup_create`: the snapshot's path.
@@ -615,7 +620,7 @@ fn complete_snapshots(store: &str) -> Vec<String> {
     };
     let mut found: Vec<String> = entries
         .filter_map(|e| e.ok())
-        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .map(|e| e.file_name().disk_text())
         .filter(|name| !name.starts_with('.'))
         .map(|name| format!("{store}/{name}"))
         .filter(|path| {
@@ -824,10 +829,7 @@ mod tests {
     impl Project {
         fn new() -> Self {
             let dir = tempfile::tempdir().unwrap();
-            let root = std::fs::canonicalize(dir.path())
-                .unwrap()
-                .to_string_lossy()
-                .into_owned();
+            let root = std::fs::canonicalize(dir.path()).unwrap().disk_text();
             Self { _dir: dir, root }
         }
 
@@ -1255,10 +1257,7 @@ mod tests {
     #[test]
     fn a_fifo_under_a_target_is_recreated_not_read() {
         let dir = tempfile::tempdir().unwrap();
-        let root = std::fs::canonicalize(dir.path())
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
+        let root = std::fs::canonicalize(dir.path()).unwrap().disk_text();
         std::fs::create_dir_all(format!("{root}/.claude/skills")).unwrap();
         let made = std::process::Command::new("mkfifo")
             .arg(format!("{root}/.claude/skills/pipe"))
@@ -1287,10 +1286,7 @@ mod tests {
     #[test]
     fn a_symlinked_completion_marker_is_not_a_complete_snapshot() {
         let dir = tempfile::tempdir().unwrap();
-        let root = std::fs::canonicalize(dir.path())
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
+        let root = std::fs::canonicalize(dir.path()).unwrap().disk_text();
         std::fs::write(format!("{root}/CLAUDE.md"), "x\n").unwrap();
         let snapshot = create(
             &root,

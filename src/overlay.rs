@@ -2,6 +2,7 @@
 //! per-profile overlays, and the `shared:` parent files `lib/check.sh` merges
 //! into its workspace. Overlay trees live under the virtual overlay root.
 
+use crate::paths::DiskText;
 use std::path::{Path, PathBuf};
 
 use crate::paths::{self, ENGINE_ROOT, OVERLAY_ROOT};
@@ -349,7 +350,7 @@ fn collect_regular_files(dir: &Path, rel: &str, out: &mut Vec<(String, PathBuf)>
         return;
     };
     for entry in entries.filter_map(|e| e.ok()) {
-        let name = entry.file_name().to_string_lossy().into_owned();
+        let name = entry.file_name().disk_text();
         let child_rel = if rel.is_empty() {
             name
         } else {
@@ -426,7 +427,7 @@ mod tests {
     #[test]
     fn a_shared_parent_fills_the_inherited_categories_and_explains_every_skip() {
         let dir = tempfile::tempdir().unwrap();
-        let root = dir.path().join("child").to_string_lossy().into_owned();
+        let root = dir.path().join("child").disk_text();
         std::fs::create_dir_all(dir.path().join("child/.ai/src/rules")).unwrap();
         std::fs::write(dir.path().join("child/.ai/src/AGENTS.md"), "child").unwrap();
         std::fs::create_dir_all(dir.path().join("parent/.ai/src/skills/p")).unwrap();
@@ -447,7 +448,7 @@ mod tests {
         assert_eq!(sources.skills, "/<agentsync-overlay>/shared/src/skills");
         assert_eq!(sources.agents, "/<agentsync-overlay>/shared/src/AGENTS.md");
         assert!(s.ws.is_file("/<agentsync-overlay>/shared/src/skills/p/SKILL.md"));
-        let parent = format!("{}/parent/.ai/src", dir.path().to_string_lossy());
+        let parent = format!("{}/parent/.ai/src", dir.path().disk_text());
         assert_eq!(
             s.log.tail(2),
             [
@@ -522,9 +523,9 @@ mod tests {
         std::fs::create_dir_all(root.join(".ai/src")).unwrap();
         std::fs::create_dir_all(dir.path().join(".ai/src/rules")).unwrap();
         std::fs::write(dir.path().join(".ai/src/rules/p.md"), "p").unwrap();
-        let root = root.to_string_lossy().into_owned();
+        let root = root.disk_text();
         let parent = shared_parent_src("shared:\n  path: \"../\"\n", &root).unwrap();
-        assert_eq!(parent, format!("{}/.ai/src", dir.path().to_string_lossy()));
+        assert_eq!(parent, format!("{}/.ai/src", dir.path().disk_text()));
         assert_eq!(shared_parent_src("shared:\n  path: \".\"\n", &root), None);
 
         let mut ws = Workspace::new(&root);

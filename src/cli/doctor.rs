@@ -2,6 +2,7 @@
 //! a project's layout, tools, overrides, sources, drift, secrets, skills,
 //! rules, tool outputs, and parent duplicates, and exits 0, 1, or 2.
 
+use crate::paths::DiskText;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -529,11 +530,11 @@ impl Doctor<'_> {
                             path.is_file()
                                 && path
                                     .file_name()
-                                    .is_some_and(|n| n.to_string_lossy().starts_with("kimi."))
+                                    .is_some_and(|n| n.disk_text().starts_with("kimi."))
                         });
                 }
                 if let Some(path) = hook {
-                    let shown = self.rel(&path.to_string_lossy());
+                    let shown = self.rel(&path.disk_text());
                     self.advise(&format!(
                         "Kimi hooks are global-only in $KIMI_CODE_HOME/config.toml; AgentSync leaves it untouched. Remove {shown} from project sources."
                     ))?;
@@ -624,7 +625,7 @@ impl Doctor<'_> {
     /// `_doctor_scan_one_file`; returns (secret hit, invalid JSON).
     fn scan_one_file(&mut self, file: &Path) -> Result<(bool, bool), Error> {
         let style = self.style;
-        let shown = self.rel(&file.to_string_lossy());
+        let shown = self.rel(&file.disk_text());
         let bytes = std::fs::read(file).map_err(|e| Error::io(file, e))?;
         if file.extension().is_some_and(|ext| ext == "json") && !json_valid(&bytes) {
             self.fail(&format!("{shown}: invalid JSON syntax"))?;
@@ -654,9 +655,8 @@ impl Doctor<'_> {
                 for resource in ["mcp", "settings", "hooks"] {
                     for file in sorted_entries(&tool_dir).into_iter().filter(|p| {
                         p.is_file()
-                            && p.file_name().is_some_and(|n| {
-                                n.to_string_lossy().starts_with(&format!("{resource}."))
-                            })
+                            && p.file_name()
+                                .is_some_and(|n| n.disk_text().starts_with(&format!("{resource}.")))
                     }) {
                         let (hit, bad) = self.scan_one_file(&file)?;
                         hits += usize::from(hit);
@@ -705,11 +705,7 @@ impl Doctor<'_> {
         let mut found = 0;
         for dir in sorted_entries(&skills).into_iter().filter(|p| p.is_dir()) {
             if !dir.join("SKILL.md").is_file() {
-                let name = dir
-                    .file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .into_owned();
+                let name = dir.file_name().unwrap_or_default().disk_text();
                 self.advise(&format!(
                     "skills/{name}/ — missing SKILL.md {}",
                     style.dim("(empty skill — populate or remove)")
@@ -849,11 +845,7 @@ impl Doctor<'_> {
                 .into_iter()
                 .filter(|p| p.is_file() && p.extension().is_some_and(|ext| ext == "md"))
             {
-                let name = file
-                    .file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .into_owned();
+                let name = file.file_name().unwrap_or_default().disk_text();
                 pairs.push((format!("{category}/{name}"), file));
             }
         }
@@ -863,13 +855,13 @@ impl Doctor<'_> {
             files_below(&skills, &mut files);
             files.retain(|p| {
                 !p.file_name()
-                    .is_some_and(|n| n.to_string_lossy().starts_with('.'))
+                    .is_some_and(|n| n.disk_text().starts_with('.'))
             });
             files.sort();
             for file in files {
                 let rel = file
                     .strip_prefix(&parent_src)
-                    .map(|p| p.to_string_lossy().into_owned())
+                    .map(|p| p.disk_text())
                     .unwrap_or_default();
                 pairs.push((rel, file));
             }
@@ -893,9 +885,9 @@ impl Doctor<'_> {
                     String::new()
                 };
                 let shown = parent_file
-                    .to_string_lossy()
+                    .disk_text()
                     .strip_prefix(&format!("{parent_root}/"))
-                    .unwrap_or(&parent_file.to_string_lossy())
+                    .unwrap_or(&parent_file.disk_text())
                     .to_string();
                 self.advise(&format!(
                     "{rel} — duplicate of parent's {}{hint}",
@@ -965,7 +957,7 @@ fn sorted_entries(dir: &Path) -> Vec<PathBuf> {
     };
     let mut names: Vec<String> = entries
         .filter_map(|entry| entry.ok())
-        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .map(|entry| entry.file_name().disk_text())
         .filter(|name| !name.starts_with('.'))
         .collect();
     names.sort();
@@ -1014,7 +1006,7 @@ pub fn doctor(
         }
         Err(e) => return Err(e),
     };
-    let root = project.root.to_string_lossy().into_owned();
+    let root = project.root.disk_text();
     let config = match &project.config_path {
         Some(path) => Some(
             std::fs::read(path)
@@ -1027,7 +1019,7 @@ pub fn doctor(
         .config_path
         .as_ref()
         .map(|p| {
-            let text = p.to_string_lossy();
+            let text = p.disk_text();
             text.strip_prefix(&format!("{root}/"))
                 .unwrap_or(&text)
                 .to_string()
@@ -1386,10 +1378,7 @@ mod tests {
     #[cfg(unix)]
     fn project(files: &[(&str, &str)], dirs: &[&str]) -> (tempfile::TempDir, String) {
         let dir = tempfile::tempdir().unwrap();
-        let root = std::fs::canonicalize(dir.path())
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
+        let root = std::fs::canonicalize(dir.path()).unwrap().disk_text();
         for rel in dirs {
             std::fs::create_dir_all(Path::new(&root).join(rel)).unwrap();
         }

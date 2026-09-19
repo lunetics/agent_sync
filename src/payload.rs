@@ -1,6 +1,7 @@
 //! Where a tool's settings, mcp, or hooks override lives, mirroring the lookups
 //! in `lib/helpers/tool_resolver.sh` that `list` reports on.
 
+use crate::paths::DiskText;
 use std::path::{Path, PathBuf};
 
 use include_dir::File;
@@ -90,12 +91,9 @@ pub enum Source {
 impl Source {
     pub fn shown(&self) -> String {
         match self {
-            Source::Disk(path) => path.to_string_lossy().into_owned(),
+            Source::Disk(path) => path.disk_text(),
             Source::Shipped(file) => {
-                format!(
-                    "{ENGINE_ROOT}/lib/templates/{}",
-                    file.path().to_string_lossy()
-                )
+                format!("{ENGINE_ROOT}/lib/templates/{}", file.path().disk_text())
             }
         }
     }
@@ -150,8 +148,8 @@ pub fn effective_source(
 
 /// `_warn_legacy_payload_path`.
 pub fn legacy_warning(project: &Project, path: &Path) -> String {
-    let text = path.to_string_lossy();
-    let root = format!("{}/", project.root.to_string_lossy());
+    let text = path.disk_text();
+    let root = format!("{}/", project.root.disk_text());
     let rel = text.strip_prefix(&root).unwrap_or(&text);
     format!(
         "⚠  Legacy payload override layout detected: {rel}\n   Move to .ai/src/tools/<tool>/<resource>.<ext> (canonical since 0.11).\n   Migrate with: agentsync migrate --legacy\n"
@@ -358,10 +356,7 @@ mod tests {
         let legacy = root.join(".ai/src/hooks/cursor.json");
         assert_eq!(
             shown(&project, &cursor, "hooks"),
-            (
-                Some(legacy.to_string_lossy().into_owned()),
-                Some(legacy.clone())
-            )
+            (Some(legacy.disk_text()), Some(legacy.clone()))
         );
         assert_eq!(
             legacy_warning(&project, &legacy),
@@ -371,11 +366,7 @@ mod tests {
         assert_eq!(
             shown(&project, &cursor, "hooks"),
             (
-                Some(
-                    root.join(".ai/src/tools/cursor/hooks.json")
-                        .to_string_lossy()
-                        .into_owned()
-                ),
+                Some(root.join(".ai/src/tools/cursor/hooks.json").disk_text()),
                 None
             )
         );
@@ -383,10 +374,7 @@ mod tests {
         write(&root, ".ai/src/mcp.json", "{}\n");
         assert_eq!(
             shown(&project, &claude, "mcp"),
-            (
-                Some(root.join(".ai/src/mcp.json").to_string_lossy().into_owned()),
-                None
-            )
+            (Some(root.join(".ai/src/mcp.json").disk_text()), None)
         );
         assert_eq!(
             base_source(&claude, "settings").unwrap().shown(),

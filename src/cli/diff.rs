@@ -1,6 +1,7 @@
 //! `agentsync diff`: `cmd_diff`, `_diff_payload`, and `_diff_one_tool` of
 //! `lib/helpers/customize.sh`. Payload hunks come from the system `diff -u`.
 
+use crate::paths::DiskText;
 use std::io::Write;
 use std::process::{Command, Stdio};
 
@@ -147,7 +148,7 @@ fn diff_one_tool(
     let mut text = format!(
         "\n{}\n{}\n{}\n\n",
         style.bold(&format!("  {slug}")),
-        style.dim(&format!("    user: {}", user_file.to_string_lossy())),
+        style.dim(&format!("    user: {}", user_file.disk_text())),
         style.dim(&base_line)
     );
     let values = |key: &str| {
@@ -256,7 +257,7 @@ fn diff_payload(
                     style.yellow(&format!(
                         "  Custom {resource} override (no base to diff against):"
                     )),
-                    style.dim(&format!("  override: {}", user.to_string_lossy()))
+                    style.dim(&format!("  override: {}", user.disk_text()))
                 )
                 .as_bytes(),
             )?;
@@ -269,7 +270,7 @@ fn diff_payload(
         format!(
             "\n{}\n{}\n{}\n\n",
             style.bold(&format!("  {display} — {resource} diff")),
-            style.dim(&format!("    override: {}", user_file.to_string_lossy())),
+            style.dim(&format!("    override: {}", user_file.disk_text())),
             style.dim(&format!("    base:     {}", base.shown()))
         )
         .as_bytes(),
@@ -345,10 +346,7 @@ mod tests {
     #[test]
     fn diff_reports_overrides_inherited_fields_and_identical_payloads() {
         let dir = tempfile::tempdir().unwrap();
-        let root = std::fs::canonicalize(dir.path())
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
+        let root = std::fs::canonicalize(dir.path()).unwrap().disk_text();
         std::fs::create_dir_all(format!("{root}/.ai/src/tools/cursor")).unwrap();
         assert_eq!(
             call(&root, &[]).1,

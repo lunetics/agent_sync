@@ -1,5 +1,6 @@
 //! The project being operated on: its root and `agent_sync.yaml`.
 
+use crate::paths::DiskText;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -42,7 +43,7 @@ impl Project {
         if !root.is_dir() {
             return Err(Error::ProjectRootNotFound(root));
         }
-        let shown = root.to_string_lossy().into_owned();
+        let shown = root.disk_text();
         let is_file = |path: &str| Path::new(path).is_file();
         let config_path = match project_config::select(&shown, explicit, &is_file) {
             Selection::Found(path) => Some(PathBuf::from(path)),
@@ -77,8 +78,8 @@ impl Project {
 
     /// `tool_resolver_user_dir_in_project`.
     pub fn tools_dir_in_project(&self) -> bool {
-        let paths = paths::Paths::on_disk(&self.root.to_string_lossy());
-        let abs = paths::normalize(&self.tools_dir.to_string_lossy());
+        let paths = paths::Paths::on_disk(&self.root.disk_text());
+        let abs = paths::normalize(&self.tools_dir.disk_text());
         paths
             .canonicalize_with_existing_ancestor(&abs)
             .is_some_and(|canonical| paths::is_within(&canonical, &paths.root_canonical))

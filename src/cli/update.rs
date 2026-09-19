@@ -5,6 +5,7 @@
 //! running one. The changelog is the archive's; conflicts with the project's
 //! overrides are queued for `resolve` as before.
 
+use crate::paths::DiskText;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -211,7 +212,7 @@ fn replace_binary(new: &Path, exe: &Path) -> Result<(), Error> {
     let dir = exe.parent().unwrap_or_else(|| Path::new("."));
     let name = exe
         .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
+        .map(|n| n.disk_text())
         .unwrap_or_else(|| binary_name().to_string());
     let staged = dir.join(format!(".{name}.new"));
     std::fs::copy(new, &staged).map_err(|e| Error::io(&staged, e))?;
@@ -300,7 +301,7 @@ fn migration_banner(project_dir: &Path, style: &Style) -> String {
         std::fs::read_dir(src.join(resource))
             .map(|entries| {
                 entries.filter_map(|entry| entry.ok()).any(|entry| {
-                    !entry.file_name().to_string_lossy().starts_with('.') && entry.path().is_file()
+                    !entry.file_name().disk_text().starts_with('.') && entry.path().is_file()
                 })
             })
             .unwrap_or(false)
@@ -509,7 +510,7 @@ fn fetch_release(
             style,
             &format!(
                 "the downloaded binary does not run: {}",
-                new_binary.to_string_lossy()
+                new_binary.disk_text()
             ),
         )?));
     };
@@ -522,7 +523,7 @@ fn fetch_release(
             style,
             &format!(
                 "the downloaded binary did not answer {CATALOG_COMMAND}: {}",
-                new_binary.to_string_lossy()
+                new_binary.disk_text()
             ),
         )?));
     };
@@ -843,7 +844,7 @@ mod tests {
             };
             let mut env = Env {
                 exe: self.exe(),
-                project_dir: self.project().to_string_lossy().into_owned(),
+                project_dir: self.project().disk_text(),
                 today: "2026-09-18".to_string(),
                 width: 80,
                 fetch: &mut fetch,

@@ -180,6 +180,7 @@ fn resolve_tool(
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
+    use crate::paths::DiskText;
 
     fn call(
         root: &str,
@@ -213,10 +214,7 @@ mod tests {
 
     fn project() -> (tempfile::TempDir, String) {
         let dir = tempfile::tempdir().unwrap();
-        let root = std::fs::canonicalize(dir.path())
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
+        let root = std::fs::canonicalize(dir.path()).unwrap().disk_text();
         std::fs::create_dir_all(format!("{root}/.ai/src/tools")).unwrap();
         (dir, root)
     }

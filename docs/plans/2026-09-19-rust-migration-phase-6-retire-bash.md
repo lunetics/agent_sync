@@ -347,3 +347,10 @@ The plan is closed when every box is ticked, the suite is green on Linux, macOS,
 - Plan amended: Task 3's table and counts recorded; Task 2 Step 2's design widened from "translate MSYS paths" to the drive-aware path model, which the first log demanded.
 - Next: the maintainer pushes; read the Windows shard logs (Task 2 Step 1 again) and iterate.
 - Blocker: none.
+
+### 2026-09-19 — Task 2 round 2
+- Commits: this commit, fix(windows): keep engine paths slash-separated and open files for writing before touching times.
+- Verified: the round 1 push (run 35436174538): Linux and macOS green; Windows shard 5 green and eleven red, `init` and `sync` now running. Three causes in the logs: `PathBuf::join` puts `\` into engine strings (`…\.ai/src/tools\claude\settings.json`), so the string `parent` created the wrong directory; `cygpath -w` answered the short name `RUNNER~1` for `/tmp`, so a path the binary printed never matched `$TEST_PROJECT`; `$SHELL` reaches the binary as `C:\Program Files\Git\usr\bin\zsh`; and the backup mirror's `File::open(dst)?.set_modified(…)` is refused on Windows (`Access is denied (os error 5)`, the cause of every `Could not back up sync targets`). Round 2: every `to_string_lossy` (153 sites) becomes `DiskText::disk_text`, which is `from_disk` (identity on Unix, `/`-separated and without `\\?\` on Windows); `from_msys` asks `cygpath -wl`; `shell-init` reads `$SHELL` with either separator; `copy_preserving` opens the copy for writing before `set_modified`; `tests/test_helper.bash` names the test project and the seed through `cygpath -ml` under Git Bash. On this host: 335/0/11/1, fmt and clippy exit 0, every bats file against the binary `TOTAL 0` over 41 files, plus the five backup-dependent files again against the rebuilt binary. Still open for the next log: config values that tests write as `/tmp/…` (`source.rules`, external roots created with `mktemp` outside the helper), and whether the console hang survives.
+- Plan amended: none.
+- Next: the maintainer pushes; read the shards.
+- Blocker: none.

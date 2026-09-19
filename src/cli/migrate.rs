@@ -1,6 +1,7 @@
 //! `agentsync migrate`: `cmd_migrate` of `lib/helpers/migrate.sh`, which prints
 //! an upgrade prompt or, with `--legacy`, retires pre-0.11 layouts.
 
+use crate::paths::DiskText;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -213,7 +214,7 @@ struct Run<'a, 'b> {
 
 impl Run<'_, '_> {
     fn rel(&self, path: &Path) -> String {
-        let text = path.to_string_lossy();
+        let text = path.disk_text();
         text.strip_prefix(&format!("{}/", self.root))
             .unwrap_or(&text)
             .to_string()
@@ -238,7 +239,7 @@ fn sorted_entries(dir: &Path) -> Vec<PathBuf> {
     };
     let mut names: Vec<String> = entries
         .filter_map(|entry| entry.ok())
-        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .map(|entry| entry.file_name().disk_text())
         .filter(|name| !name.starts_with('.'))
         .collect();
     names.sort();
@@ -253,10 +254,7 @@ fn scan_legacy(root: &Path) -> Vec<Legacy> {
             if !file.is_file() {
                 continue;
             }
-            let base = file
-                .file_name()
-                .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_default();
+            let base = file.file_name().map(|n| n.disk_text()).unwrap_or_default();
             let (tool, ext) = match base.rfind('.') {
                 Some(dot) => (base[..dot].to_string(), base[dot + 1..].to_string()),
                 None => (base.clone(), base.clone()),
@@ -336,7 +334,7 @@ fn scan_base_skills(root: &Path) -> Result<Vec<(String, bool)>, Error> {
         let edited = files.iter().any(|file| {
             let rel = file
                 .strip_prefix(&src)
-                .map(|p| p.to_string_lossy().into_owned())
+                .map(|p| p.disk_text())
                 .unwrap_or_default();
             let current = template_manifest::hash(file).unwrap_or_default();
             manifest
@@ -407,7 +405,7 @@ fn legacy(
     let root_path = project.root.clone();
     let mut run = Run {
         project: &project,
-        root: root_path.to_string_lossy().into_owned(),
+        root: root_path.disk_text(),
         style,
         env,
         out,
@@ -506,7 +504,7 @@ fn legacy(
             if item.exists() {
                 listing.push_str(&format!(
                     "      · {}\n",
-                    item.file_name().unwrap_or_default().to_string_lossy()
+                    item.file_name().unwrap_or_default().disk_text()
                 ));
             }
         }
@@ -731,7 +729,7 @@ fn retire_base_skills(run: &mut Run, apply: bool, skills: &[(String, bool)]) -> 
         files_below(&copy, &mut files);
         for file in files {
             if let Ok(rel) = file.strip_prefix(&src) {
-                manifest.remove(&rel.to_string_lossy());
+                manifest.remove(&rel.disk_text());
             }
         }
         std::fs::remove_dir_all(&copy).map_err(|e| Error::io(&copy, e))?;
@@ -754,10 +752,7 @@ mod tests {
 
     fn project(files: &[(&str, &str)]) -> (tempfile::TempDir, String) {
         let dir = tempfile::tempdir().unwrap();
-        let root = std::fs::canonicalize(dir.path())
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
+        let root = std::fs::canonicalize(dir.path()).unwrap().disk_text();
         for (rel, text) in files {
             let path = Path::new(&root).join(rel);
             std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -820,7 +815,7 @@ mod tests {
         files_below(Path::new(root), &mut files);
         let mut rels: Vec<String> = files
             .iter()
-            .map(|f| f.strip_prefix(root).unwrap().to_string_lossy().into_owned())
+            .map(|f| f.strip_prefix(root).unwrap().disk_text())
             .collect();
         rels.sort();
         rels

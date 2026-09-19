@@ -666,6 +666,7 @@ fn add_mcp(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::paths::DiskText;
 
     #[test]
     fn titles_split_on_hyphens_like_the_awk_program() {
@@ -868,7 +869,7 @@ mod tests {
     #[test]
     fn a_rule_is_scaffolded_once_like_cmd_add() {
         let dir = tempfile::tempdir().unwrap();
-        let root = dir.path().to_string_lossy().into_owned();
+        let root = dir.path().disk_text();
         let (status, out, err) = run(&root, &["rule", "testing"]);
         assert_eq!((status, err.as_str()), (0, ""));
         assert_eq!(
@@ -903,7 +904,7 @@ mod tests {
     #[test]
     fn a_server_is_added_once_like_cmd_add_mcp() {
         let dir = tempfile::tempdir().unwrap();
-        let root = dir.path().to_string_lossy().into_owned();
+        let root = dir.path().disk_text();
         let (status, out, err) = run(
             &root,
             &["mcp", "github", "--command", "npx @github/mcp-server"],

@@ -2,6 +2,7 @@
 //! that suit the project's outputs mode, appending one marked block per hook
 //! and leaving whatever the hook already ran.
 
+use crate::paths::DiskText;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -108,7 +109,7 @@ fn git(root: &str, args: &[&str]) -> Option<String> {
 fn physical(path: &str) -> String {
     let leaf = crate::paths::leaf(path);
     match std::fs::canonicalize(crate::paths::parent(path)) {
-        Ok(parent) => format!("{}/{leaf}", parent.to_string_lossy()),
+        Ok(parent) => format!("{}/{leaf}", parent.disk_text()),
         Err(_) => path.to_string(),
     }
 }
@@ -265,10 +266,7 @@ mod tests {
     /// developer's global `core.hooksPath` never reaches the test.
     fn repo(config: &str) -> (tempfile::TempDir, String) {
         let dir = tempfile::tempdir().unwrap();
-        let root = std::fs::canonicalize(dir.path())
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
+        let root = std::fs::canonicalize(dir.path()).unwrap().disk_text();
         assert!(
             Command::new("git")
                 .args(["-C", &root, "init", "-q"])
@@ -390,10 +388,7 @@ mod tests {
             format!("Error: Repository root not found: {missing}\n")
         );
         let plain = tempfile::tempdir().unwrap();
-        let plain_root = std::fs::canonicalize(plain.path())
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
+        let plain_root = std::fs::canonicalize(plain.path()).unwrap().disk_text();
         let (status, _, err) = run(&plain_root, &[]);
         assert_eq!(status, 1);
         assert_eq!(err, format!("Error: Not a git repository: {plain_root}\n"));

@@ -1,6 +1,7 @@
 //! `agentsync customize`: `cmd_customize` of `lib/helpers/customize.sh`, which
 //! scaffolds a tool override or copies a shipped payload into the override directory.
 
+use crate::paths::DiskText;
 use std::io::Write;
 use std::path::Path;
 
@@ -56,8 +57,8 @@ pub(crate) fn unknown_resource(
 }
 
 pub(crate) fn relative(project: &Project, path: &Path) -> String {
-    let text = path.to_string_lossy();
-    let root = format!("{}/", project.root.to_string_lossy());
+    let text = path.disk_text();
+    let root = format!("{}/", project.root.disk_text());
     text.strip_prefix(&root).unwrap_or(&text).to_string()
 }
 
@@ -146,7 +147,7 @@ fn customize_tool(
 ) -> Result<u8, Error> {
     let base = catalog::base_tool_yaml(slug);
     let user_file = project.user_tool_file(slug);
-    let shown = user_file.to_string_lossy().into_owned();
+    let shown = user_file.disk_text();
     if base.is_none() && full {
         put(
             err,
@@ -237,7 +238,7 @@ fn customize_payload(
         )?;
         return Ok(1);
     };
-    let shown = user_file.to_string_lossy().into_owned();
+    let shown = user_file.disk_text();
     if let Some(legacy) = payload::legacy_override_path(project, &tool, resource)
         && legacy.is_file()
         && !user_file.is_file()
@@ -331,10 +332,7 @@ mod tests {
 
     pub(crate) fn project() -> (tempfile::TempDir, String) {
         let dir = tempfile::tempdir().unwrap();
-        let root = std::fs::canonicalize(dir.path())
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
+        let root = std::fs::canonicalize(dir.path()).unwrap().disk_text();
         std::fs::create_dir_all(format!("{root}/.ai")).unwrap();
         std::fs::write(
             format!("{root}/.ai/agent_sync.yaml"),

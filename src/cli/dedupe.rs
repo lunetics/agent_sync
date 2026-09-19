@@ -1,6 +1,7 @@
 //! `agentsync dedupe`: `cmd_dedupe` of `lib/helpers/dedupe.sh`, which deletes
 //! source files a parent `.ai/src/` already holds byte for byte.
 
+use crate::paths::DiskText;
 use std::io::Write;
 use std::path::Path;
 use std::process::Command;
@@ -367,7 +368,7 @@ fn collect(child_src: &str, parent_src: &str) -> (Identical, Divergent) {
         };
         let mut names: Vec<String> = entries
             .filter_map(|entry| entry.ok())
-            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .map(|entry| entry.file_name().disk_text())
             .filter(|name| name.ends_with(".md") && !name.starts_with('.'))
             .collect();
         names.sort();
@@ -414,7 +415,7 @@ fn walk_files(dir: &str, found: &mut Vec<String>) {
         return;
     };
     for entry in entries.filter_map(|entry| entry.ok()) {
-        let name = entry.file_name().to_string_lossy().into_owned();
+        let name = entry.file_name().disk_text();
         let path = format!("{dir}/{name}");
         let Ok(meta) = std::fs::symlink_metadata(&path) else {
             continue;
@@ -645,10 +646,7 @@ mod tests {
 
     fn fixture(files: &[(&str, &str, &str)]) -> Fixture {
         let dir = tempfile::tempdir().unwrap();
-        let root = std::fs::canonicalize(dir.path())
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
+        let root = std::fs::canonicalize(dir.path()).unwrap().disk_text();
         let parent = format!("{root}/p");
         let child = format!("{parent}/child");
         std::fs::create_dir_all(format!("{parent}/.git")).unwrap();

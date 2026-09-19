@@ -23,8 +23,17 @@ GIT_CONFIG_GLOBAL="${TMPDIR:-/tmp}/agentsync-tests-absent-gitconfig"
 GIT_CONFIG_SYSTEM="$GIT_CONFIG_GLOBAL"
 export GIT_CONFIG_GLOBAL GIT_CONFIG_SYSTEM
 
+# Under Git Bash the binary spells paths as `C:/Users/...`, so the test
+# project is named the same way and assertions on its path match the output.
+host_path() {
+    case "$(uname -s 2>/dev/null)" in
+        MINGW*|MSYS*|CYGWIN*) cygpath -ml "$1" ;;
+        *) printf '%s\n' "$1" ;;
+    esac
+}
+
 setup_test_project() {
-    TEST_PROJECT="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_test.XXXXXX")"
+    TEST_PROJECT="$(host_path "$(mktemp -d "${TMPDIR:-/tmp}/agentsync_test.XXXXXX")")"
     cd "$TEST_PROJECT" || return 1
     git init --quiet
     git config user.email "test@test.com"
@@ -102,7 +111,7 @@ enable_tools() {
 
 # Usage (inside setup_file): seed_project [extra args forwarded to `init`]
 seed_project() {
-    TEST_SEED="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_seed.XXXXXX")"
+    TEST_SEED="$(host_path "$(mktemp -d "${TMPDIR:-/tmp}/agentsync_seed.XXXXXX")")"
     export TEST_SEED
     (
         cd "$TEST_SEED" || exit 1
@@ -122,7 +131,7 @@ teardown_seed_project() {
 # Usage (inside setup): create a per-test clone of the seed and cd into it.
 # Uses APFS clonefile via `cp -c -R` when available — near-O(1) on macOS.
 clone_seed() {
-    TEST_PROJECT="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_clone.XXXXXX")"
+    TEST_PROJECT="$(host_path "$(mktemp -d "${TMPDIR:-/tmp}/agentsync_clone.XXXXXX")")"
     # mktemp already created the directory; remove so cp can clone into the path.
     rmdir "$TEST_PROJECT"
     if ! cp -c -R "$TEST_SEED" "$TEST_PROJECT" 2>/dev/null; then

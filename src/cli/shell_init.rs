@@ -87,9 +87,10 @@ pub fn shell_init(
         return put(out, USAGE.as_bytes()).map(|()| 0);
     }
     if shell.is_empty() {
-        match shell_env.unwrap_or("") {
-            s if s.ends_with("/zsh") => shell = "zsh".to_string(),
-            s if s.ends_with("/bash") => shell = "bash".to_string(),
+        // Git Bash rewrites `$SHELL` with backslashes before it reaches the binary.
+        match shell_env.unwrap_or("").rsplit(['/', '\\']).next() {
+            Some("zsh") if shell_env.is_some_and(|s| s.len() > 3) => shell = "zsh".to_string(),
+            Some("bash") if shell_env.is_some_and(|s| s.len() > 4) => shell = "bash".to_string(),
             _ => {}
         }
     }

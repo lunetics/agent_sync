@@ -2,6 +2,7 @@
 //! `.ai/` inside a backup transaction, adopts the tool config a project already
 //! has, writes the CI gate, and runs the first sync.
 
+use crate::paths::DiskText;
 use std::collections::BTreeSet;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -717,7 +718,7 @@ fn existing_dest_files(
                 let mut files = Vec::new();
                 files_below(path, &mut files);
                 for file in files {
-                    let file = file.to_string_lossy().into_owned();
+                    let file = file.disk_text();
                     found.insert(file.strip_prefix(&prefix).unwrap_or(&file).to_string());
                 }
             }
@@ -809,7 +810,7 @@ fn plan(
             let names: Vec<String> = tools
                 .iter()
                 .flat_map(|slug| catalog::base_payloads(resource, slug))
-                .filter_map(|file| Some(file.path().file_name()?.to_string_lossy().into_owned()))
+                .filter_map(|file| Some(file.path().file_name()?.disk_text()))
                 .collect();
             if !names.is_empty() {
                 any_payload = true;
@@ -915,7 +916,7 @@ fn scaffold(run: &mut Run, interrupt: &mut Interrupt, s: Scaffold) -> Result<(),
                 let name = file
                     .path()
                     .file_name()
-                    .map(|n| n.to_string_lossy().into_owned())
+                    .map(|n| n.disk_text())
                     .unwrap_or_default();
                 let ext = name.rsplit_once('.').map(|(_, ext)| ext).unwrap_or(&name);
                 let rel = format!("tools/{slug}/{resource}.{ext}");
@@ -1114,8 +1115,8 @@ fn count_md(dir: &Path) -> usize {
             entries
                 .filter_map(|e| e.ok())
                 .filter(|e| {
-                    e.file_name().to_string_lossy().ends_with(".md")
-                        && !e.file_name().to_string_lossy().starts_with('.')
+                    e.file_name().disk_text().ends_with(".md")
+                        && !e.file_name().disk_text().starts_with('.')
                         && e.path().is_file()
                 })
                 .count()
@@ -1129,7 +1130,7 @@ fn count_dirs(dir: &Path) -> usize {
         .map(|entries| {
             entries
                 .filter_map(|e| e.ok())
-                .filter(|e| !e.file_name().to_string_lossy().starts_with('.') && e.path().is_dir())
+                .filter(|e| !e.file_name().disk_text().starts_with('.') && e.path().is_dir())
                 .count()
         })
         .unwrap_or(0)
@@ -1338,10 +1339,7 @@ mod tests {
 
     fn project(files: &[(&str, &str)]) -> (tempfile::TempDir, String) {
         let dir = tempfile::tempdir().unwrap();
-        let root = std::fs::canonicalize(dir.path())
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
+        let root = std::fs::canonicalize(dir.path()).unwrap().disk_text();
         for (rel, text) in files {
             let path = Path::new(&root).join(rel);
             std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -1430,7 +1428,7 @@ mod tests {
         files_below(Path::new(root), &mut files);
         let mut rels: Vec<String> = files
             .iter()
-            .map(|f| f.strip_prefix(root).unwrap().to_string_lossy().into_owned())
+            .map(|f| f.strip_prefix(root).unwrap().disk_text())
             .filter(|rel| !rel.starts_with(".ai/backups/"))
             .collect();
         rels.sort();
@@ -1459,7 +1457,7 @@ mod tests {
         let snapshot = backups(root).pop().expect("one snapshot");
         format!(
             "Backup: .ai/backups/{}\n\n",
-            snapshot.file_name().unwrap().to_string_lossy()
+            snapshot.file_name().unwrap().disk_text()
         )
     }
 
@@ -1961,7 +1959,7 @@ mod tests {
             run.err,
             format!(
                 "{root}/.ai/agent_sync.yaml: Is a directory (os error 21)\nWarning: Init failed; restoring pre-init state...\nRestored pre-init state from .ai/backups/{}\n",
-                snapshot.file_name().unwrap().to_string_lossy()
+                snapshot.file_name().unwrap().disk_text()
             )
         );
         assert_eq!(tree(&root), [".ai/agent_sync.yaml/sentinel"]);

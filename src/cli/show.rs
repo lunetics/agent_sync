@@ -1,5 +1,6 @@
 //! `agentsync show`: `cmd_show` and `_show_payload` of `lib/helpers/customize.sh`.
 
+use crate::paths::DiskText;
 use std::io::Write;
 
 use super::customize::{VALID_RESOURCES, put, unknown_resource};
@@ -174,7 +175,7 @@ pub fn show(
     if user_text.is_some() {
         text.push_str(&format!(
             "{}\n",
-            style.dim(&format!("  override: {}", user_file.to_string_lossy()))
+            style.dim(&format!("  override: {}", user_file.disk_text()))
         ));
     }
     if base.is_some() {
@@ -282,13 +283,13 @@ fn show_payload(
     if let Some(user) = &user_file {
         text.push_str(&format!(
             "{}\n",
-            style.dim(&format!("  override:  {}", user.to_string_lossy()))
+            style.dim(&format!("  override:  {}", user.disk_text()))
         ));
     }
     if let (Some(legacy), None) = (&legacy, &user_file) {
         text.push_str(&format!(
             "{}\n",
-            style.dim(&format!("  legacy:    {}", legacy.to_string_lossy()))
+            style.dim(&format!("  legacy:    {}", legacy.disk_text()))
         ));
     }
     if let Some(base) = &base {
@@ -321,10 +322,7 @@ mod tests {
 
     fn project() -> (tempfile::TempDir, String) {
         let dir = tempfile::tempdir().unwrap();
-        let root = std::fs::canonicalize(dir.path())
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
+        let root = std::fs::canonicalize(dir.path()).unwrap().disk_text();
         std::fs::create_dir_all(format!("{root}/.ai/src/tools")).unwrap();
         std::fs::write(
             format!("{root}/.ai/agent_sync.yaml"),

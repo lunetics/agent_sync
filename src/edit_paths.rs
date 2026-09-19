@@ -1,6 +1,7 @@
 //! `lib/helpers/edit_paths.sh`: where a tool's payload overrides are edited.
 //! `enable` prints the block; `doctor` gets its checklist when it is ported.
 
+use crate::paths::DiskText;
 use std::path::Path;
 
 use crate::payload;
@@ -16,8 +17,8 @@ enum Row {
 }
 
 fn shown(project: &Project, path: &Path) -> String {
-    let text = path.to_string_lossy();
-    let root = format!("{}/", project.root.to_string_lossy());
+    let text = path.disk_text();
+    let root = format!("{}/", project.root.disk_text());
     text.strip_prefix(&root).unwrap_or(&text).to_string()
 }
 

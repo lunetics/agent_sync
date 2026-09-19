@@ -7,6 +7,7 @@
 //! and bytes written by the render. A workspace on disk reads and writes the
 //! project itself, as `sync.sh` does, and keeps only the virtual roots in memory.
 
+use crate::paths::DiskText;
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -97,7 +98,7 @@ impl Workspace {
         let entries = std::fs::read_dir(disk).map_err(|e| Error::io(disk, e))?;
         for entry in entries {
             let entry = entry.map_err(|e| Error::io(disk, e))?;
-            let name = entry.file_name().to_string_lossy().into_owned();
+            let name = entry.file_name().disk_text();
             let child_rel = if rel.is_empty() {
                 name.clone()
             } else {
@@ -198,7 +199,7 @@ impl Workspace {
             };
             let mut names: Vec<String> = entries
                 .filter_map(|e| e.ok())
-                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .map(|e| e.file_name().disk_text())
                 .collect();
             names.sort();
             return names;
@@ -440,7 +441,7 @@ mod tests {
     fn a_workspace_on_disk_writes_the_project_and_keeps_the_engine_in_memory() {
         use std::os::unix::fs::PermissionsExt;
         let dir = tempfile::tempdir().unwrap();
-        let root = dir.path().to_string_lossy().into_owned();
+        let root = dir.path().disk_text();
         std::fs::create_dir_all(dir.path().join(".ai/src/skills/a/scripts")).unwrap();
         let script = dir.path().join(".ai/src/skills/a/scripts/run.sh");
         std::fs::write(&script, "#!/bin/sh\n").unwrap();

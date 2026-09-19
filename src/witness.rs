@@ -3,6 +3,7 @@
 //! bound to its `targets.tsv`; rollback compares the live targets with it.
 //! Symlinks are leaves compared by link text.
 
+use crate::paths::DiskText;
 use std::path::Path;
 
 use crate::manifest::sha256_hex;
@@ -73,7 +74,7 @@ fn walk(abs: &str, rel: &str, records: &mut Vec<Record>) {
             .map(|entries| {
                 entries
                     .filter_map(|e| e.ok())
-                    .map(|e| e.file_name().to_string_lossy().into_owned())
+                    .map(|e| e.file_name().disk_text())
                     .collect()
             })
             .unwrap_or_default();
@@ -138,7 +139,7 @@ fn print(root: &str, targets: &str, mode: Mode) -> Result<String, String> {
                 Err(_) => "?".to_string(),
             },
             "link" => match std::fs::read_link(&record.abs) {
-                Ok(target) => escape(&target.to_string_lossy()),
+                Ok(target) => escape(&target.disk_text()),
                 Err(_) if mode == Mode::Seal => {
                     return Err(format!("could not read link {}", record.abs));
                 }
@@ -291,10 +292,7 @@ mod tests {
 
     fn project() -> (tempfile::TempDir, String) {
         let dir = tempfile::tempdir().unwrap();
-        let root = std::fs::canonicalize(dir.path())
-            .unwrap()
-            .to_string_lossy()
-            .into_owned();
+        let root = std::fs::canonicalize(dir.path()).unwrap().disk_text();
         (dir, root)
     }
 
@@ -434,7 +432,7 @@ mod tests {
         let leftovers = std::fs::read_dir(&store)
             .unwrap()
             .filter_map(|e| e.ok())
-            .filter(|e| e.file_name().to_string_lossy().starts_with(".tmp.seal."))
+            .filter(|e| e.file_name().disk_text().starts_with(".tmp.seal."))
             .count();
         assert_eq!(leftovers, 0);
 

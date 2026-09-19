@@ -244,6 +244,16 @@ teardown() {
     [ "$("$TEST_PROJECT/bin/agentsync" version)" = "agentsync v$FIXTURE_NEW" ]
 }
 
+@test "update: a source install already at a binary release still switches to it" {
+    env AGENTSYNC_VERSION="$FIXTURE_NEW" bash "$REPO_ROOT/install.sh" >/dev/null
+    publish_release "$FIXTURE_NEW"
+    run env AGENTSYNC_HOME="$TEST_PROJECT/engine" bash "$TEST_PROJECT/engine/bin/agentsync.sh" update "$FIXTURE_NEW"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Already up to date!"* ]]
+    [[ "$output" == *"Switched to the agentsync binary"* ]]
+    [ "$("$TEST_PROJECT/bin/agentsync" version)" = "agentsync v$FIXTURE_NEW" ]
+}
+
 @test "update <version>: a bad checksum keeps the source install on Bash" {
     env AGENTSYNC_VERSION="$FIXTURE_OLD" bash "$REPO_ROOT/install.sh" >/dev/null
     publish_release "$FIXTURE_NEW"

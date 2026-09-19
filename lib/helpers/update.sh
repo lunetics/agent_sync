@@ -238,6 +238,9 @@ cmd_update() {
 
     if [[ "$local_head" == "$remote_head" ]]; then
         echo "  $(_green "Already up to date!") (v${VERSION})"
+        # A checkout already at a release that ships a binary still has to
+        # move to it, or an install updated by the previous release never does.
+        _update_switch_to_binary "$install_dir" "$VERSION"
         echo ""
         return 0
     fi

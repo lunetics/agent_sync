@@ -215,6 +215,22 @@ Skipped or deferred:
 - Two assertions inherited from bats are weak and were ported as they stood: `drift`'s manifest check passes on a missing manifest, and `source_overrides`' `git diff` check cannot see untracked paths. Noted rather than strengthened, so the port stays a translation.
 - `Please run: lib/sync.sh` in the `check` report still names the retired Bash entry point. It is the one user-visible string left from the old engine; changing it is an accepted deviation for a later release, not a port.
 
+### What the new matrix found (2026-09-19, after the receipt)
+
+Until this phase, `cargo test` ran on Linux and macOS only, and clippy never ran on Windows at all: the Windows gate was bats. Turning the matrix into one `cargo test` per platform surfaced seven findings in six runs, one of them an engine bug. CI is green on all four jobs at `77168f2` (run 35459770928).
+
+| finding | where | why it hid |
+|---|---|---|
+| `find_parent_ai_src` spun forever when no `.git` exists anywhere: its walk-up stopped at `"/"`, and on Windows the root is `C:/`, whose parent is itself | `src/paths.rs` | every bats fixture ran `git init`, so the walk always hit a repository boundary first |
+| a unit test built its expected message with `Path::display`, whose separator is wrong on Windows | `src/project.rs` | unit tests had never run on Windows |
+| helpers and imports serving only `#[cfg(unix)]` cases are dead code | nine sites in `tests/` and two in `src/` | `clippy --all-targets` had never run on Windows |
+| `dedupe`'s fixture ran `init` with an inherited stdin, which the runner's console reads as a terminal | `tests/dedupe.rs` | bats never inherited a console |
+| `set_modified` needs a handle open for writing, and a directory cannot be opened for writing at all | `tests/backup_retention.rs` | the engine hit the same trap in Phase 6; the fixture had not |
+| a trust root must arrive canonicalised: the runner's `TEMP` is the 8.3 name `RUNNER~1`, and a path list splits on `;` | `tests/source_overrides.rs` | `host_path` (`cygpath -ml`) did both for bats |
+| writing a payload to a hook that exits without reading it fails with `EPIPE` | `tests/guard.rs` | a race macOS won and Ubuntu lost; unrelated to Windows |
+
+`cargo clippy --all-targets --target x86_64-pc-windows-msvc` catches the dead-code class on the development host, which is how the nine sites were found in one pass rather than one CI run each. CI runs `cargo test --no-fail-fast` so a run reports every failing crate.
+
 ## Run log
 
 

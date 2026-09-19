@@ -1,7 +1,7 @@
 //! `lib/helpers/prompts.sh`: questions go to stderr and answers come from the
 //! terminal device, so captured output never swallows a prompt.
 
-use std::io::{BufRead, BufReader, IsTerminal, Read, Write};
+use std::io::{IsTerminal, Read, Write};
 use std::process::{Command, Stdio};
 
 use crate::style::Style;
@@ -46,11 +46,28 @@ fn answer_is_yes(reply: &str, default_yes: bool) -> bool {
     }
 }
 
+/// One line from the terminal device, read a byte at a time as `read -r`
+/// reads it. Linux hands every byte queued while the terminal was raw back as
+/// one canonical chunk, so a buffered reader would swallow the next answer
+/// with this one and drop it with the buffer.
 fn read_terminal_line() -> Option<String> {
-    let tty = std::fs::File::open(TERMINAL).ok()?;
-    let mut line = String::new();
-    BufReader::new(tty).read_line(&mut line).ok()?;
-    Some(line)
+    let mut tty = std::fs::File::open(TERMINAL).ok()?;
+    let mut bytes = Vec::new();
+    let mut byte = [0u8; 1];
+    loop {
+        match tty.read(&mut byte) {
+            Ok(1) => {
+                bytes.push(byte[0]);
+                if byte[0] == b'\n' {
+                    break;
+                }
+            }
+            Ok(_) => break,
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(_) => return None,
+        }
+    }
+    Some(String::from_utf8_lossy(&bytes).into_owned())
 }
 
 /// A key `prompt_multiselect` reacts to, as `read -rsn1` delivers it.

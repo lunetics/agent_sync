@@ -10,7 +10,8 @@ setup() {
     source "$REPO_ROOT/lib/helpers/manifest.sh"
     source "$REPO_ROOT/lib/helpers/backup.sh"
     source "$REPO_ROOT/lib/helpers/backup_state.sh"
-    PROOF_DIR="$(host_path "$(mktemp -d "${TMPDIR:-/tmp}/agentsync_rollback_proof.XXXXXX")")"
+    # Read by tar and cmp, never by the binary, so it keeps its POSIX spelling.
+    PROOF_DIR="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_rollback_proof.XXXXXX")"
     run_agentsync init --tools claude,codex --yes --no-sync >/dev/null
     checkpoint initialized
     cat > .ai/agent_sync.yaml <<'YAML'

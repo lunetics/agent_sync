@@ -485,7 +485,7 @@ fn synced_project() -> Project;                              // init, enable cla
 fn check(project: &Project) -> assert_cmd::assert::Assert;   // `agentsync check`, unasserted
 ```
 
-- [ ] **Step 1: Port `check.bats`**
+- [x] **Step 1: Port `check.bats`**
 
 Create `tests/check.rs`:
 
@@ -666,7 +666,7 @@ fn check_agrees_with_sync_when_shared_inherit_names_a_category_sync_skips() {
 
 Then `git rm tests/check.bats`.
 
-- [ ] **Step 2: Verify**
+- [x] **Step 2: Verify**
 
 ```bash
 cargo fmt --all --check; cargo clippy --all-targets -- -D warnings 2>&1 | tail -1; cargo test 2>&1 | grep 'test result'
@@ -677,7 +677,7 @@ for f in tests/*.bats; do n=$(bats --tap "$f" 2>&1 | grep -c '^not ok'); [[ "$n"
 
 Expected: fmt exit 0, `Finished`; `335`, `10` (check), `14` (cli), `1` (interrupt), `7` (list), `0` (doc); `Finished`; `38`; only `suite-done`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add tests/check.rs tests/check.bats docs/plans/2026-09-19-rust-migration-phase-7a-harness-cli-list-check.md

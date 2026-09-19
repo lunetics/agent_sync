@@ -339,6 +339,41 @@ Added: 8 tests (`cargo test` 326 → 334; the Windows path test of Task 2 makes 
 
 The plan is closed when every box is ticked, the suite is green on Linux, macOS, and all twelve Windows shards against the binary, `cargo test` carries every Bash-unit case the table maps, `bin/agentsync.sh` and `lib/helpers/` no longer exist, ShellCheck covers the two remaining scripts, and a `## Completion receipt` records the fresh verification. The Windows task's expected values are written when it closes, since only CI can produce them. Phase 7 (retire bats) follows.
 
+## Completion receipt
+
+Written 2026-09-19 on `feat/native-engine-phase-6` at the commits listed in the run log.
+
+Global Constraints:
+
+- `.ai/src/` the source of truth; `lib/templates/`, `lib/config.yaml`, `lib/prompts/` stay and are embedded — `ls lib/` is `config.yaml prompts templates`; `src/lib.rs` (`include_dir!`); `lib/templates/guard/claude.sh` unchanged.
+- CLI-level bats files unchanged in their assertions — `tests/*.bats` (41 files, 727 cases); the only assertion edits are the two the plan records as accepted deviations (`release.bats`, the `Cargo.toml` refusal; `source_overrides.bats`, the `: / ->` prefix), and the fixtures of Tasks 1, 2 and 4.
+- Every retired Bash-unit case mapped — the table "Bash-unit cases" (142 rows); `cargo test` 326 → 335.
+- Deletion after Tasks 1–3 — `368470f` follows `af8c495`, `0063671`, and the five `fix(windows)` commits; the deviation (deletion before the round 5 confirmation) is in the run log.
+- Windows required — `.github/workflows/ci.yaml` `test-windows`, twelve shards building the binary; run 35442289237 green.
+- Rust constraints — `Cargo.toml` `unsafe_code = "forbid"`, no dependency added (`Cargo.toml` and `Cargo.lock` unchanged since `1dac2c1`); `src/main.rs` alone reads the environment; `paths::from_msys` spawns `cygpath` only with `MSYSTEM` set.
+- ShellCheck scope — `ci.yaml` `lint`: `shellcheck -x -S warning -e SC1091 install.sh lib/templates/guard/claude.sh`.
+- Commits — Conventional, no trailers (`git log --format=%B 1dac2c1..HEAD | grep -ci 'co-authored\|generated'` is 0).
+- bats one file at a time locally — `suite_once` over 41 files; CI `--jobs 4` on Linux and macOS.
+
+Fresh verification (2026-09-19, tree at `4cf83f6`, code identical to `368470f`):
+
+- `cargo fmt --all --check`: exit 0.
+- `cargo clippy --all-targets -- -D warnings`: `Finished`, no warnings.
+- `cargo test`: 335 passed (unit), 9 passed (`tests/cli.rs`), 1 passed (`tests/interrupt.rs`), 0 failed.
+- `cargo build --release`: `Finished`.
+- `shellcheck -x -S warning -e SC1091 install.sh lib/templates/guard/claude.sh`: exit 0.
+- `bats --tap` per file against `target/release/agentsync`: `TOTAL 0` failures over 41 files, 727 cases. `AGENTSYNC_NATIVE=0` no longer exists: there is one engine.
+- CI run 35442289237 on `4cf83f6`: ShellCheck, Native engine (ubuntu, macos), and the twelve Windows shards all `success`; the shards ran 2–4 minutes each against the 90-minute limit the Bash run hit.
+- Timings, `scripts/perf/bench.sh --runs 1` on the 389-file 13-tool fixture (the binary, this host): list 0.00 s, check 0.23 s, sync 2.20 s, `sync --if-stale` 0.01 s. The Bash column needs a 0.37.0 checkout (`AGENTSYNC_BASH_CLI`) and was not measured; the 2026-09-13 baseline is in `docs/perf/`.
+
+Skipped or deferred:
+
+- Windows, open: `source.tools` set to an absolute directory outside the project is not applied on Windows (base catalog used, trusted root honoured, no message); the `source_overrides` case skips there with the reason. Needs a Windows host to diagnose.
+- Windows, skipped by design (16 `skip` sites): stand-ins that are shell scripts on `PATH` (`curl`, `pbcopy`, the hooks shim), a FIFO, a POSIX-shell `post_sync`, the rollback race, `install.bats` (source install), `update_native.bats`.
+- `AGENTSYNC_NATIVE_BIN` keeps its name as the suite's binary override; renaming it is Phase 7's call when `test_helper.bash` goes.
+- The spec's "remove the Windows shard matrix" stays a recorded deviation: the matrix now exists for `bats --jobs`, not for Bash.
+- Phase 7 (retire bats) follows on its own branch; `native-next` carries its rule set.
+
 ## Run log
 
 ### 2026-09-19 — Phase 6 planned
@@ -396,3 +431,10 @@ The plan is closed when every box is ticked, the suite is green on Linux, macOS,
 - Plan amended: Task 4's file list (doc comments and the three fixture files, `install.sh` untouched) and its leftover grep (module docs, `install.bats`, `bench.sh`, `AGENTSYNC_NATIVE_BIN` excluded, with the reason); `bench.sh` is not "one note" but times the binary and takes `AGENTSYNC_BASH_CLI` for a 0.37.0 checkout; Task 5's grep names its three intended lines. Deviation from the task order: Task 4 landed before the round 5 push (0135178) had its twelve shards confirmed, since Windows has run the binary since Task 1, the reference is readable at tag 0.37.0, and a further Windows fix does not need the Bash files.
 - Next: the maintainer pushes; when the twelve shards are green, Task 2 Steps 3–5 close (Step 3 needs no code: the runner-console hang did not survive round 1's path fix) with the closing note, then the completion receipt and `docs(native): close phase 6`. Then the maintainer merges.
 - Blocker: the push. `git push origin feat/native-engine-phase-6` failed on the maintainer's side with `Couldn't connect to server`; a fetch from this session succeeded afterwards, so the retry should go through.
+
+### 2026-09-19 — phase closed
+- Commits: this commit, docs(native): close phase 6; the one before it, docs(native): record the Windows fixes of phase 6.
+- Verified: run 35442289237 on `4cf83f6` green on all fifteen jobs (Task 2 closed after five rounds, Step 3 without code); on this host `cargo fmt --all --check` exit 0, clippy clean, `cargo test` 335/0/9/1, shellcheck on the two scripts exit 0, the per-file suite `TOTAL 0` over 41 files and 727 cases; the receipt above.
+- Plan amended: Task 2 Step 4's "green twice in a row" is read as the round 5 run plus the run of these closing commits, which the maintainer reads after the push.
+- Next: the maintainer pushes and reads the run of this commit; then merges `feat/native-engine-phase-6` into `main` (`git switch main && git merge --ff-only feat/native-engine-phase-6 && git push origin main`) and, when a release is due, runs `agentsync release minor`. Then `/native-next` plans Phase 7 (retire bats) on `feat/native-engine-phase-7`.
+- Blocker: none.

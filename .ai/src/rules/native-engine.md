@@ -7,7 +7,7 @@ paths:
 
 # Engine Rules
 
-The Rust crate at the repo root is the whole engine: one binary, `agentsync`, built from `src/` with the templates embedded. The Bash engine it replaced last shipped in 0.37.0 (`docs/specs/2026-09-12-rust-migration-design.md`); the bats suite carries its behaviour as the contract until Phase 7 moves that coverage into Rust tests.
+The Rust crate at the repo root is the whole engine: one binary, `agentsync`, built from `src/` with the templates embedded. The Bash engine it replaced last shipped in 0.37.0 (`docs/specs/2026-09-12-rust-migration-design.md`); `cargo test` now carries its behaviour as the contract.
 
 ## Toolchain
 
@@ -28,5 +28,5 @@ The Rust crate at the repo root is the whole engine: one binary, `agentsync`, bu
 ## Verification
 
 - `cargo test` is hermetic: `tempfile`, no network, no dependency on the developer's `~/.agentsync`. A unit test asserts an observed value, never one derived from reading the code.
-- The bats suite runs against `target/release/agentsync` (`cargo build --release` first). A change to a command's output or exit status updates its bats file in the same commit.
+- A pure function's behaviour is a unit test beside it in `src/`; a command's observable contract — exit status, stream, files on disk — is an integration test in `tests/<surface>.rs`. A change to a command's output or exit status updates that file in the same commit.
 - Output is stable across platforms when stdout is not a terminal; on a terminal the escape codes come from `style`.

@@ -22,7 +22,6 @@
          "Bash(git log *)",
          "Bash(git blame *)",
          "Bash(shellcheck *)",
-         "Bash(bats *)",
          "Bash(bash -x *)",
          "Bash(ls *)",
          "Bash(cat VERSION)",

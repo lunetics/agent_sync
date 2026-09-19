@@ -1,10 +1,10 @@
 # Core Rules
 
-The binary runs on macOS, Linux, and Windows; the suite runs on Git Bash there. Failures surface, and changes stay inside the requested scope.
+The binary runs on macOS, Linux, and Windows, and `cargo test` gates all three. Failures surface, and changes stay inside the requested scope.
 
 ## Shell Script Quality
 
-Applies to the shell that remains: `install.sh`, `lib/templates/guard/claude.sh`, and `tests/test_helper.bash`.
+Applies to the shell that remains: `install.sh` and `lib/templates/guard/claude.sh`.
 
 - Keep `set -euo pipefail` enabled in executable entry points. Sourced helpers inherit the caller's shell options.
 - Quote expansions unless intentional splitting or glob expansion is part of the contract.
@@ -35,7 +35,7 @@ POSIX-compatible flags only — `sed`, `grep`, `readlink`, `find` ship in differ
 + while IFS= read -r line; do ...; done < "$file"
 ```
 
-In Rust, engine paths are `/`-separated strings (`src/paths.rs`): translate disk paths through `from_disk`/`DiskText`, never format a `PathBuf` into engine output. Run ShellCheck and the relevant bats tests locally; CI confirms Linux, macOS, and Git Bash.
+In Rust, engine paths are `/`-separated strings (`src/paths.rs`): translate disk paths through `from_disk`/`DiskText`, never format a `PathBuf` into engine output. Run `cargo test` locally, and ShellCheck on a changed script; CI confirms Linux, macOS, and Windows.
 
 ## Scope of Changes
 

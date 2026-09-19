@@ -18,7 +18,7 @@ Prepare a release for AgentSync with version bump type: $ARGUMENTS (default: pat
 Run these first. Stop on the first failure and report — don't quietly skip or auto-fix.
 
 1. **Working tree clean** — the `git status` block above must be empty. Commit or stash first.
-2. **Tests pass** — run `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, then `cargo build --release` and `bats tests/`. Any failure halts the release.
+2. **Tests pass** — run `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, then `cargo build --release`. Any failure halts the release.
 3. **ShellCheck clean** — run `shellcheck -x -S warning -e SC1091 install.sh lib/templates/guard/claude.sh`.
 4. **CHANGELOG covers user-facing commits since last tag** — walk the `git log` block above. Every commit that changes CLI behaviour, output, supported tools, or a user-hittable bug needs a line in the new CHANGELOG section. Internal refactor / test / CI / dev-tooling commits stay out.
 5. **Docs reflect current behaviour** — spot-check for stale docs:

@@ -31,11 +31,11 @@ Add a new AI coding tool to AgentSync so `agentsync sync` distributes instructio
 6. **Add optional payload bases** — Put shipped settings, MCP, or hooks under the matching `lib/templates/<resource>/` directory only when the tool supports that surface.
 7. **Update documentation** — Keep README support tables, the bundled AgentSync skill, `.ai/src/tools/_TEMPLATE.yaml`, and CHANGELOG aligned with the new target.
 8. **Write tests** — Add assertions in:
-   - `tests/sync.bats` — verify output files exist
-   - `tests/sync_options.bats` — verify `--only`/`--skip` filtering
-   - `tests/check.bats` — verify `agentsync check` detects drift
+   - `tests/sync.rs` — verify output files exist
+   - `tests/sync_options.rs` — verify `--only`/`--skip` filtering
+   - `tests/check.rs` — verify `agentsync check` detects drift
    - focused converter/composition tests when the tool changes formats
-9. **Verify locally** — Run `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, `cargo build --release`, targeted bats tests, a repeated sync idempotency check, and `agentsync check`. CI confirms all supported platforms.
+9. **Verify locally** — Run `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` (or `cargo test --test sync` while iterating), `cargo build --release`, a repeated sync idempotency check, and `agentsync check`. CI confirms all supported platforms.
 
 ## Gotchas
 

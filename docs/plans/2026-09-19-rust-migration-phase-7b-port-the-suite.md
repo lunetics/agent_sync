@@ -32,7 +32,7 @@
 
 ## Module closure
 
-- [ ] **Step 1: Record the baseline**
+- [x] **Step 1: Record the baseline**
 
 ```bash
 git log --oneline -1
@@ -92,18 +92,18 @@ pub fn unreadable_dirs_are_possible() -> bool;
 
 Each task repeats the same three steps, per file in its batch:
 
-- [ ] **Task 1: enable, customize, generate, config_safety, base_skills, rollback**
-- [ ] **Task 2: sync, sync_options**
-- [ ] **Task 3: drift, shared, source_overrides**
-- [ ] **Task 4: init, init_flow, outputs_mode**
-- [ ] **Task 5: refresh, format_migration, baseline**
-- [ ] **Task 6: doctor, version_pin, workspace, team_workflow**
-- [ ] **Task 7: add, adopt**
-- [ ] **Task 8: migrate, simplify, dedupe**
-- [ ] **Task 9: profiles, resource_resolver, opencode**
-- [ ] **Task 10: release, guard, hooks, shell_init**
-- [ ] **Task 11: backup_retention, rollback_preflight**
-- [ ] **Task 12: bundle, update_native, install**
+- [x] **Task 1: enable, customize, generate, config_safety, base_skills, rollback**
+- [x] **Task 2: sync, sync_options**
+- [x] **Task 3: drift, shared, source_overrides**
+- [x] **Task 4: init, init_flow, outputs_mode**
+- [x] **Task 5: refresh, format_migration, baseline**
+- [x] **Task 6: doctor, version_pin, workspace, team_workflow**
+- [x] **Task 7: add, adopt**
+- [x] **Task 8: migrate, simplify, dedupe**
+- [x] **Task 9: profiles, resource_resolver, opencode**
+- [x] **Task 10: release, guard, hooks, shell_init**
+- [x] **Task 11: backup_retention, rollback_preflight**
+- [x] **Task 12: bundle, update_native, install**
 
 **Step 1: Port.** Read the bats file whole. For each `@test`, write a Rust test with the same name (spaces and punctuation to `_`), asserting the same thing on the stream the binary writes it to. Fixtures the file shared through `setup`/`setup_file` become a function in the same crate. A case the Rust suite already asserts is left out and named in the commit body.
 
@@ -143,21 +143,21 @@ Expected: no `failed` but `0 failed`; `Finished`; only `suite-done`.
 - Delete: `tests/test_helper.bash`
 - Modify: `.github/workflows/ci.yaml`, `.ai/src/rules/testing.md`, `.ai/src/AGENTS.md`, `README.md`, `docs/specs/2026-09-12-rust-migration-design.md`
 
-- [ ] **Step 1: Drop bats from CI**
+- [x] **Step 1: Drop bats from CI**
 
 In `.github/workflows/ci.yaml`: in `native`, delete the "Install bats-core and GNU parallel" and "The bats suite against the binary" steps; replace the whole `test-windows` job with one unsharded job that checks out, installs the toolchain, and runs `cargo test` plus `cargo build --release`; delete the sharding comment above it and the `cargo test`/`if: matrix.shard == 1` pair. Keep `lint`.
 
 Validate: `ruby -ryaml -e 'YAML.safe_load(File.read(".github/workflows/ci.yaml"), aliases: true); puts "ci.yaml ok"'`
 Expected: `ci.yaml ok`.
 
-- [ ] **Step 2: Delete the helper and rewrite the docs**
+- [x] **Step 2: Delete the helper and rewrite the docs**
 
 `git rm tests/test_helper.bash`. Rewrite `.ai/src/rules/testing.md` for `cargo test` alone (the harness, the naming convention, where a unit test belongs versus an integration test, the Windows rule), and the testing lines of `.ai/src/AGENTS.md`, `README.md` (Development), and the spec (Phase 7 status, Definition of Done). Run `agentsync sync --force` and `agentsync check`.
 
 Run: `ls tests/*.bats 2>/dev/null | wc -l; grep -rn 'bats' README.md .ai/src .github/workflows/ci.yaml | wc -l; agentsync check > /dev/null; echo "check=$?"`
 Expected: `0`; `0`; `check=0`.
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 ```bash
 cargo fmt --all --check; cargo clippy --all-targets -- -D warnings 2>&1 | tail -1; cargo test 2>&1 | grep 'test result'
@@ -167,7 +167,7 @@ shellcheck -x -S warning -e SC1091 install.sh lib/templates/guard/claude.sh; ech
 
 Expected: fmt exit 0, `Finished`; every crate `0 failed`, the unit count unchanged at 335; `Finished`; `shellcheck=0`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add -A tests .github/workflows/ci.yaml README.md .ai docs/specs/2026-09-12-rust-migration-design.md docs/plans/2026-09-19-rust-migration-phase-7b-port-the-suite.md

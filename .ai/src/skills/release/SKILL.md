@@ -12,7 +12,7 @@ Prepare a new AgentSync release: run pre-release checks, bump VERSION, update CH
 Run these **before** touching VERSION or CHANGELOG. If any check surfaces a problem, stop and report it to the user — don't silently auto-fix docs or skip a failure.
 
 1. **Working tree clean** — `git status --porcelain` returns empty. Uncommitted work first, then release.
-2. **Tests pass** — `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, then `cargo build --release` and `bats tests/` succeed. Stop on failure; failing tests are never a "release later" problem.
+2. **Tests pass** — `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, then `cargo build --release` succeed. Stop on failure; failing tests are never a "release later" problem.
 3. **ShellCheck clean** — `shellcheck -x -S warning -e SC1091 install.sh lib/templates/guard/claude.sh` returns 0.
 4. **CHANGELOG covers all user-facing commits since the last tag**:
    - `git log --oneline $(git describe --tags --abbrev=0)..HEAD` lists the candidates.

@@ -1,7 +1,7 @@
 # Rust Engine Migration
 
 Date: 2026-09-12
-Status: In progress since 2026-09-12. Phases 1 and 2 are closed in
+Status: Complete on 2026-09-19, started 2026-09-12. Phases 1 and 2 are closed in
 `docs/plans/2026-09-12-rust-migration-phase-1-native-list.md` and
 `docs/plans/2026-09-13-rust-migration-phase-2-native-check.md`; Phase 3 is
 closed in `docs/plans/2026-09-14-rust-migration-phase-3-native-sync.md`.
@@ -12,10 +12,13 @@ Phase 4 is closed in thirteen command-family plans, the last being
 five slice plans, from `docs/plans/2026-09-16-rust-migration-phase-5a-entry.md`
 to `docs/plans/2026-09-18-rust-migration-phase-5e-cutover.md`, on 2026-09-18;
 0.37.0 was the cutover release, the first to ship the binary and the last to
-carry the Bash engine. Phase 6 is in progress since 2026-09-19 in
+carry the Bash engine. Phase 6 is closed on 2026-09-19 in
 `docs/plans/2026-09-19-rust-migration-phase-6-retire-bash.md`: the Bash engine
-is deleted and the suite runs against the binary on every platform; its
-completion receipt closes the phase. Phase 7 follows.
+is deleted and the suite runs against the binary on every platform. Phase 7 is
+closed in `docs/plans/2026-09-19-rust-migration-phase-7a-harness-cli-list-check.md`
+and `docs/plans/2026-09-19-rust-migration-phase-7b-port-the-suite.md`: the bats
+suite is ported to Rust integration tests, one commit per file, and bats is
+retired. The migration is complete.
 
 ## Objective
 
@@ -33,8 +36,8 @@ The result must preserve AgentSync's existing properties:
   semantics and their on-disk formats.
 - The guard hook stays plain POSIX `sh`: a teammate without the CLI must still
   be protected.
-- The 725-test bats suite stays the behavioural contract and runs against the
-  binary, until Phase 7 rewrites it as Rust integration tests.
+- The 725-test bats suite stayed the behavioural contract until Phase 7
+  rewrote it as Rust integration tests, case by case.
 
 ## Why
 
@@ -58,8 +61,8 @@ hooks.
 
 Reliability: 0.35.2 fixed five platform-specific failures of one class
 (`dirname` on BSD and MSYS, `shasum` absent on Git Bash, `$TMPDIR` with a
-trailing slash), one intermittent macOS failure stays undiagnosed, and Windows
-CI shards bats twelve ways because Git Bash cannot run it in parallel. A typed
+trailing slash), one intermittent macOS failure stayed undiagnosed, and Windows
+CI sharded bats twelve ways because Git Bash cannot run it in parallel. A typed
 language with `Result`-based I/O and a standard path API removes the class, not
 the instance.
 
@@ -127,8 +130,8 @@ src/cli/<command>.rs       # one file per command: args → core calls → text
 src/<module>.rs            # core: yaml_subset, project, catalog, tool, payload, style, …
 lib/templates/             # unchanged; embedded via include_dir!
 lib/templates/guard/claude.sh, install.sh   # the shell floor (see below)
-tests/*.bats               # the contract until Phase 7; run against target/release/agentsync
-tests/*.rs                 # cargo integration tests
+tests/*.rs                 # the whole suite since Phase 7: one file per command surface
+tests/common/mod.rs        # the fixtures the integration tests share
 ```
 
 Until Phase 6 the tree also held `bin/agentsync.sh` (the dispatcher),
@@ -176,11 +179,11 @@ While both engines existed, three layers, one seam:
    engine had to reproduce all 272 files byte for byte. 0.35.1 used the same
    technique.
 
-From Phase 6 the suite has one engine to grade: `tests/test_helper.bash` runs
-`target/release/agentsync` (`AGENTSYNC_NATIVE_BIN` names another build) on
-Linux, macOS, and Windows, and the two retired layers are history.
-
-Unit tests live inside the crate for pure modules.
+From Phase 6 the suite had one engine to grade, and all three layers are now
+history. `cargo test` is the suite: unit tests inside the crate for pure
+modules, and integration tests in `tests/*.rs` that drive the binary Cargo
+builds, over the harness in `tests/common/mod.rs`, on Linux, macOS, and
+Windows.
 
 ### Config reading
 
@@ -416,21 +419,23 @@ lints `install.sh` and `lib/templates/guard/claude.sh`, and
 
 ### Phase 7 — Retire bats
 
-Port the CLI-level conformance suite (43 `.bats` files, 733 tests at the start
-of Phase 1) to Rust integration tests on `assert_cmd`, the shape
-`tests/cli.rs` already uses: one commit per bats file, Rust test names copied
-from the bats test names so a reviewer can map them one to one. Delete
-`tests/test_helper.bash`, drop bats and GNU parallel from CI, and remove the
-Windows sharding scaffolding.
+The CLI-level conformance suite (43 `.bats` files, 733 tests at the start of
+Phase 1) is now Rust integration tests on `assert_cmd`, the shape
+`tests/cli.rs` already used: one commit per bats file, Rust test names copied
+from the bats test names so a reviewer maps them one to one.
+`tests/common/mod.rs` carries the fixtures `tests/test_helper.bash` gave the
+suite. That helper is deleted, bats and GNU parallel are gone from CI, and the
+Windows sharding scaffolding with them — one `test` job now runs the Rust
+gates on Linux, macOS, and Windows alike.
 
 This could not move earlier. The suite was the only proof of parity while both
 engines existed: the same test graded Bash under `AGENTSYNC_NATIVE=0` and the
 binary under `=1`. Rewriting it before Phase 6 would have replaced the contract
 with its own reimplementation. With Bash gone there is no second engine to
-grade, the argument has expired, and bats is a dependency that costs a sharded
-Windows run (see the sharding comment in `.github/workflows/ci.yaml`).
+grade, the argument expired, and bats was a dependency that cost a sharded
+Windows run.
 
-Exit: `cargo test` is the whole suite; no `.bats` file remains.
+Exit, met: `cargo test` is the whole suite; no `.bats` file remains.
 
 ### The shell floor
 
@@ -744,8 +749,8 @@ Appended one line at a time as they are found, with the phase:
 
 - `bin/agentsync.sh` and `lib/*.sh` are gone; `agentsync` is one binary on five
   targets, installed and updated from GitHub Releases.
-- The bats suite passes against the binary on Linux, macOS, and Windows without
-  sharding.
+- `cargo test` is the whole suite and passes on Linux, macOS, and Windows in
+  one unsharded job per platform.
 - Golden outputs for this repository's `.ai/src/` with 13 tools are
   byte-identical to 0.35.2's.
 - `install.sh`, `update`, the version pin, and the guard hook behave as

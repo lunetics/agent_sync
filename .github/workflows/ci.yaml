@@ -21,16 +21,16 @@ jobs:
         run: |
           shellcheck -x -S warning -e SC1091 install.sh lib/templates/guard/claude.sh
 
-  # The Rust gates and the bats suite against the release build. Linux and
-  # macOS parallelize the suite with GNU parallel — a few minutes.
-  native:
-    name: Native engine (${{ matrix.os }})
+  # The Rust gates and the whole test suite, which is `cargo test` since
+  # phase 7 of the Rust migration retired bats.
+  test:
+    name: Engine (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -41,84 +41,3 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
       - run: cargo build --release
-      - name: Install bats-core and GNU parallel
-        shell: bash
-        run: |
-          if [[ "$RUNNER_OS" == "Linux" ]]; then
-            sudo apt-get install -y bats parallel
-          else
-            brew install bats-core parallel
-          fi
-      - name: The bats suite against the binary
-        shell: bash
-        env:
-          TERM: xterm
-        run: bats --jobs 4 --tap --print-output-on-failure tests/
-
-  # git-bash can't run bats --jobs (no flock; GNU parallel hangs for hours) and
-  # a serial run exceeds 90 minutes (run 35424805832), so the files are sharded
-  # across jobs: each job runs its slice serially. The floor is the slowest
-  # single file plus per-job overhead, ~4-5m; 12 shards lands near it.
-  test-windows:
-    name: Native engine (windows, shard ${{ matrix.shard }}/12)
-    runs-on: windows-latest
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo build --release
-      - run: cargo test
-        if: matrix.shard == 1
-      - name: Cache bats-core
-        id: cache-bats
-        uses: actions/cache@v4
-        with:
-          path: ~/.local
-          key: bats-core-${{ runner.os }}-v1
-      - name: Install bats-core
-        if: steps.cache-bats.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          git clone --depth 1 https://github.com/bats-core/bats-core.git /tmp/bats-core
-          /tmp/bats-core/install.sh "$HOME/.local"
-      - name: Put bats on PATH
-        shell: bash
-        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      - name: Exclude work dirs from Defender
-        shell: pwsh
-        continue-on-error: true
-        run: |
-          # Defender real-time scanning of every spawned process dominates the
-          # process-heavy bats run on Windows; excluding the trees is a cheap win.
-          Add-MpPreference -ExclusionPath "${env:GITHUB_WORKSPACE}"
-          Add-MpPreference -ExclusionPath "${env:RUNNER_TEMP}"
-          Add-MpPreference -ExclusionPath "${env:TEMP}"
-      - name: Run shard serially
-        shell: bash
-        env:
-          TERM: xterm
-          SHARD: ${{ matrix.shard }}
-          TOTAL: "12"
-        run: |
-          # Greedy bin-pack the .bats files by test count into TOTAL shards. The
-          # split is deterministic, so every shard computes the same assignment
-          # and runs only its own slice — no shared state between jobs.
-          sorted=$(for f in tests/*.bats; do printf '%s %s\n' "$(grep -c '^@test' "$f")" "$f"; done | sort -k1,1nr -k2,2)
-          declare -a load
-          for ((s=0; s<TOTAL; s++)); do load[s]=0; done
-          mine=()
-          while read -r cnt file; do
-            [[ -n "$file" ]] || continue
-            min=0
-            for ((s=1; s<TOTAL; s++)); do (( load[s] < load[min] )) && min=$s; done
-            load[min]=$(( load[min] + cnt ))
-            (( min == SHARD - 1 )) && mine+=("$file")
-          done <<< "$sorted"
-          printf 'shard %s/%s: %d files\n' "$SHARD" "$TOTAL" "${#mine[@]}"
-          printf '  %s\n' "${mine[@]}"
-          bats "${mine[@]}" --tap --print-output-on-failure

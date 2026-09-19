@@ -15,10 +15,10 @@ Review the above changes to AgentSync for:
 1. **Portability** — macOS, Linux, and Git Bash on Windows. No GNU-specific flags.
 2. **Correctness** — logic errors, unquoted variables, missing edge cases
 3. **Idempotency** — will `agentsync sync` still produce identical output on repeated runs?
-4. **Error handling** — proper exit codes, `log_error`/`log_warning` usage
+4. **Error handling** — proper exit codes, `Error` variants, and `src/log.rs` / `src/style.rs` usage
 5. **Transactional safety** — backup, restore, manifest, and cleanup behavior for mutating flows
 6. **Security** — no `eval`, unsafe paths, leaked secrets, or unquoted user-controlled YAML values
-7. **Test coverage** — are new behaviors and failure paths tested in bats?
+7. **Test coverage** — are new behaviors and failure paths covered by `cargo test`, as a unit test in the owning module or an integration test in `tests/`?
 
 Run `shellcheck -x -S warning -e SC1091` on any changed `.sh` files.
 

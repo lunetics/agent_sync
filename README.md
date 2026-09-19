@@ -973,29 +973,20 @@ binary has no YAML dependency. Build it and run the checks from the repo root:
 cargo build --release                             # target/release/agentsync
 cargo fmt --all --check
 cargo clippy --all-targets -- -D warnings
-cargo test                                        # unit tests and tests/cli.rs
+cargo test                                        # the whole suite
 
-# The bats suite drives target/release/agentsync directly. Full suite in
-# parallel (needs GNU parallel — `brew install parallel` or
-# `apt-get install parallel`). ~2x the CPU count is the sweet spot because
-# tests block on git/filesystem. On an 8-core Mac: jobs=16, ≈ 25-30s.
-bats --jobs "$(( $(getconf _NPROCESSORS_ONLN) * 2 ))" tests/
-
-# A single file, or a subset:
-bats tests/sync.bats
+# A single command surface:
+cargo test --test sync
 ```
 
-`tests/test_helper.bash` points `run_agentsync` at `target/release/agentsync`;
-set `AGENTSYNC_NATIVE_BIN` to test another build. CI runs the Rust gates and
-the suite with `--jobs 4` on Linux and macOS, and on Windows builds the binary
-and runs the suite in twelve serial shards because GNU parallel isn't
-available under Git Bash. `shellcheck -x -S warning -e SC1091` covers the two
-shell scripts that remain: `install.sh` and `lib/templates/guard/claude.sh`.
-
-On Windows, Git Bash copies `ln -s` targets by default. The symlink-safety
-tests request native links with `MSYS=winsymlinks:nativestrict`; enable Windows
-Developer Mode or grant the `Create symbolic links` privilege before running
-them locally.
+`cargo test` is everything: unit tests inside `src/` and integration tests in
+`tests/*.rs`, one file per command surface, each driving the binary Cargo just
+built. `tests/common/mod.rs` is the shared harness — a throwaway git project in
+a temp directory, the binary with your `AGENTSYNC_*` variables and git config
+scrubbed out, and the file helpers the assertions need. CI runs the same gates
+on Linux, macOS, and Windows. `shellcheck -x -S warning -e SC1091` covers the
+two shell scripts that remain: `install.sh` and
+`lib/templates/guard/claude.sh`.
 
 The engine was ported from Bash one command at a time
 (`docs/specs/2026-09-12-rust-migration-design.md`). The Bash engine last

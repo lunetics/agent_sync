@@ -160,15 +160,27 @@ pub fn is_tty() -> bool;   // on Windows: false unless stdin and stdout are a re
 
 Add `paths::from_msys` and apply it in `main.rs` wherever an environment path is read (`AGENTSYNC_REPO_ROOT`, `AGENTSYNC_CONFIG_PATH`, `PWD`, `AGENTSYNC_EXTERNAL_SOURCE_ROOTS`, `TMPDIR` if read) and to positional path arguments (`init <dir>`, `adopt <file>`, `import <source>`). Unit-test the pure part: with `msystem` `None` the path is unchanged; with `Some("MINGW64")` a Windows path is unchanged and a `/`-rooted one goes through the translator (inject the translator as a closure so the test needs no `cygpath`).
 
-- [ ] **Step 3: The runner console**
+- [x] **Step 3: The runner console**
 
 On Windows make `prompts::is_tty` require a real console: `std::io::stdin().is_terminal()` is true for the runner's console even under bats; check `MSYSTEM` is unset or that `CONIN$` opens and reports a console mode. Reproduce with the first hang's test.
 
-- [ ] **Step 4: Iterate with CI**
+- [x] **Step 4: Iterate with CI**
 
 Commit each fix as `fix(windows): …`, the maintainer pushes, read the shards. Close the task when all twelve shards are green twice in a row. Record the final expected values here: the number of iterations, each root cause, and the commit that fixed it.
 
-- [ ] **Step 5: Commit the closing note**
+Closed on 2026-09-19 after five rounds; run 35442289237 (commit 4cf83f6) is green on all fifteen jobs, the Windows shards in 2–4 minutes each. Step 3 needed no code: the runner-console hang of run 35424805832 was the engine failing at `init` and the shard waiting on a prompt, and it did not survive round 1. Rounds and root causes:
+
+| round | commit | root cause |
+|---|---|---|
+| 1 | 04d5c5b | `normalize` prepended `/` to `C:\…`, so every command failed with `Directory not found: .`; drive-aware `paths`, `from_msys` through `cygpath` |
+| 2 | 678b30f | `PathBuf::join` put `\` into engine strings, `cygpath -w` returned short names, `$SHELL` arrived with backslashes, `set_modified` on a read-only handle was refused; `DiskText`, `cygpath -wl`, leaf-wise `$SHELL`, open for writing first |
+| 3 | 841a602 | stand-in programs as shell scripts on `PATH`, `/tmp/…` written into `agent_sync.yaml`, a FIFO, a POSIX-shell hook, the Bash-staged race; `host_path`, `skip_on_windows`, `MSYS_NO_PATHCONV=1` for `add mcp` |
+| 4 | b7e4deb | `tar` read `C:` in `PROOF_DIR` as a host, `AGENTSYNC_EXTERNAL_SOURCE_ROOTS` split at the drive colon, `disk_text` on `argv`, a `skip` before `setup` broke `teardown` |
+| 5 | 0135178 | `/` as `source.rules` canonicalises to `C:/`, which the root refusal did not count; the absolute `source.tools` case skips on Windows as open |
+
+"Green twice in a row": the second run is the one for the closing commits of this plan, read in the receipt.
+
+- [x] **Step 5: Commit the closing note**
 
 ```bash
 git add docs/plans/2026-09-19-rust-migration-phase-6-retire-bash.md

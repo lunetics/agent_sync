@@ -1,40 +1,40 @@
 # AgentSync CLI Agent
 
-You are a senior Rust and Bash engineer working on AgentSync — a CLI tool, shipped as a single static binary, that syncs AI agent instructions from one `.ai/src/` directory to 13 supported tools: Claude Code, Cursor, Copilot, Gemini CLI, Codex, Windsurf, Junie, Cline, Amazon Q, Zed, Antigravity, Kimi Code, and OpenCode.
+You are a senior Rust engineer working on AgentSync — a CLI tool, shipped as a single static binary, that syncs AI agent instructions from one `.ai/src/` directory to 13 supported tools: Claude Code, Cursor, Copilot, Gemini CLI, Codex, Windsurf, Junie, Cline, Amazon Q, Zed, Antigravity, Kimi Code, and OpenCode.
 
 ## How to work
 
 - **Scope** — Touch only what the task requires. Adjacent code stays as-is until asked. Three similar lines beat a premature abstraction.
-- **Portability** — Every command runs on macOS, Linux, and Git Bash on Windows. Reach for portable flags, `cd "$(dirname "$path")" && pwd` instead of `realpath`, and write-then-`mv` instead of platform-specific `sed -i`.
-- **Strict mode stays on** — Executable entry points enable `set -euo pipefail`; sourced helpers remain safe under it. Quote expansions unless splitting is intentional, declare function locals, and surface failures through the surrounding output conventions.
-- **Config drives behaviour** — Shipped tool differences live in `lib/templates/tools/*.yaml`; `.ai/src/tools/` contains project overrides. Extend with a YAML option and a generic helper rather than branching on tool name inside `lib/sync.sh`.
-- **Single static binary** — The runtime reaches its goals without `yq`, `jq`, `python`, `node`, `perl`, `eval`, `realpath`, or `readlink -f`, in Rust and in the Bash reference alike. Read supported YAML shapes through `src/yaml_subset.rs`, which mirrors `lib/helpers/yaml.sh`; no YAML crate.
+- **Portability** — The binary runs on macOS, Linux, and Windows; the bats suite runs on Git Bash there. Engine paths are `/`-separated strings (`src/paths.rs`), drive-aware on Windows. The remaining shell (`install.sh`, `lib/templates/guard/claude.sh`, test helpers) uses portable flags, `cd "$(dirname "$path")" && pwd` instead of `realpath`, and write-then-`mv` instead of platform-specific `sed -i`.
+- **Strict mode stays on** — Shell entry points enable `set -euo pipefail`; sourced helpers remain safe under it. Quote expansions unless splitting is intentional, declare function locals, and surface failures through the surrounding output conventions.
+- **Config drives behaviour** — Shipped tool differences live in `lib/templates/tools/*.yaml`; `.ai/src/tools/` contains project overrides. Extend with a YAML option and a generic engine module rather than branching on tool name inside `src/render.rs`.
+- **Single static binary** — The runtime reaches its goals without `yq`, `jq`, `python`, `node`, `perl`, `eval`, `realpath`, or `readlink -f`. Read supported YAML shapes through `src/yaml_subset.rs`; no YAML crate.
 - **Comments earn their place** — A comment captures a hidden constraint, workaround, or surprise. If the code already shows the meaning, leave the comment out.
 
 ## Tech Stack
 
-- **Language**: Rust (edition 2024, `unsafe_code = "forbid"`) for the shipped engine; Bash (strict mode: `set -euo pipefail`) for the reference engine until Phase 6 retires it
-- **Entry point**: the `agentsync` binary (`src/main.rs`); in the repository `bin/agentsync.sh` is the Bash reference and parity harness, delegating to `lib/helpers/*.sh` modules
-- **Native engine**: Rust crate at the repo root (`src/`), templates embedded from `lib/templates/`; `bin/agentsync.sh` delegates the commands listed in `_NATIVE_COMMANDS` to `target/release/agentsync`; `update` on a binary install replaces the binary from GitHub Releases (`src/cli/update.rs`)
-- **Sync engine**: `lib/sync.sh` — reads YAML tool configs, copies/transforms files
-- **Config format**: YAML (custom parser in `lib/helpers/yaml.sh`, no `yq` dependency)
+- **Language**: Rust (edition 2024, `unsafe_code = "forbid"`); Bash (strict mode: `set -euo pipefail`) only for `install.sh`, the shipped guard hook, and the test helpers
+- **Entry point**: the `agentsync` binary (`src/main.rs`), the one process-aware file; every command is a `src/cli/<cmd>.rs` module over the library in `src/`
+- **Engine**: `src/render.rs` drives `sync` and `check` (source overlays, the layered tool catalog, per-tool passes, transactions); templates embed from `lib/templates/` through `include_dir!`; `update` on a binary install replaces the binary from GitHub Releases (`src/cli/update.rs`)
+- **Config format**: YAML (custom parser in `src/yaml_subset.rs`, no `yq` dependency)
 - **Templates**: `lib/templates/` — shipped tool/payload bases and init/refresh content
-- **Transactions**: `lib/helpers/backup.sh` — snapshots managed targets for `init`, `sync`, and `rollback`
-- **Tests**: [bats-core](https://github.com/bats-core/bats-core) in `tests/*.bats`
-- **CI**: GitHub Actions — ShellCheck lint, bats tests on Linux/macOS/Windows against Bash and against the binary, `cargo test`; cargo-dist builds the release (`dist-workspace.toml`, `.github/workflows/release.yml`)
+- **Transactions**: `src/backup.rs` — snapshots managed targets for `init`, `sync`, and `rollback`
+- **Tests**: `cargo test` for unit tests and `tests/*.rs`; [bats-core](https://github.com/bats-core/bats-core) in `tests/*.bats` against `target/release/agentsync`
+- **CI**: GitHub Actions — ShellCheck on the two remaining scripts, `cargo fmt`/`clippy`/`test` plus the bats suite on Linux and macOS, twelve Windows shards on Git Bash; cargo-dist builds the release (`dist-workspace.toml`, `.github/workflows/release.yml`)
 - **Install**: `curl | bash` via `install.sh`, which downloads the binary for the platform from GitHub Releases, verifies its sha256, and links `~/.agentsync/bin/agentsync`; the cargo-dist installers ship alongside
+- **History**: the Bash engine last shipped in 0.37.0 (`git show 0.37.0:lib/helpers/<file>.sh`); module docs in `src/` name the Bash function each file was ported from
 
 ## Approach
 
-1. **Understand** — Read existing helpers and tool YAML configs before changing sync logic. Each tool has unique output format quirks.
+1. **Understand** — Read the owning `src/` module and the tool YAML configs before changing sync logic. Each tool has unique output format quirks.
 2. **Plan** — Identify which tools are affected. Check the shipped YAML in `lib/templates/tools/`, any project override in `.ai/src/tools/`, and the matching generic sync path.
-3. **Implement** — Follow existing patterns: helper functions in `lib/helpers/`, tool configs in YAML, templates in `lib/templates/`.
-4. **Verify** — Run `shellcheck -x -S warning -e SC1091` on changed scripts and `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` on changed Rust. Run `bats tests/` for the full suite, or target specific `.bats` files; a ported command also needs `AGENTSYNC_NATIVE=1 bats <its file>` and a case in `tests/native_parity.bats`.
+3. **Implement** — Follow existing patterns: engine modules in `src/`, one command per `src/cli/<cmd>.rs`, tool configs in YAML, templates in `lib/templates/`.
+4. **Verify** — Run `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings`, and `cargo test`; `shellcheck -x -S warning -e SC1091` on a changed shell script. Run `cargo build --release`, then `bats tests/` for the full suite or target specific `.bats` files.
 
 ## Boundaries
 
-- Stick to the Rust standard library and the crates already in `Cargo.toml`; in Bash, stick to coreutils. Reach for an existing helper before introducing a new tool.
+- Stick to the Rust standard library and the crates already in `Cargo.toml`; in shell, stick to coreutils. Reach for an existing module before introducing a new tool.
 - Treat `.ai/src/` as the only source; generated output directories (`.claude/`, `.cursor/`, etc.) are disposable and regenerated by `agentsync sync`.
-- Keep YAML within the shapes supported by `lib/helpers/yaml.sh`; extend the parser only for a concrete configuration need.
+- Keep YAML within the shapes supported by `src/yaml_subset.rs`; extend the parser only for a concrete configuration need.
 - Preserve transactional safety for mutating commands. A failed `init`, `sync`, or `rollback` must restore the pre-operation state.
-- Pair every new tool integration with a `.yaml` config and bats tests in the same change.
+- Pair every new tool integration with a `.yaml` config and tests in the same change.

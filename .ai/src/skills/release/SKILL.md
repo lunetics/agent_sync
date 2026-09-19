@@ -12,18 +12,18 @@ Prepare a new AgentSync release: run pre-release checks, bump VERSION, update CH
 Run these **before** touching VERSION or CHANGELOG. If any check surfaces a problem, stop and report it to the user — don't silently auto-fix docs or skip a failure.
 
 1. **Working tree clean** — `git status --porcelain` returns empty. Uncommitted work first, then release.
-2. **Tests pass** — `bats tests/` succeeds. Stop on failure; failing tests are never a "release later" problem.
-3. **ShellCheck clean** — `shellcheck -x -S warning -e SC1091 bin/agentsync.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers/*.sh` returns 0.
+2. **Tests pass** — `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, then `cargo build --release` and `bats tests/` succeed. Stop on failure; failing tests are never a "release later" problem.
+3. **ShellCheck clean** — `shellcheck -x -S warning -e SC1091 install.sh lib/templates/guard/claude.sh` returns 0.
 4. **CHANGELOG covers all user-facing commits since the last tag**:
    - `git log --oneline $(git describe --tags --abbrev=0)..HEAD` lists the candidates.
    - For each commit, decide: user-visible (CLI flag, output format, new tool, bug a user could hit) → must appear in the new CHANGELOG section. Internal refactor / test-only / CI / dev tooling → stays out.
    - If a user-visible commit is missing from your draft, add it before bumping.
 5. **Docs reflect current behaviour** — spot-check that the release does not ship with stale docs:
    - `README.md` — command list, flag list, supported tools table. If a command/flag was renamed, removed, or added since the last tag, README must match.
-   - `.ai/src/commands/*.md` and `.ai/src/skills/**/SKILL.md` — descriptions, argument hints, examples line up with what `bin/agentsync.sh` actually accepts.
-   - `.ai/src/rules/*.md` — invariants and module map (`architecture.md`) match current file layout in `lib/helpers/`.
-   - `.ai/src/tools/_TEMPLATE.yaml` — every YAML option referenced by `lib/sync.sh` is documented; no documented option is dead.
-   - Cross-check `git log --since="<last-tag-date>" --name-only` against the doc files: if `lib/sync.sh` or `bin/agentsync.sh` changed and no doc file did, ask whether docs need a follow-up before tagging.
+   - `.ai/src/commands/*.md` and `.ai/src/skills/**/SKILL.md` — descriptions, argument hints, examples line up with what the binary actually accepts (`src/cli/usage.rs`, `src/cli/mod.rs`).
+   - `.ai/src/rules/*.md` — invariants and module map (`architecture.md`) match the current file layout in `src/`.
+   - `.ai/src/tools/_TEMPLATE.yaml` — every YAML option read by `src/render.rs` and `src/tool.rs` is documented; no documented option is dead.
+   - Cross-check `git log --since="<last-tag-date>" --name-only` against the doc files: if `src/cli/` or `src/render.rs` changed and no doc file did, ask whether docs need a follow-up before tagging.
 
 When a doc gap is real, fix it in the **same release commit** (or a separate commit immediately before) rather than punting to a "docs" release later — release notes that lie age the project faster than missing features.
 
@@ -37,11 +37,11 @@ When a doc gap is real, fix it in the **same release commit** (or a separate com
    - Bold the feature/component name: `- **Export command:** added --dry-run support.`
    - Describe user-facing impact, not implementation details.
    - Match the tone and format of existing entries.
-5. **Update VERSION** — Write the new version number to `VERSION` (no `v` prefix, no trailing newline).
-6. **Commit** — `git add VERSION CHANGELOG.md <any doc files fixed above> && git commit -m "release: vX.Y.Z"`.
+5. **Update the version** — Write the new number to `VERSION` (no `v` prefix, no trailing newline) and the same value to `Cargo.toml` and `Cargo.lock`; the test in `src/lib.rs` fails when they disagree.
+6. **Commit** — `git add VERSION Cargo.toml Cargo.lock CHANGELOG.md <any doc files fixed above> && git commit -m "release: vX.Y.Z"`.
 7. **Leave the push to the user** — CI handles the rest:
-   - `auto-tag.yaml` creates the annotated git tag when VERSION changes on `main`, using the CHANGELOG section as the tag message.
-   - Releases are published as tags only — no GitHub Release is created. `agentsync update` discovers and pulls new versions from tags.
+   - `auto-tag.yaml` creates the annotated git tag when VERSION changes on `main`, using the CHANGELOG section as the tag message, and dispatches `release.yml`.
+   - cargo-dist builds the platform archives and publishes the GitHub Release; `agentsync update` downloads the binary from it.
 
 ## CHANGELOG Format
 

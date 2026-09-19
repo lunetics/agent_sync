@@ -10,9 +10,12 @@ with `docs/plans/2026-09-14-rust-migration-phase-3b-rollback-witness.md`.
 Phase 4 is closed in thirteen command-family plans, the last being
 `docs/plans/2026-09-16-rust-migration-phase-4m-tail.md`. Phase 5 is closed in
 five slice plans, from `docs/plans/2026-09-16-rust-migration-phase-5a-entry.md`
-to `docs/plans/2026-09-18-rust-migration-phase-5e-cutover.md`, on 2026-09-18:
-the cutover release, the first to ship the binary, is the maintainer's to cut
-after merging the migration branch. Phase 6 starts after it.
+to `docs/plans/2026-09-18-rust-migration-phase-5e-cutover.md`, on 2026-09-18;
+0.37.0 was the cutover release, the first to ship the binary and the last to
+carry the Bash engine. Phase 6 is in progress since 2026-09-19 in
+`docs/plans/2026-09-19-rust-migration-phase-6-retire-bash.md`: the Bash engine
+is deleted and the suite runs against the binary on every platform; its
+completion receipt closes the phase. Phase 7 follows.
 
 ## Objective
 
@@ -94,10 +97,11 @@ would be verifiable until the end.
 
 ### Strangler: Bash dispatcher, commands move one at a time
 
-Chosen. `bin/agentsync.sh` stays the entry point and delegates each command to
-the binary once that command is ported. Releases keep shipping throughout, a
-feature lands in whichever implementation owns the command, and every step is
-verified by the existing suite.
+Chosen. `bin/agentsync.sh` stayed the entry point and delegated each command to
+the binary once that command was ported. Releases kept shipping throughout, a
+feature landed in whichever implementation owned the command, and every step
+was verified by the existing suite. The dispatcher did its job through 0.37.0
+and was deleted in Phase 6; the section below records how it worked.
 
 ### Language
 
@@ -122,20 +126,25 @@ src/lib.rs                 # module tree; engine_version()
 src/cli/<command>.rs       # one file per command: args → core calls → text
 src/<module>.rs            # core: yaml_subset, project, catalog, tool, payload, style, …
 lib/templates/             # unchanged; embedded via include_dir!
-bin/agentsync.sh           # dispatcher until Phase 6
-tests/*.bats               # the contract; unchanged files run against either engine
-tests/native_dispatch.bats # dispatcher gating
-tests/native_parity.bats   # Bash vs native diff per ported command
+lib/templates/guard/claude.sh, install.sh   # the shell floor (see below)
+tests/*.bats               # the contract until Phase 7; run against target/release/agentsync
 tests/*.rs                 # cargo integration tests
 ```
 
-### Dispatcher
+Until Phase 6 the tree also held `bin/agentsync.sh` (the dispatcher),
+`lib/*.sh` and `lib/helpers/*.sh` (the Bash engine), `tests/native_dispatch.bats`
+(dispatcher gating), and `tests/native_parity.bats` (Bash vs native diff per
+ported command). All of it is readable at tag `0.37.0`, for example
+`git show 0.37.0:lib/helpers/backup.sh`; the module docs in `src/` name the
+Bash function each file was ported from.
 
-`bin/agentsync.sh` gains `_native_try`, called after `check_for_updates` and
+### Dispatcher (Phases 1–5, deleted in Phase 6)
+
+`bin/agentsync.sh` gained `_native_try`, called after `check_for_updates` and
 the `--help` interception, before the command `case`. From Phase 5d
-`check_for_updates` runs in Bash only when `_native_will_serve` says the
-binary will not answer the command; the binary prints the same notice for
-the commands it serves.
+`check_for_updates` ran in Bash only when `_native_will_serve` said the
+binary would not answer the command; the binary printed the same notice for
+the commands it served.
 
 - `AGENTSYNC_NATIVE=0` — always Bash.
 - `AGENTSYNC_NATIVE=1` — require a binary; fail loudly without one.
@@ -144,42 +153,46 @@ the commands it serves.
   `<engine>/target/release/agentsync[.exe]` (developer build) or
   `<engine>/bin/agentsync-native[.exe]` (Phase 5 installer).
 
-The dispatcher passes `AGENTSYNC_ENGINE_VERSION=$VERSION`; a binary whose
-embedded `VERSION` differs refuses to run, so a stale developer build can never
-answer for a newer engine.
+The dispatcher passed `AGENTSYNC_ENGINE_VERSION=$VERSION`; a binary whose
+embedded `VERSION` differed refused to run, so a stale developer build could
+never answer for a newer engine. That guard left with the dispatcher.
 
-`_NATIVE_COMMANDS` is the single list of ported commands. A command is ported
-when its bats file passes with `AGENTSYNC_NATIVE=1` and its parity tests pass.
+`_NATIVE_COMMANDS` was the single list of ported commands. A command was ported
+when its bats file passed with `AGENTSYNC_NATIVE=1` and its parity tests passed.
 
 ### Conformance
 
-Three layers, one seam:
+While both engines existed, three layers, one seam:
 
 1. **bats with `AGENTSYNC_NATIVE=1`** — the existing suite, unchanged, run
-   against the binary for ported commands. `tests/test_helper.bash` defaults
-   `AGENTSYNC_NATIVE` to `0` so a stray developer build never changes what the
-   suite exercises.
-2. **Parity tests** — `tests/native_parity.bats` runs each ported command
-   through both engines on the same fixture and diffs stdout+stderr and the
-   exit status. Fixtures are added per command as it is ported.
-3. **Golden outputs** — from Phase 2, the Bash engine generates the outputs for
+   against the binary for ported commands. `tests/test_helper.bash` defaulted
+   `AGENTSYNC_NATIVE` to `0` so a stray developer build never changed what the
+   suite exercised.
+2. **Parity tests** — `tests/native_parity.bats` ran each ported command
+   through both engines on the same fixture and diffed stdout+stderr and the
+   exit status. Fixtures were added per command as it was ported.
+3. **Golden outputs** — from Phase 2, the Bash engine generated the outputs for
    this repository's own `.ai/src/` with all 13 tools enabled; the native
-   engine must reproduce all 272 files byte for byte. 0.35.1 used the same
+   engine had to reproduce all 272 files byte for byte. 0.35.1 used the same
    technique.
+
+From Phase 6 the suite has one engine to grade: `tests/test_helper.bash` runs
+`target/release/agentsync` (`AGENTSYNC_NATIVE_BIN` names another build) on
+Linux, macOS, and Windows, and the two retired layers are history.
 
 Unit tests live inside the crate for pure modules.
 
 ### Config reading
 
-The Bash engine never parsed YAML. `lib/helpers/yaml.sh` is a line-oriented
-reader with its own rules: the first duplicate key wins, an unquoted value ends
-at the first `#`, `\n` inside quotes stays literal until `printf '%b'` at write
-time, an empty block list keeps scanning and picks up the next dash list in the
-file. Every shipped and user config was written against those rules, and the
-suite asserts on them.
+The Bash engine never parsed YAML. Its `lib/helpers/yaml.sh` was a
+line-oriented reader with its own rules: the first duplicate key wins, an
+unquoted value ends at the first `#`, `\n` inside quotes stays literal until
+`printf '%b'` at write time, an empty block list keeps scanning and picks up
+the next dash list in the file. Every shipped and user config was written
+against those rules, and the suite asserts on them.
 
 `src/yaml_subset.rs` therefore ports that reader line for line rather than
-adopting a YAML crate. This keeps parity provable and keeps the port small.
+adopting a YAML crate. This kept parity provable and keeps the port small.
 Replacing it with a real parser plus `doctor` validation is a post-cutover
 decision, taken with the quirk list below in hand.
 
@@ -187,17 +200,18 @@ decision, taken with the quirk list below in hand.
 
 - Core modules return `Result<_, agentsync::Error>` (`thiserror`). `main.rs`
   maps errors to the same messages and exit codes the Bash command used.
-- Two output voices exist today and both are kept: `style` mirrors
+- Bash had two output voices and both are kept: `style` mirrors
   `cli_colors.sh` (bold/green/cyan/yellow/red/dim, decided once from stdout
   being a TTY and `NO_COLOR`), and `log` (Phase 2) mirrors `logging.sh`
   (`[INFO]`, `[WARNING]`, the `═` separator, emoji only when coloured).
 - Prompts read the terminal directly (`/dev/tty`, `CONIN$`), as
-  `prompts.sh` does, so captured output never breaks interaction.
+  `prompts.sh` did, so captured output never breaks interaction.
 - A broken pipe on stdout exits 0 silently, matching a shell pipeline.
 
 ## Phases
 
-Each phase ends with the full suite green in both modes. Phase 1 has an
+Each phase ends with the full suite green: in both modes while both engines
+existed, against the binary alone from Phase 6. Phase 1 has an
 executable plan; each later phase gets its own plan when its turn comes,
 written against what the previous phase revealed.
 
@@ -392,6 +406,14 @@ Phase 7 retires them; remove `_native_try`, `AGENTSYNC_NATIVE`, and the
 Windows shard matrix; ShellCheck covers only the guard and installer scripts
 that remain.
 
+In progress in `docs/plans/2026-09-19-rust-migration-phase-6-retire-bash.md`.
+The suite runs against the binary on Linux, macOS, and Windows; the Windows
+shard matrix stays for the binary because Git Bash cannot run `bats --jobs`
+(a deviation recorded in that plan). The Bash engine is deleted, ShellCheck
+lints `install.sh` and `lib/templates/guard/claude.sh`, and
+`scripts/perf/bench.sh` compares against a 0.37.0 checkout named by
+`AGENTSYNC_BASH_CLI`.
+
 ### Phase 7 — Retire bats
 
 Port the CLI-level conformance suite (43 `.bats` files, 733 tests at the start
@@ -401,12 +423,12 @@ from the bats test names so a reviewer can map them one to one. Delete
 `tests/test_helper.bash`, drop bats and GNU parallel from CI, and remove the
 Windows sharding scaffolding.
 
-This cannot move earlier. The suite is the only proof of parity while both
-engines exist: the same test grades Bash under `AGENTSYNC_NATIVE=0` and the
-binary under `=1`. Rewriting it before Phase 6 would replace the contract with
-its own reimplementation. Once Bash is gone there is no second engine to grade,
-the argument expires, and bats becomes a dependency that costs a serial
-~58-minute Windows run (see the sharding comment in `.github/workflows/ci.yaml`).
+This could not move earlier. The suite was the only proof of parity while both
+engines existed: the same test graded Bash under `AGENTSYNC_NATIVE=0` and the
+binary under `=1`. Rewriting it before Phase 6 would have replaced the contract
+with its own reimplementation. With Bash gone there is no second engine to
+grade, the argument has expired, and bats is a dependency that costs a sharded
+Windows run (see the sharding comment in `.github/workflows/ci.yaml`).
 
 Exit: `cargo test` is the whole suite; no `.bats` file remains.
 
@@ -428,16 +450,17 @@ text is Rust, and the emitted snippet is a wrapper that calls the binary.
 
 ## Distribution
 
-Users today run `curl | bash`, which clones the repository into
-`~/.agentsync` and symlinks `bin/agentsync.sh`. After Phase 5 the same command
-downloads a platform binary, verifies its sha256, and links it; `agentsync
-update` swaps the binary. The `agentsync_version` pin, `update <version>`, and
+Before Phase 5 `curl | bash` cloned the repository into `~/.agentsync` and
+symlinked `bin/agentsync.sh`. Since 0.37.0 the same command downloads a
+platform binary, verifies its sha256, and links it; `agentsync update` swaps
+the binary. The `agentsync_version` pin, `update <version>`, and
 `AGENTSYNC_VERSION=<tag>` in the installer keep working, which keeps the
-committed-outputs team workflow intact.
+committed-outputs team workflow intact; a pin to a tag older than 0.37.0 still
+installs from source, since those tags have no archive.
 
-Until Phase 5, no user has a binary. Native code path exposure is limited to
-developers who run `cargo build --release`, and the dispatcher's default falls
-back to Bash when no binary exists.
+Until Phase 5 no user had a binary: native code path exposure was limited to
+developers who ran `cargo build --release`, and the dispatcher's default fell
+back to Bash when no binary existed.
 
 ## Known quirks to reproduce now and fix after cutover
 
@@ -703,16 +726,17 @@ Appended one line at a time as they are found, with the phase:
 
 - **Windows during the strangler.** Under Git Bash, POSIX paths in
   `AGENTSYNC_REPO_ROOT` and `TMPDIR` do not reach a native executable. Native
-  bats runs on Windows wait until Phase 5, when the binary is the entry point;
-  `cargo test` covers the Rust side on Windows from Phase 1.
+  bats runs on Windows waited until Phase 6, when the suite moved to the
+  binary and the engine's path model became drive-aware; `cargo test` covered
+  the Rust side on Windows from Phase 1.
 - **Symlinked project roots.** Bash keeps the logical `$PWD`; Rust's
   `current_dir()` is physical. Phase 2's `paths` module honours `$PWD` when it
   names the same directory, so manifest and display paths do not change.
 - **Interactive prompts.** Bash reads `/dev/tty`; the port must do the same or
   captured-output flows (`check_for_updates`, hooks) change behaviour.
-- **Feature work during migration.** A feature on an unported command lands in
-  Bash; after Phase 3 a feature on `sync` lands in Rust only. The dispatcher's
-  list makes the owner explicit.
+- **Feature work during migration.** A feature on an unported command landed in
+  Bash; after Phase 3 a feature on `sync` landed in Rust only. The dispatcher's
+  list made the owner explicit. From Phase 6 every feature lands in Rust.
 - **Maintainer velocity.** The decision gate at the end of Phase 1 existed for
   this and was answered on 2026-09-13: Rust stays, Go is off the table.
 

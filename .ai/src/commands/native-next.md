@@ -1,9 +1,11 @@
 ---
-description: Advance the Rust migration by one unit of work and stop at a checkpoint — run it again until Bash is gone
+description: Advance the Rust migration by one unit of work and stop at a checkpoint — run it again until bats is gone
 argument-hint: "[max-tasks]"
 ---
 
 Advance the Bash → Rust migration by one bounded unit of work, then stop and report. Running it again continues from the repository state, so a fresh session needs nothing but this command. The default is one plan task per run; a number in `$ARGUMENTS` allows up to that many tasks in one run, still stopping at the first checkpoint below.
+
+The engine is Rust since Phase 5 (the cutover release, 0.37.0) and the Bash engine was deleted in Phase 6. What remains is Phase 7: the bats suite becomes Rust integration tests, one bats file per commit, until `cargo test` is the whole suite.
 
 ## State
 
@@ -11,9 +13,9 @@ Branch, tree, and commits not yet on main:
 
 !`git branch --show-current; git status --short | head -20; echo "ahead of main: $(git log --oneline main..HEAD 2>/dev/null | wc -l | tr -d ' ')"`
 
-Ported commands:
+Test surface still in bats, and the Rust suite:
 
-!`grep -n '^_NATIVE_COMMANDS=' bin/agentsync.sh || echo "no dispatcher yet"`
+!`echo "bats files: $(ls tests/*.bats 2>/dev/null | wc -l | tr -d ' '), cases: $(grep -h -c '^@test' tests/*.bats 2>/dev/null | awk '{ s += $1 } END { print s + 0 }')"; echo "cargo test cases: $(grep -rh -c '^\s*#\[test\]' src tests 2>/dev/null | awk '{ s += $1 } END { print s + 0 }')"`
 
 Plans with open, done, and receipt counts:
 
@@ -39,16 +41,24 @@ Run log of the current plan (the previous runs' handoff notes):
 
 Work through the list in order; the first matching line is this run's unit of work.
 
-1. If Phase 5 is closed, stop and ask the user to merge and release: that is the cutover, the first version that ships a binary. Before Phase 5 a closed phase is not a release point — every phase accumulates on the one migration branch, because a half-migrated engine still ships the same Bash to users. Merging, pushing, and releasing are never done by this command.
-2. If the current branch is not the migration branch, `git switch` to it, creating it from `main` when it does not exist. One branch carries every phase. Nothing is committed on `main`.
-3. If the design spec, a plan, or the `.ai/src` migration tooling (skill `native-port`, commands `native-*`, rule `native-engine.md`) is untracked, commit it on the phase branch as `docs(native): …` before anything else. On that first commit set the spec's `Status:` line to `In progress since <today>`.
+1. If the current phase is closed and its branch is not yet on `main`, stop and ask the user to merge and push. Since the cutover a closed phase is a merge point: the maintainer merges it into `main` and, when a release is due, runs `agentsync release`. Merging, pushing, and releasing are never done by this command.
+2. If the current branch is not the migration branch, `git switch` to it, creating it from `main` when it does not exist. Nothing is committed on `main`.
+3. If the design spec, a plan, or the `.ai/src` migration tooling (commands `native-*`, rule `native-engine.md`) is untracked, commit it on the phase branch as `docs(native): …` before anything else.
 4. If `cargo` is missing, stop. Print the rustup command from Phase 1 Task 0 Step 1 and ask the user to run it. A toolchain is never installed by this command.
-5. If the current phase has no plan with an unchecked task and is not closed, write the next plan by following `.ai/src/commands/native-phase-plan.md` (for Phases 4 and 5, the next command family or slice named in the spec's section for that phase that has no plan yet), commit it as `docs(native): plan phase <n>`, and stop so the plan can be reviewed.
+5. If the current phase has no plan with an unchecked task and is not closed, write the next plan by following `.ai/src/commands/native-phase-plan.md`, commit it as `docs(native): plan phase <n>`, and stop so the plan can be reviewed.
 6. If the current phase has a plan with an unchecked task, execute the first one. See "Executing a task".
 7. If every task of a plan is checked and that plan has no `## Completion receipt`, close it. See "Closing a phase".
-8. If Phase 6 is closed and `bin/agentsync.sh` no longer exists, report that the migration is complete and stop.
+8. If Phase 7 is closed and no `tests/*.bats` file exists, report that the migration is complete and stop.
 
-Definitions. A plan is closed when it has no `- [ ]` left and carries a `## Completion receipt`. A phase is closed when every plan file for it is closed; Phases 4 and 5 additionally need a plan for every command family or slice named in the spec's section for that phase, so Phase 5 is not closed, and no release is due, until 5e is. The current phase is the highest phase number among the plan files, or that number plus one once that phase is closed; with no plan files at all it is 1. The migration branch is the one whose name starts with `feat/native-engine`; it stays checked out from Phase 1 to the cutover and is never merged before it.
+Definitions. A plan is closed when it has no `- [ ]` left and carries a `## Completion receipt`. A phase is closed when every plan file for it is closed. The current phase is the highest phase number among the plan files, or that number plus one once that phase is closed. The migration branch is the one whose name starts with `feat/native-engine`; each phase since the cutover has its own (`feat/native-engine-phase-6`, `feat/native-engine-phase-7`), cut from `main` after the previous phase merged.
+
+## Phase 7 rules
+
+- One bats file per commit, `test(native): port <file>.bats`. The Rust test names copy the bats test names (spaces and punctuation to `_`) so a reviewer maps them one to one; the commit deletes the bats file it ported.
+- The Rust tests live in `tests/` on `assert_cmd`, the shape `tests/cli.rs` already uses, against the same binary `cargo test` builds; no test spawns a shell to do what the binary does.
+- A bats case whose behaviour the Rust suite already asserts is retired, not duplicated: the commit message names the Rust test that covers it. A case that only tested the Bash engine's own mechanics (its `source`d helpers, a shell shim) is retired with the reason.
+- Windows stays a required check: a ported test that skips on Windows says why in its name or a comment naming the platform quirk.
+- The last task of the phase deletes `tests/test_helper.bash`, drops bats and GNU parallel from CI, and removes the Windows shard matrix; the exit is `cargo test` as the whole suite and no `.bats` file left.
 
 ## Executing a task
 
@@ -58,21 +68,20 @@ Definitions. A plan is closed when it has no `- [ ]` left and carries a `## Comp
 - If an expected output does not match, fix the cause in the code. If the plan itself is wrong (a snippet does not compile, a count is off, a path moved), amend the plan file inside the same task and say so in the report.
 - Tick each `- [ ]` to `- [x]` as it passes; the plan file edit goes into the task's commit. Add the plan file to the task's `git add` even though the plan's own command line does not list it.
 - Commit at the task's commit step with the message the plan gives, with no attribution trailers.
-- Load the `native-port` skill for any step that ports a command or a module.
 - With a numeric `$ARGUMENTS`, continue with the next task up to that many, unless a checkpoint from the list above or a blocker below is reached.
 
 ## Stop and report instead of guessing
 
 - A verification fails twice for the same cause.
-- A step needs a decision the plan does not make: a new accepted deviation, a Bash bug that changes documented behaviour, a dependency to add.
+- A step needs a decision the plan does not make: a new accepted deviation, a behaviour change a ported test exposes, a dependency to add.
 - The sandbox or a permission blocks a write the task needs.
 - CI on the branch is red for a reason the task did not introduce.
 
-Leave the task's boxes unticked, leave the tree in a state that `bats tests/` and `cargo test` accept, and describe the blocker with the exact command and its output.
+Leave the task's boxes unticked, leave the tree in a state that `cargo test` and `bats tests/` accept, and describe the blocker with the exact command and its output.
 
 ## Closing a phase
 
-Append `## Completion receipt` to the plan file with: each Global Constraint mapped to the file that satisfies it; fresh output of `cargo test`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check`, ShellCheck over the shell entry points, and `bats --jobs 4 tests/ --tap` under both `AGENTSYNC_NATIVE=0` and `AGENTSYNC_NATIVE=1`; timings on the 13-tool fixture when the phase changed `sync` or `check`; anything skipped or deferred. Commit as `docs(native): close phase <n>`. For Phase 1 also answer the language decision gate from the spec, then stop for the user's verdict.
+Append `## Completion receipt` to the plan file with: each Global Constraint mapped to the file that satisfies it; fresh output of `cargo test`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --all --check`, `shellcheck -x -S warning -e SC1091 install.sh lib/templates/guard/claude.sh`, and `bats --jobs 4 tests/ --tap` while any `.bats` file remains; timings on the 13-tool fixture (`scripts/perf/bench.sh`) when the phase changed `sync` or `check`; anything skipped or deferred. Commit as `docs(native): close phase <n>`, then stop for the merge.
 
 ## Run log
 

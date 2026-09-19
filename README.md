@@ -5,7 +5,7 @@
 
   <p>
     <a href="https://github.com/yelmuratoff/agent">
-      <img src="https://img.shields.io/badge/shell-bash-4EAA25?style=for-the-badge&logo=gnu-bash&logoColor=white" alt="Built with Bash">
+      <img src="https://img.shields.io/badge/built_with-rust-4EAA25?style=for-the-badge&logo=rust&logoColor=white" alt="Built with Rust">
     </a>
     <a href="https://www.gnu.org/licenses/gpl-3.0.html">
       <img src="https://img.shields.io/badge/license-GPL--3.0--only-4EAA25?style=for-the-badge" alt="GPL-3.0-only License">
@@ -963,10 +963,20 @@ On sync, `agentsync sync` builds every `active` profile alongside your personal 
 
 ## Development
 
-Run the test suite from the repo root:
+AgentSync is a Rust crate at the repository root (edition 2024, `unsafe_code`
+forbidden); `src/main.rs` is the `agentsync` binary and the tool templates in
+`lib/templates/` are embedded into it at build time. Configuration is read by
+`src/yaml_subset.rs`, a parser for the YAML shapes AgentSync accepts, so the
+binary has no YAML dependency. Build it and run the checks from the repo root:
 
 ```bash
-# Full suite in parallel (needs GNU parallel — `brew install parallel` or
+cargo build --release                             # target/release/agentsync
+cargo fmt --all --check
+cargo clippy --all-targets -- -D warnings
+cargo test                                        # unit tests and tests/cli.rs
+
+# The bats suite drives target/release/agentsync directly. Full suite in
+# parallel (needs GNU parallel — `brew install parallel` or
 # `apt-get install parallel`). ~2x the CPU count is the sweet spot because
 # tests block on git/filesystem. On an 8-core Mac: jobs=16, ≈ 25-30s.
 bats --jobs "$(( $(getconf _NPROCESSORS_ONLN) * 2 ))" tests/
@@ -975,35 +985,29 @@ bats --jobs "$(( $(getconf _NPROCESSORS_ONLN) * 2 ))" tests/
 bats tests/sync.bats
 ```
 
-CI runs `--jobs 4` on Linux and macOS; the Bash reference on Windows falls
-back to sharded serial runs because GNU parallel isn't available under
-git-bash, and the binary runs the suite there unsharded.
+`tests/test_helper.bash` points `run_agentsync` at `target/release/agentsync`;
+set `AGENTSYNC_NATIVE_BIN` to test another build. CI runs the Rust gates and
+the suite with `--jobs 4` on Linux and macOS, and on Windows builds the binary
+and runs the suite in twelve serial shards because GNU parallel isn't
+available under Git Bash. `shellcheck -x -S warning -e SC1091` covers the two
+shell scripts that remain: `install.sh` and `lib/templates/guard/claude.sh`.
 
-Git Bash copies `ln -s` targets by default. The symlink-safety tests request
-native links with `MSYS=winsymlinks:nativestrict`; enable Windows Developer Mode
-or grant the `Create symbolic links` privilege before running them locally.
+On Windows, Git Bash copies `ln -s` targets by default. The symlink-safety
+tests request native links with `MSYS=winsymlinks:nativestrict`; enable Windows
+Developer Mode or grant the `Create symbolic links` privilege before running
+them locally.
 
-### Native engine
+The engine was ported from Bash one command at a time
+(`docs/specs/2026-09-12-rust-migration-design.md`). The Bash engine last
+shipped in 0.37.0 and is readable from that tag, for example
+`git show 0.37.0:lib/helpers/backup.sh`; the module docs in `src/` name the
+Bash function each file mirrors. `scripts/perf/bench.sh` times the binary on a
+generated 13-tool fixture, and compares it against the Bash engine when
+`AGENTSYNC_BASH_CLI` points at the `bin/agentsync.sh` of a 0.37.0 checkout.
 
-The engine is a Rust binary; every command is ported
-(`docs/specs/2026-09-12-rust-migration-design.md`). Installs run the binary
-directly. In the repository `bin/agentsync.sh` stays the Bash reference and the
-parity harness until Phase 6 deletes it, and hands a command to the binary when
-one is built:
-
-```bash
-cargo build --release                 # target/release/agentsync
-agentsync list                        # served natively when the binary exists
-AGENTSYNC_NATIVE=0 agentsync list     # force the Bash implementation
-AGENTSYNC_NATIVE=1 bats tests/        # run the suite against the binary
-tests/update_native.bats              # update on a binary install, the binary run directly
-```
-
-`cargo test` covers the Rust side; `tests/native_parity.bats` diffs Bash
-against native output for every ported command. Releases are built by
-cargo-dist (`dist-workspace.toml`): the auto-tag workflow dispatches
-`release.yml` for the tag it creates from `VERSION`, which publishes the five
-archives, their checksums, and the installers.
+Releases are built by cargo-dist (`dist-workspace.toml`): the auto-tag
+workflow dispatches `release.yml` for the tag it creates from `VERSION`, which
+publishes the five archives, their checksums, and the installers.
 
 ## License
 

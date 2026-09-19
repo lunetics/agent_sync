@@ -1,10 +1,12 @@
 # Core Rules
 
-Every command runs on macOS, Linux, and Git Bash on Windows. Entry points own strict mode, sourced helpers remain safe under it, failures surface, and changes stay inside the requested scope.
+The binary runs on macOS, Linux, and Windows; the suite runs on Git Bash there. Failures surface, and changes stay inside the requested scope.
 
 ## Shell Script Quality
 
-- Keep `set -euo pipefail` enabled in executable entry points. Helper modules are sourced and inherit the caller's shell options.
+Applies to the shell that remains: `install.sh`, `lib/templates/guard/claude.sh`, and `tests/test_helper.bash`.
+
+- Keep `set -euo pipefail` enabled in executable entry points. Sourced helpers inherit the caller's shell options.
 - Quote expansions unless intentional splitting or glob expansion is part of the contract.
 - Declare function-scoped variables with `local`.
 - Reach for `[[ ]]` over `[ ]`, and `$(command)` over backticks.
@@ -24,7 +26,7 @@ POSIX-compatible flags only — `sed`, `grep`, `readlink`, `find` ship in differ
 - realpath "$path"                   # not on macOS by default
 + (cd "$(dirname "$path")" && pwd)
 
-# Resolve symlinks — manual loop, see bin/agentsync.sh
+# Resolve symlinks — manual loop
 - readlink -f "$link"                # GNU-only
 + while [[ -L "$target" ]]; do target=$(readlink "$target"); done
 
@@ -33,18 +35,18 @@ POSIX-compatible flags only — `sed`, `grep`, `readlink`, `find` ship in differ
 + while IFS= read -r line; do ...; done < "$file"
 ```
 
-Run ShellCheck and the relevant bats tests locally; CI confirms Linux, macOS, and Git Bash.
+In Rust, engine paths are `/`-separated strings (`src/paths.rs`): translate disk paths through `from_disk`/`DiskText`, never format a `PathBuf` into engine output. Run ShellCheck and the relevant bats tests locally; CI confirms Linux, macOS, and Git Bash.
 
 ## Scope of Changes
 
 - Touch only what the task requires. Adjacent code stays as-is until asked.
 - Three similar lines beat a premature abstraction — let real duplication drive helpers.
 - Delete dead code outright; git keeps the history.
-- Keep configuration within the scalar, nested-key, and supported list shapes implemented in `lib/helpers/yaml.sh`.
+- Keep configuration within the scalar, nested-key, and supported list shapes implemented in `src/yaml_subset.rs`.
 
 ## Error Handling
 
-- Match the surrounding command's output layer: structured sync paths use `log_*`; interactive CLI helpers use the shared colour and prompt helpers.
-- Guard expected optional inputs explicitly. Let unexpected filesystem, parser, and subprocess failures propagate.
+- Match the surrounding command's output layer: the engine logs through `src/log.rs`; command modules use `src/style.rs` and `src/prompts.rs`.
+- `src/error.rs` is the single error type; `main` maps each variant to its message and exit code. Guard expected optional inputs explicitly. Let unexpected filesystem, parser, and subprocess failures propagate as `Error`.
 - Preserve meaningful non-zero exit codes and actionable stderr messages at CLI boundaries.
-- Let `set -euo pipefail` stay active throughout the run — fix the failing command rather than disabling strict mode for it.
+- In shell, let `set -euo pipefail` stay active throughout the run — fix the failing command rather than disabling strict mode for it.

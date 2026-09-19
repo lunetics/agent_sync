@@ -3,32 +3,30 @@ paths:
   - "src/**"
   - "Cargo.toml"
   - "tests/*.rs"
-  - "tests/native_*.bats"
 ---
 
-# Native Engine Rules
+# Engine Rules
 
-The Rust crate at the repo root replaces the Bash engine one command at a time behind `_native_try` in `bin/agentsync.sh`. Until cutover (`docs/specs/2026-09-12-rust-migration-design.md`, Phase 5) the Bash implementation is the reference and the bats suite is the contract.
+The Rust crate at the repo root is the whole engine: one binary, `agentsync`, built from `src/` with the templates embedded. The Bash engine it replaced last shipped in 0.37.0 (`docs/specs/2026-09-12-rust-migration-design.md`); the bats suite carries its behaviour as the contract until Phase 7 moves that coverage into Rust tests.
 
 ## Toolchain
 
 - Edition 2024, `rust-version = "1.85"`, `unsafe_code = "forbid"`. `cargo fmt --all --check` and `cargo clippy --all-targets -- -D warnings` stay clean.
 - `VERSION` is the release source of truth. The crate reads it with `include_str!`, `Cargo.toml` and `Cargo.lock` carry the same value, `agentsync release` bumps the three together, and a test in `src/lib.rs` fails when the crate version and `VERSION` disagree.
 - Templates embed from `lib/templates/` through `include_dir!`. The binary never looks up an engine directory at runtime.
-- Dependencies: clap, include_dir, sha2, signal-hook, thiserror; dev: assert_cmd, predicates, tempfile. Add a crate only for a concrete command need. A YAML parser is never added: `yaml_subset` mirrors `lib/helpers/yaml.sh` by design.
+- Dependencies: clap, include_dir, sha2, signal-hook, thiserror; dev: assert_cmd, predicates, tempfile. Add a crate only for a concrete command need. A YAML parser is never added: `yaml_subset` reads the supported shapes by design.
 
 ## Structure
 
-- `src/main.rs` is the only process-aware file: arguments, `ExitCode`, the `AGENTSYNC_ENGINE_VERSION` guard. Everything else is a library with a `Result<_, Error>` API.
+- `src/main.rs` is the only process-aware file: arguments, environment, `ExitCode`. Everything else is a library with a `Result<_, Error>` API.
 - `src/cli/<cmd>.rs` owns one command as `render(…) -> Result<String, Error>` plus `run(…, &mut impl Write)`. A command with its own exit status returns it from `run` — `check` through a `Report`, `sync` and `rollback` as a `u8` — and writes only through the writers or the log sink `main` hands it. Core modules never print.
-- `src/error.rs` is the single error type. Each variant's `Display` text is the Bash message it replaces, and `main` maps the variant to the Bash exit code.
-- Two output voices, kept apart as in Bash: `style` mirrors `cli_colors.sh` for command modules; `log` mirrors `logging.sh` for the engine. Neither leaks into the other's module.
-- Bash semantics are mirrored, quirks included; the numbered list in the design spec is the allowed set. Improving behaviour during a port is not allowed; a deliberate change is one line under "Accepted deviations" in the spec.
+- `src/error.rs` is the single error type. Each variant's `Display` text is the message the user sees, and `main` maps the variant to the exit code.
+- Two output voices, kept apart: `style` for command modules; `log` for the engine. Neither leaks into the other's module.
+- Engine paths are `/`-separated strings, drive-aware on Windows (`paths`). A disk path enters through `from_disk`/`DiskText`; arguments stay verbatim.
+- Documented behaviour is the contract, quirks included; a deliberate change to it is one line under "Accepted deviations" in the spec, with its test.
 
-## Parity
+## Verification
 
-- A command is ported when `_NATIVE_COMMANDS` lists it, its bats file passes with `AGENTSYNC_NATIVE=1`, and `tests/native_parity.bats` covers its situations.
-- Output matches Bash byte for byte on stdout, stderr, and exit status when stdout is not a terminal; on a terminal the escape codes are those of `cli_colors.sh`.
-- A unit test asserts the value the Bash helper produces, confirmed by running the helper, never derived from reading it.
-- A Bash bug found by a fixture is fixed in Bash first, in its own commit with a regression test.
-- Tests are hermetic: `tempfile`, no network, no dependency on the developer's `~/.agentsync`.
+- `cargo test` is hermetic: `tempfile`, no network, no dependency on the developer's `~/.agentsync`. A unit test asserts an observed value, never one derived from reading the code.
+- The bats suite runs against `target/release/agentsync` (`cargo build --release` first). A change to a command's output or exit status updates its bats file in the same commit.
+- Output is stable across platforms when stdout is not a terminal; on a terminal the escape codes come from `style`.

@@ -4,9 +4,13 @@ description: Report where the Rust migration stands and name the next task
 
 Report the state of the Bash → Rust migration from the facts below; do not start any task.
 
-## Ported commands
+## Test surface
 
-!`grep -n '^_NATIVE_COMMANDS=' bin/agentsync.sh || echo "no dispatcher yet: Phase 1 Task 2 not started"`
+Bats files still to port, and the Rust suite:
+
+!`echo "bats files: $(ls tests/*.bats 2>/dev/null | wc -l | tr -d ' '), cases: $(grep -h -c '^@test' tests/*.bats 2>/dev/null | awk '{ s += $1 } END { print s + 0 }')"; echo "cargo test cases: $(grep -rh -c '^\s*#\[test\]' src tests 2>/dev/null | awk '{ s += $1 } END { print s + 0 }')"`
+
+!`ls tests/*.bats 2>/dev/null | xargs -n1 basename 2>/dev/null | tr '\n' ' '; echo`
 
 ## Plans and their checklists
 
@@ -39,7 +43,7 @@ Open:
 In this order, each as one or two sentences:
 
 1. The phase in progress and its plan file.
-2. Commands served natively versus still Bash, from `_NATIVE_COMMANDS` against the command list in `bin/agentsync.sh`.
+2. Test coverage by suite: bats files and cases still to port versus `cargo test` cases.
 3. Checklist progress per plan file: done and open counts.
 4. The count of accepted deviations.
 5. The next unchecked task and step, quoted from the plan with its file path.

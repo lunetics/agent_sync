@@ -27,7 +27,7 @@ Add a new AI coding tool to AgentSync so `agentsync sync` distributes instructio
    - `00-context.md` pattern for AGENTS.md content in rules dir
    - TOML format for agents (Codex)
    - Safe Markdown/JSON composition for OpenCode-style shared files
-5. **Extend generic conversion only when required** — Add reusable behavior in `lib/helpers/format_conversion.sh`, `rule_operations.sh`, or a focused composition helper. Keep `lib/sync.sh` as orchestration and avoid tool-name branches.
+5. **Extend generic conversion only when required** — Add reusable behavior in `src/convert.rs`, `src/rules.rs`, or a focused composition module, with unit tests. Keep `src/render.rs` as orchestration and avoid tool-name branches.
 6. **Add optional payload bases** — Put shipped settings, MCP, or hooks under the matching `lib/templates/<resource>/` directory only when the tool supports that surface.
 7. **Update documentation** — Keep README support tables, the bundled AgentSync skill, `.ai/src/tools/_TEMPLATE.yaml`, and CHANGELOG aligned with the new target.
 8. **Write tests** — Add assertions in:
@@ -35,13 +35,13 @@ Add a new AI coding tool to AgentSync so `agentsync sync` distributes instructio
    - `tests/sync_options.bats` — verify `--only`/`--skip` filtering
    - `tests/check.bats` — verify `agentsync check` detects drift
    - focused converter/composition tests when the tool changes formats
-9. **Verify locally** — Run ShellCheck, targeted bats tests, a repeated sync idempotency check, and `agentsync check`. CI confirms all supported platforms.
+9. **Verify locally** — Run `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, `cargo build --release`, targeted bats tests, a repeated sync idempotency check, and `agentsync check`. CI confirms all supported platforms.
 
 ## Gotchas
 
 - Every tool has quirks. Read the tool's docs for where it expects instruction files.
 - Some tools share output paths (e.g., Copilot uses `.github/`). Check for collisions with existing tools.
-- Use only YAML shapes supported by `lib/helpers/yaml.sh`; include/exclude filters support scalar, inline-list, and block-list forms.
+- Use only YAML shapes supported by `src/yaml_subset.rs`; include/exclude filters support scalar, inline-list, and block-list forms.
 - The catalog discovers `lib/templates/tools/*.yaml`; do not add a command-local registration list.
 - Tool names must be lowercase and match the YAML filename (e.g., `claude.yaml` → tool name `claude`).
 - Credentials and global-only preferences stay outside project sync.

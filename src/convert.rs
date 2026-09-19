@@ -473,4 +473,16 @@ mod tests {
                 .contains("  Run the /x command workflow.\n")
         );
     }
+
+    #[test]
+    fn an_empty_tools_allowlist_stays_deny_by_default() {
+        let out = agent_to_opencode_md(
+            "no-tools",
+            b"---\ndescription: No-tools agent\ntools: []\n---\nAnswer from context only.\n",
+        );
+        assert_eq!(
+            String::from_utf8(out).unwrap(),
+            "---\ndescription: \"No-tools agent\"\nmode: subagent\npermission:\n  \"*\": deny\n---\nAnswer from context only.\n"
+        );
+    }
 }

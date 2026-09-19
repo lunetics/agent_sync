@@ -865,4 +865,59 @@ mod tests {
             ["   📁 .ai/src/agents/ → .codex/agents/ (1 agents, md→toml)"]
         );
     }
+
+    #[test]
+    fn merge_or_prepend_header_keeps_the_source_value_and_a_complete_header() {
+        let wins = merge_or_prepend_header(b"---\nglobs: \"**/*.ts\"\n---\nbody\n", CURSOR_HEADER);
+        assert_eq!(
+            String::from_utf8(wins).unwrap(),
+            "---\nglobs: \"**/*.ts\"\nalwaysApply: true\n---\nbody\n"
+        );
+        let complete = b"---\nglobs: \"**/*.ts\"\nalwaysApply: false\n---\nbody\n";
+        assert_eq!(merge_or_prepend_header(complete, CURSOR_HEADER), complete);
+    }
+
+    #[test]
+    fn an_empty_rules_dir_merges_nothing_but_still_prepends_agents() {
+        let mut s = test_session();
+        file(&mut s, "/proj/.ai/src/AGENTS.md", "# Agent\n");
+        file(&mut s, "/proj/.ai/src/rules/.keep", "");
+        merge_rules_to_file(
+            &mut s,
+            "/proj/.ai/src/rules",
+            "/proj/merged.md",
+            "",
+            "",
+            Some("/proj/.ai/src/AGENTS.md"),
+        )
+        .unwrap();
+        assert_eq!(text_of(&s, "/proj/merged.md"), "# Agent\n\n---\n\n");
+        assert_eq!(
+            s.log.tail(1),
+            ["   📁 .ai/src/rules/ → merged.md (0 files merged)"]
+        );
+    }
+
+    #[test]
+    fn missing_rule_sources_warn_and_return() {
+        let mut s = test_session();
+        let opts = RuleOptions {
+            extension: "",
+            header: "",
+            scoped_header: "",
+            include: "",
+            exclude: "",
+        };
+        sync_rules(&mut s, "/proj/nope", "/proj/out", &opts).unwrap();
+        merge_rules_to_file(&mut s, "/proj/nope", "/proj/out.md", "", "", None).unwrap();
+        assert_eq!(
+            s.log.tail(2),
+            [
+                "[WARNING] Rules source not found: /proj/nope",
+                "[WARNING] Rules source not found: /proj/nope"
+            ]
+        );
+        assert!(!s.ws.exists("/proj/out"));
+        assert!(!s.ws.exists("/proj/out.md"));
+    }
 }

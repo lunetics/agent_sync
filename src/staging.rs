@@ -73,6 +73,18 @@ mod tests {
     }
 
     #[test]
+    fn a_read_only_destination_is_still_replaced_and_keeps_its_mode() {
+        let dir = tempfile::tempdir().unwrap();
+        let locked = dir.path().join("locked.yaml");
+        std::fs::write(&locked, "original\n").unwrap();
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o444)).unwrap();
+        write_beside(&locked, b"rewritten\n").unwrap();
+        assert_eq!(std::fs::read(&locked).unwrap(), b"rewritten\n");
+        assert_eq!(mode(&locked), 0o444);
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
+
+    #[test]
     fn a_missing_parent_is_an_error_that_leaves_nothing_behind() {
         let dir = tempfile::tempdir().unwrap();
         assert!(write_beside(&dir.path().join("missing/x"), b"x").is_err());

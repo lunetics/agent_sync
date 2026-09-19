@@ -143,6 +143,31 @@ mod tests {
     }
 
     #[test]
+    fn copy_file_creates_parent_directories() {
+        let mut s = test_session();
+        file(&mut s, "/proj/.ai/src/mcp.json", "{}");
+        copy_file(
+            &mut s,
+            "/proj/.ai/src/mcp.json",
+            "/proj/.cursor/deep/mcp.json",
+        )
+        .unwrap();
+        assert!(s.ws.is_dir("/proj/.cursor/deep"));
+        assert_eq!(s.ws.read("/proj/.cursor/deep/mcp.json").unwrap(), b"{}");
+    }
+
+    #[test]
+    fn sync_dir_warns_on_a_missing_source() {
+        let mut s = test_session();
+        sync_dir(&mut s, "/proj/nope", "/proj/out", "", "").unwrap();
+        assert_eq!(
+            s.log.tail(1),
+            ["[WARNING] Source directory not found: /proj/nope"]
+        );
+        assert!(!s.ws.exists("/proj/out"));
+    }
+
+    #[test]
     fn copy_file_warns_on_a_missing_source() {
         let mut s = test_session();
         copy_file(&mut s, "/proj/nope.json", "/proj/.mcp.json").unwrap();

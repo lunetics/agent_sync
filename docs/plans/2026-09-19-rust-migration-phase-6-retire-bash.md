@@ -152,11 +152,11 @@ pub fn from_msys(path: &str, msystem: Option<&str>) -> String;
 pub fn is_tty() -> bool;   // on Windows: false unless stdin and stdout are a real console
 ```
 
-- [ ] **Step 1: Read the first Windows shard logs**
+- [x] **Step 1: Read the first Windows shard logs**
 
 `gh api repos/yelmuratoff/agent_sync/actions/jobs/<id>/logs` for each red shard of the Task 1 push; list every distinct failure message with the test that produced it. The two known ones: `Error: Directory not found: .` (a POSIX `AGENTSYNC_REPO_ROOT`, `TMPDIR`, or `PWD` reaching the binary) and a hang after `dedupe requires TTY without --yes` (a prompt read from `CONIN$`).
 
-- [ ] **Step 2: Translate MSYS paths**
+- [x] **Step 2: Translate MSYS paths**
 
 Add `paths::from_msys` and apply it in `main.rs` wherever an environment path is read (`AGENTSYNC_REPO_ROOT`, `AGENTSYNC_CONFIG_PATH`, `PWD`, `AGENTSYNC_EXTERNAL_SOURCE_ROOTS`, `TMPDIR` if read) and to positional path arguments (`init <dir>`, `adopt <file>`, `import <source>`). Unit-test the pure part: with `msystem` `None` the path is unchanged; with `Some("MINGW64")` a Windows path is unchanged and a `/`-rooted one goes through the translator (inject the translator as a closure so the test needs no `cygpath`).
 
@@ -183,18 +183,18 @@ git commit -m "docs(native): record the Windows fixes of phase 6"
 - Modify: `src/filters.rs`, `src/file_ops.rs`, `src/rules.rs`, `src/convert.rs`, `src/paths.rs`, `src/backup.rs`, `src/staging.rs`, `src/gitignore.rs`, `src/snapshot.rs`, `src/changelog.rs` (tests only)
 - Delete: `tests/files.bats`, `tests/paths.bats`, `tests/backup.bats`, `tests/tmp.bats`, `tests/gitignore.bats`, `tests/update_snapshot.bats`, `tests/changelog_render.bats`, `tests/update.bats`
 
-- [ ] **Step 1: The table**
+- [x] **Step 1: The table**
 
 For each of the 142 cases (36 + 27 + 18 + 15 + 7 + 20 + 13 + 6), write one row `file | bats case | Rust test | status` into a `### Bash-unit cases` section of this plan, where status is `existing` (the named Rust test asserts the same value), `added` (a new test named after the case, asserting the value the Bash helper produced, confirmed by running the helper before deletion), or `retired` (with the reason: `tmp.sh`'s run-directory lifecycle and `update.sh`'s git reconcile have no counterpart in the binary; `paths.sh`'s `REPLY` wrappers and memoisation are Bash mechanics). Expected: no row without a status; `retired` rows only for the three groups named.
 
-- [ ] **Step 2: Add the missing tests**
+- [x] **Step 2: Add the missing tests**
 
 One commit per Rust module. Every added test asserts a value captured by running the Bash helper (`bash -c 'source lib/helpers/x.sh; …'`) before Task 4 deletes it.
 
 Run: `cargo test 2>&1 | grep 'test result' | head -1`
 Expected: `326 + <added>` passed, the number written into the table's footer.
 
-- [ ] **Step 3: Delete the eight files**
+- [x] **Step 3: Delete the eight files**
 
 ```bash
 git rm tests/files.bats tests/paths.bats tests/backup.bats tests/tmp.bats tests/gitignore.bats tests/update_snapshot.bats tests/changelog_render.bats tests/update.bats

@@ -172,7 +172,11 @@ For tools without separate rules/skills directories, use inline options:
 
 ## Adding a New Tool
 
-1. Copy `.ai/src/tools/_TEMPLATE.yaml` to `.ai/src/tools/<tool>.yaml`.
+1. Start from the closest shipped tool: `agentsync customize <tool> --full`
+   writes `.ai/src/tools/<tool>.yaml`, which you copy to
+   `.ai/src/tools/<new>.yaml`. Every field is documented in
+   `lib/templates/tools/_TEMPLATE.yaml` in the AgentSync repository; a
+   project has no copy of it, and a `_`-prefixed file is never read as a tool.
 2. Set `name`, `enabled: true`, and configure `targets`.
 3. Run `agentsync sync --only <tool>` to test.
 

@@ -461,11 +461,21 @@ opencode auth login               # choose Z.AI Coding Plan for OpenCode
 
 ## Adding a New Tool
 
+A tool AgentSync does not ship is a YAML file in your own project. Start from
+the closest shipped tool rather than an empty file:
+
 ```bash
-cp .ai/src/tools/_TEMPLATE.yaml .ai/src/tools/newtool.yaml
-# Edit newtool.yaml, then:
+agentsync customize cursor --full        # writes .ai/src/tools/cursor.yaml, the full base
+cp .ai/src/tools/cursor.yaml .ai/src/tools/newtool.yaml
+# Edit newtool.yaml: at least `name:` and one target's `dest:`
+agentsync enable newtool
 agentsync sync --only newtool
 ```
+
+Every field is documented in
+[`lib/templates/tools/_TEMPLATE.yaml`](lib/templates/tools/_TEMPLATE.yaml) in
+this repository. A file whose name starts with `_` is never read as a tool, so
+a copy you keep for reference costs nothing.
 
 ## Automation
 

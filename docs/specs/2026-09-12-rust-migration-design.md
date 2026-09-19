@@ -472,7 +472,12 @@ back to Bash when no binary existed.
 ## Known quirks to reproduce now and fix after cutover
 
 Recorded so the parity work reproduces them knowingly and the post-cutover
-cleanup has a list:
+cleanup has a list.
+
+**Status, 2026-09-20:** the cutover is past and the binary still reproduces all
+of these except item 8, which was struck. The list is open debt with no owner
+and no plan; nothing here is a regression, and each item is a decision to make
+once rather than a bug to find twice.
 
 1. `parse_yaml_list` on an empty block key keeps scanning and returns the next
    dash list anywhere later in the file (`yaml.sh:180-197`).
@@ -486,10 +491,11 @@ cleanup has a list:
    coloured `list` columns drift; the native `pad_right` reproduces it.
 7. `outputs` absent means `local`, except when `gitignore.update: false`, which
    means `committed`; the rule is duplicated in three files.
-8. Tool listings are sorted with locale `sort`; the native engine uses byte
-   order (accepted deviation, see below).
-9. `read_frontmatter_field` returns the last occurrence of a key, although its
-   comment promises the first.
+8. *Struck 2026-09-20: not a quirk.* Locale-ordered tool listings were
+   ratified as an accepted deviation, below; the numbering stays as it is
+   because source comments and tests cite these items by number.
+9. `read_frontmatter_field` returns the last occurrence of a key. (The Bash
+   comment promised the first; `src/convert.rs` documents the real behaviour.)
 10. `_rule_paths_csv` collects every list item in a rule's frontmatter once it
     has a bare `paths:` key, not only the items under `paths:`.
 11. The inline skill index strips `>` from `description: >-` and indexes the
@@ -622,8 +628,11 @@ Appended one line at a time as they are found, with the phase:
   its temporary overlay directories.
 - Phase 3: an edited install-directory `lib/config.yaml` does not enable
   post-sync hooks; the binary reads the shipped `post_sync.allow: false`, and
-  `AGENTSYNC_ALLOW_POST_SYNC=true` enables them as before. Phase 5 settles the
-  user-level setting when the install directory goes away.
+  `AGENTSYNC_ALLOW_POST_SYNC=true` enables them as before. Phase 5 did not
+  settle a user-level setting and the install directory is gone, so the
+  environment variable is the answer: a binary install has no file a user could
+  edit to grant this, and the shipped `lib/config.yaml` is compiled in. Adding
+  a user-level switch is a feature, not migration work.
 - Phase 3: a failed write, copy, or removal reports the Rust I/O error where
   Bash printed the `cp`, `mkdir`, or `rm` message; the status and the restore
   are unchanged.

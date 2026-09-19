@@ -25,7 +25,7 @@ Run these first. Stop on the first failure and report — don't quietly skip or 
    - `README.md` — command list, flag list, supported tools.
    - `.ai/src/commands/*.md`, `.ai/src/skills/**/SKILL.md` — descriptions and examples match what the binary accepts (`src/cli/usage.rs`, `src/cli/mod.rs`).
    - `.ai/src/rules/*.md` — invariants and the module map in `architecture.md` match the current `src/` layout.
-   - `.ai/src/tools/_TEMPLATE.yaml` — every option read by `src/render.rs` and `src/tool.rs` is documented; nothing documented is dead.
+   - `lib/templates/tools/_TEMPLATE.yaml` — every option read by `src/render.rs` and `src/tool.rs` is documented; nothing documented is dead.
    - If `src/cli/` or `src/render.rs` changed since the last tag and no doc files did, ask the user whether docs need a follow-up before tagging.
 
 Fix any doc gaps in the **same release commit** rather than punting to a "docs" release.

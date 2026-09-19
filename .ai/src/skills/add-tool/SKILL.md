@@ -29,7 +29,7 @@ Add a new AI coding tool to AgentSync so `agentsync sync` distributes instructio
    - Safe Markdown/JSON composition for OpenCode-style shared files
 5. **Extend generic conversion only when required** — Add reusable behavior in `src/convert.rs`, `src/rules.rs`, or a focused composition module, with unit tests. Keep `src/render.rs` as orchestration and avoid tool-name branches.
 6. **Add optional payload bases** — Put shipped settings, MCP, or hooks under the matching `lib/templates/<resource>/` directory only when the tool supports that surface.
-7. **Update documentation** — Keep README support tables, the bundled AgentSync skill, `.ai/src/tools/_TEMPLATE.yaml`, and CHANGELOG aligned with the new target.
+7. **Update documentation** — Keep README support tables, the bundled AgentSync skill, `lib/templates/tools/_TEMPLATE.yaml`, and CHANGELOG aligned with the new target.
 8. **Write tests** — Add assertions in:
    - `tests/sync.rs` — verify output files exist
    - `tests/sync_options.rs` — verify `--only`/`--skip` filtering

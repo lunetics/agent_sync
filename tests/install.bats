@@ -18,6 +18,13 @@ FIXTURE_NEW="9.9.2"
 FIXTURE_OLD="9.9.1"
 FIXTURE_ABSENT="999.0.0"
 
+# The binary's file name on this host: the installer and the switch look for
+# agentsync.exe on a Windows target.
+FIXTURE_EXE="agentsync"
+case "$(uname -s 2>/dev/null)" in
+    MINGW*|MSYS*|CYGWIN*) FIXTURE_EXE="agentsync.exe" ;;
+esac
+
 # Build the origin inside the per-test project rather than sharing one from
 # setup_file: bats versions differ in whether an exported setup_file variable
 # reaches the tests, and an empty origin URL fails every test here for a reason
@@ -89,15 +96,16 @@ EOF
 publish_release() {
     local tag="$1"
     local top="$TEST_PROJECT/rel-$tag/agentsync-fixture"
+    local exe="$FIXTURE_EXE"
     mkdir -p "$top" "$FAKE_RELEASES/$tag"
-    cat > "$top/agentsync" <<EOF
+    cat > "$top/$exe" <<EOF
 #!/usr/bin/env bash
 case "\${1:-}" in
     version) echo "agentsync v$tag" ;;
     *) exit 1 ;;
 esac
 EOF
-    chmod +x "$top/agentsync"
+    chmod +x "$top/$exe"
     printf '# Changelog\n\n## %s\n\n- Fixture.\n' "$tag" > "$top/CHANGELOG.md"
     tar -cJf "$FAKE_RELEASES/$tag/archive.tar.xz" -C "$TEST_PROJECT/rel-$tag" agentsync-fixture
     printf '%s  archive.tar.xz\n' "$(file_sha256 "$FAKE_RELEASES/$tag/archive.tar.xz")" \
@@ -144,7 +152,7 @@ teardown() {
     run bash "$REPO_ROOT/install.sh"
     [ "$status" -eq 0 ]
     [[ "$output" == *"Installed successfully!"*"v$FIXTURE_NEW"* ]]
-    [ -x "$TEST_PROJECT/engine/bin/agentsync" ]
+    [ -x "$TEST_PROJECT/engine/bin/$FIXTURE_EXE" ]
     [ -L "$TEST_PROJECT/bin/agentsync" ]
     [ "$("$TEST_PROJECT/bin/agentsync" version)" = "agentsync v$FIXTURE_NEW" ]
     [ ! -d "$TEST_PROJECT/engine/.git" ]
@@ -165,7 +173,7 @@ teardown() {
     run env AGENTSYNC_VERSION="$FIXTURE_NEW" bash "$REPO_ROOT/install.sh"
     [ "$status" -eq 1 ]
     [[ "$output" == *"checksum mismatch"* ]]
-    [ ! -e "$TEST_PROJECT/engine/bin/agentsync" ]
+    [ ! -e "$TEST_PROJECT/engine/bin/$FIXTURE_EXE" ]
     [ ! -e "$TEST_PROJECT/bin/agentsync" ]
 }
 
@@ -231,8 +239,8 @@ teardown() {
     [ "$status" -eq 0 ]
     [ "$(cat "$TEST_PROJECT/engine/VERSION")" = "$FIXTURE_NEW" ]
     [[ "$output" == *"Switched to the agentsync binary"* ]]
-    [ -x "$TEST_PROJECT/engine/bin/agentsync" ]
-    [ "$(readlink "$TEST_PROJECT/bin/agentsync")" = "$TEST_PROJECT/engine/bin/agentsync" ]
+    [ -x "$TEST_PROJECT/engine/bin/$FIXTURE_EXE" ]
+    cmp -s "$TEST_PROJECT/bin/agentsync" "$TEST_PROJECT/engine/bin/$FIXTURE_EXE"
     [ "$("$TEST_PROJECT/bin/agentsync" version)" = "agentsync v$FIXTURE_NEW" ]
 }
 
@@ -244,6 +252,6 @@ teardown() {
     [ "$status" -eq 0 ]
     [ "$(cat "$TEST_PROJECT/engine/VERSION")" = "$FIXTURE_NEW" ]
     [[ "$output" == *"checksum mismatch"* ]]
-    [ ! -e "$TEST_PROJECT/engine/bin/agentsync" ]
-    [ "$(readlink "$TEST_PROJECT/bin/agentsync")" = "$TEST_PROJECT/engine/bin/agentsync.sh" ]
+    [ ! -e "$TEST_PROJECT/engine/bin/$FIXTURE_EXE" ]
+    cmp -s "$TEST_PROJECT/bin/agentsync" "$TEST_PROJECT/engine/bin/agentsync.sh"
 }

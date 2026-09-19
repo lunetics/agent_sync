@@ -172,7 +172,7 @@ jobs:
         env:
           TERM: xterm
           AGENTSYNC_NATIVE: "1"
-        run: bats --jobs 4 --tap tests/
+        run: bats --jobs 4 --tap --print-output-on-failure tests/
       # Git Bash cannot run bats --jobs; the binary forks nothing, so the
       # suite runs serially and unsharded here (Phase 5e). Advisory until the
       # Windows follow-up lands: under Git Bash the binary receives POSIX
@@ -187,4 +187,4 @@ jobs:
         env:
           TERM: xterm
           AGENTSYNC_NATIVE: "1"
-        run: bats --tap tests/
+        run: bats --tap --print-output-on-failure tests/

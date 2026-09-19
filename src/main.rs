@@ -25,7 +25,6 @@ fn main() -> ExitCode {
 }
 
 fn run(args: Vec<OsString>) -> Result<u8, Error> {
-    guard_engine_version()?;
     let first = args.first().and_then(|a| a.to_str()).unwrap_or("");
     if cli::notice::wants_notice(first) {
         check_for_updates()?;
@@ -704,20 +703,4 @@ fn print_version() -> Result<u8, Error> {
     writeln!(out, "agentsync v{}", engine_version())
         .map(|()| 0)
         .map_err(|e| Error::io("<stdout>", e))
-}
-
-/// `bin/agentsync.sh` passes its own VERSION so a binary left behind by an
-/// older checkout can never answer for a newer engine.
-fn guard_engine_version() -> Result<(), Error> {
-    let Some(engine) = std::env::var_os("AGENTSYNC_ENGINE_VERSION") else {
-        return Ok(());
-    };
-    let engine = engine.to_string_lossy().into_owned();
-    if engine.is_empty() || engine == engine_version() {
-        return Ok(());
-    }
-    Err(Error::StaleBinary {
-        binary: engine_version().to_string(),
-        engine,
-    })
 }

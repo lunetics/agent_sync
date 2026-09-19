@@ -177,42 +177,6 @@ EOF
     [ -z "$(ls -A "$sandbox" 2>/dev/null)" ]
 }
 
-@test "shared: cleanup refuses an overlay directory this run did not create" {
-    source "$REPO_ROOT/lib/helpers/logging.sh"
-    source "$REPO_ROOT/lib/helpers/tmp.sh"
-    source "$REPO_ROOT/lib/helpers/shared.sh"
-
-    # $TEST_PROJECT lives under /tmp or /var/folders, so the old path-shape
-    # allowlist would have matched this and removed it.
-    local outsider="$TEST_PROJECT/not_ours"
-    mkdir -p "$outsider"
-
-    tmp_prime_run_dir
-    SHARED_OVERLAY_DIR="$outsider"
-    run shared_cleanup_overlay
-
-    [ "$status" -eq 0 ]
-    [ -d "$outsider" ]
-    [[ "$output" == *"not created by this run"* ]]
-
-    tmp_cleanup
-}
-
-@test "shared: cleanup removes an overlay this run did create" {
-    source "$REPO_ROOT/lib/helpers/logging.sh"
-    source "$REPO_ROOT/lib/helpers/tmp.sh"
-    source "$REPO_ROOT/lib/helpers/shared.sh"
-
-    tmp_prime_run_dir
-    SHARED_OVERLAY_DIR="$(tmp_dir agentsync_shared)"
-    local overlay="$SHARED_OVERLAY_DIR"
-
-    shared_cleanup_overlay
-    [ ! -e "$overlay" ]
-
-    tmp_cleanup
-}
-
 @test "shared: dry-run does not produce output but still tears down tmpdir" {
     local sandbox="$TEST_PROJECT/tmpdir_sandbox"
     mkdir -p "$sandbox"

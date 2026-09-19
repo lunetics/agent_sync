@@ -1,7 +1,3 @@
-# Runtime
-.last_update_check
-.snapshot/
-
 # macOS Finder metadata
 .DS_Store
 

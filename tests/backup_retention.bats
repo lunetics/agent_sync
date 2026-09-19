@@ -5,11 +5,6 @@ load test_helper
 setup() {
     setup_test_project
     unset AGENTSYNC_BACKUP_LIMIT AGENTSYNC_BACKUP_MAX_AGE_DAYS AGENTSYNC_CONFIG_PATH
-    source "$REPO_ROOT/lib/helpers/paths.sh"
-    source "$REPO_ROOT/lib/helpers/yaml.sh"
-    source "$REPO_ROOT/lib/helpers/project_config.sh"
-    source "$REPO_ROOT/lib/helpers/backup.sh"
-    source "$REPO_ROOT/lib/helpers/backup_state.sh"
     RETENTION_EVIDENCE="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_retention_evidence.XXXXXX")"
 }
 
@@ -103,7 +98,7 @@ assert_recovery_preserved() {
     [ "$(cat ".ai/backups/$snapshot/files/CLAUDE.md")" = before-sync ]
     # Verify AgentSync's own restore, in addition to the complete tar restore.
     save_and_verify_project before-engine-restore
-    backup_restore "$TEST_PROJECT" "$snapshot"
+    run_agentsync rollback "$snapshot" --yes > /dev/null
     [ "$(cat CLAUDE.md)" = before-sync ]
 }
 
@@ -186,26 +181,6 @@ assert_recovery_preserved() {
     assert_recovery_preserved
 }
 
-@test "retention preserve rollback retains its policy when restoring a bounded config" {
-    init_project
-    printf '\nbackup:\n  retention: bounded\n' >> .ai/agent_sync.yaml
-    local snapshot
-    snapshot="$(backup_create "$TEST_PROJECT" sync .ai/agent_sync.yaml CLAUDE.md)"
-    # This intentional fixture edit is preceded by a full, verified backup.
-    save_and_verify_project before-config-change
-    sed 's/retention: bounded/retention: preserve/' .ai/agent_sync.yaml > .ai/agent_sync.yaml.tmp
-    mv .ai/agent_sync.yaml.tmp .ai/agent_sync.yaml
-    printf 'current-output\n' > CLAUDE.md
-    seed_recovery
-    save_and_verify_project before
-    AGENTSYNC_BACKUP_LIMIT=1 AGENTSYNC_BACKUP_MAX_AGE_DAYS=1 run run_agentsync rollback "$(basename "$snapshot")" --yes
-    [ "$status" -eq 0 ]
-    [ "$(cat CLAUDE.md)" = before-sync ]
-    grep -q 'retention: bounded' .ai/agent_sync.yaml
-    assert_recovery_preserved
-    [ -d "$snapshot" ]
-}
-
 @test "retention invalid rollback config fails before safety snapshot or restore" {
     init_project
     set_retention typo
@@ -240,20 +215,6 @@ assert_recovery_preserved() {
     [ "$status" -ne 0 ]
     [[ "$output" == *"Backup max age must be"* ]]
     diff -qr . "$RETENTION_EVIDENCE/before-restore"
-}
-
-@test "retention configured helper preserves staging and resets to bounded for the next project" {
-    init_project
-    set_retention preserve
-    seed_recovery
-    save_and_verify_project before
-    backup_configure "$TEST_PROJECT"
-    _backup_sweep_stale_staging "$TEST_PROJECT/.ai/backups"
-    backup_prune "$TEST_PROJECT" 1 1
-    assert_recovery_preserved
-    mkdir "$RETENTION_EVIDENCE/empty-project"
-    backup_configure "$RETENTION_EVIDENCE/empty-project"
-    [ "$BACKUP_RETENTION_MODE" = bounded ]
 }
 
 @test "retention invalid explicit config rejects init and rollback without fallback" {

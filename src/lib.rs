@@ -1,5 +1,8 @@
-//! AgentSync native engine. `main.rs` is the only place that talks to the
+//! AgentSync engine. `main.rs` is the only place that talks to the
 //! process (arguments, exit codes); everything here is callable from tests.
+//!
+//! Module docs name the Bash function each file was ported from. That engine
+//! last shipped in 0.37.0: `git show 0.37.0:lib/helpers/<file>.sh`.
 
 pub mod backup;
 pub mod catalog;
@@ -40,7 +43,7 @@ pub mod yaml_subset;
 
 pub use error::Error;
 
-/// Engine version from the `VERSION` file, the same source `bin/agentsync.sh` reads.
+/// Engine version from the `VERSION` file, which `release` bumps with `Cargo.toml`.
 pub fn engine_version() -> &'static str {
     include_str!("../VERSION").trim()
 }

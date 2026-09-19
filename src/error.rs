@@ -15,10 +15,6 @@ pub enum Error {
     ProjectRootNotFound(PathBuf),
     #[error("AGENTSYNC_CONFIG_PATH is set but file not found: {}", .0.display())]
     ConfigPathNotFound(PathBuf),
-    #[error(
-        "native binary is v{binary} but the engine is v{engine}. Rebuild it: cargo build --release"
-    )]
-    StaleBinary { binary: String, engine: String },
 }
 
 impl Error {

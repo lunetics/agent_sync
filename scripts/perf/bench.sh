@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
-# Wall-time measurement of the CLI's commands on a generated fixture, in one or
-# both engines.
+# Wall-time measurement of the CLI's commands on a generated fixture.
 #
-# Usage: bench.sh [--runs N] [--engines bash|native|both] [--keep]
+# Usage: bench.sh [--runs N] [--engines native|bash|both] [--keep]
 #
-# Prints a Markdown table of best and median wall time per command. The native
-# rows go through bin/agentsync.sh, so they carry the Bash startup the strangler
-# still pays; the last row times the binary directly, which is what the cutover
-# in Phase 5 leaves.
+# Prints a Markdown table of best and median wall time per command. The Bash
+# engine was retired in Phase 6 of the Rust migration; its rows need a
+# checkout of the last release that shipped it, pointed at by AGENTSYNC_BASH_CLI:
+#
+#   git worktree add ../agentsync-bash 0.37.0
+#   AGENTSYNC_BASH_CLI=../agentsync-bash/bin/agentsync.sh bench.sh --engines both
 
 set -euo pipefail
 
 RUNS=3
-ENGINES="both"
+ENGINES="native"
 KEEP=false
 
 while [[ $# -gt 0 ]]; do
@@ -25,9 +26,22 @@ while [[ $# -gt 0 ]]; do
 done
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-CLI="$REPO_DIR/bin/agentsync.sh"
 BINARY="$REPO_DIR/target/release/agentsync"
 [[ -x "$BINARY" ]] || BINARY="$REPO_DIR/target/release/agentsync.exe"
+[[ -x "$BINARY" ]] || {
+    echo "Error: build the engine first: cargo build --release" >&2
+    exit 1
+}
+
+BASH_CLI="${AGENTSYNC_BASH_CLI:-}"
+BASH_HOME=""
+if [[ "$ENGINES" != "native" ]]; then
+    [[ -f "$BASH_CLI" ]] || {
+        echo "Error: --engines $ENGINES needs AGENTSYNC_BASH_CLI, the bin/agentsync.sh of a 0.37.0 checkout." >&2
+        exit 1
+    }
+    BASH_HOME="$(cd "$(dirname "$BASH_CLI")/.." && pwd)"
+fi
 
 command -v /usr/bin/time >/dev/null 2>&1 || {
     echo "Error: /usr/bin/time is required for sub-second timing." >&2
@@ -89,12 +103,11 @@ _row() {
     bash_result=""
     native_result=""
     if [[ "$ENGINES" != "native" ]]; then
-        bash_result=$(_measure env AGENTSYNC_NATIVE=0 AGENTSYNC_HOME="$REPO_DIR" \
-            AGENTSYNC_REPO_ROOT="$FIXTURE" bash "$CLI" "$@")
+        bash_result=$(_measure env AGENTSYNC_NATIVE=0 AGENTSYNC_HOME="$BASH_HOME" \
+            AGENTSYNC_REPO_ROOT="$FIXTURE" bash "$BASH_CLI" "$@")
     fi
     if [[ "$ENGINES" != "bash" ]]; then
-        native_result=$(_measure env AGENTSYNC_NATIVE=1 AGENTSYNC_HOME="$REPO_DIR" \
-            AGENTSYNC_REPO_ROOT="$FIXTURE" bash "$CLI" "$@")
+        native_result=$(_measure env AGENTSYNC_REPO_ROOT="$FIXTURE" "$BINARY" "$@")
     fi
     printf '| %s | %s | %s |\n' "$label" "${bash_result:-—}" "${native_result:-—}"
 }
@@ -103,8 +116,7 @@ _self_check
 
 # sync writes; every later measurement runs against an already-synced project,
 # which is the state a user is in most of the time.
-env AGENTSYNC_NATIVE=0 AGENTSYNC_HOME="$REPO_DIR" AGENTSYNC_REPO_ROOT="$FIXTURE" \
-    bash "$CLI" sync >/dev/null 2>&1
+env AGENTSYNC_REPO_ROOT="$FIXTURE" "$BINARY" sync >/dev/null 2>&1
 
 printf '\n'
 printf 'Fixture: %s\n' "$(find "$FIXTURE/.ai/src" -type f | wc -l | tr -d ' ') source files, 13 tools enabled"
@@ -115,9 +127,4 @@ _row 'list' list
 _row 'check' check
 _row 'sync' sync
 _row 'sync --if-stale' sync --if-stale
-
-if [[ "$ENGINES" != "bash" ]] && [[ -x "$BINARY" ]]; then
-    printf '| %s | %s | %s |\n' 'list, binary without the Bash entry point' '—' \
-        "$(_measure env AGENTSYNC_REPO_ROOT="$FIXTURE" "$BINARY" list)"
-fi
 printf '\n'

@@ -30,25 +30,6 @@ fn version_flags_match_the_bash_cli() {
 }
 
 #[test]
-fn a_stale_binary_refuses_to_run() {
-    agentsync()
-        .env("AGENTSYNC_ENGINE_VERSION", "0.0.1")
-        .arg("version")
-        .assert()
-        .code(1)
-        .stderr(predicate::str::contains("cargo build --release"));
-}
-
-#[test]
-fn a_matching_engine_version_is_accepted() {
-    agentsync()
-        .env("AGENTSYNC_ENGINE_VERSION", engine_version())
-        .arg("version")
-        .assert()
-        .success();
-}
-
-#[test]
 fn list_works_without_a_project_config() {
     let dir = tempfile::tempdir().unwrap();
     agentsync()

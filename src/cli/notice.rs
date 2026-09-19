@@ -1,6 +1,6 @@
 //! `check_for_updates` of `lib/helpers/update.sh`: the project-format notice
-//! and the update banner the binary prints on a terminal before the commands
-//! `bin/agentsync.sh` lists, and the background refresh of the banner's cache.
+//! and the update banner printed on a terminal before the commands
+//! `wants_notice` lists, and the background refresh of the banner's cache.
 
 use std::path::Path;
 use std::process::{Command, Stdio};

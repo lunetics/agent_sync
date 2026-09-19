@@ -142,12 +142,10 @@ pub fn tar_extract(archive: &Path, into: &Path) -> bool {
         .unwrap_or(false)
 }
 
-/// `<binary> <arg>` with the dispatcher's version guard cleared: its stdout
-/// when it exits 0.
+/// `<binary> <arg>`: its stdout when it exits 0.
 pub fn ask_binary(binary: &Path, arg: &str) -> Option<String> {
     let output = Command::new(binary)
         .arg(arg)
-        .env_remove("AGENTSYNC_ENGINE_VERSION")
         .stdin(Stdio::null())
         .stderr(Stdio::null())
         .output()

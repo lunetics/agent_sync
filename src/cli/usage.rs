@@ -1,4 +1,4 @@
-//! The surface `bin/agentsync.sh` answers itself: `print_usage` for `help`,
+//! The surface the Bash entry point answered itself: `print_usage` for `help`,
 //! `--help`, `-h`, and no command; the `--help` interception for commands whose
 //! own parser does not read it; and the unknown-command refusal.
 
@@ -114,8 +114,8 @@ const EXAMPLES: &str = "    agentsync init
     agentsync refresh --dry-run
 ";
 
-/// Commands whose own parser does not read `--help`; `main` in
-/// `bin/agentsync.sh` prints the usage when their first argument asks for it.
+/// Commands whose own parser does not read `--help`; the usage is printed
+/// when their first argument asks for it.
 const HELP_INTERCEPTED: [&str; 8] = [
     "check", "doctor", "list", "ls", "show", "diff", "disable", "resolve",
 ];
@@ -149,7 +149,7 @@ pub fn usage(style: &Style) -> String {
     text
 }
 
-/// Whether `bin/agentsync.sh` answers `args` with the usage: no command, an
+/// Whether `args` is answered with the usage: no command, an
 /// empty one (`${1:-help}`), `help`, `--help`, `-h`, or an intercepted command
 /// whose next argument is `--help` or `-h`. Later arguments are ignored.
 pub fn wants_usage(args: &[String]) -> bool {

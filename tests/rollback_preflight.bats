@@ -4,12 +4,6 @@ load test_helper
 
 setup() {
     setup_test_project
-    source "$REPO_ROOT/lib/helpers/paths.sh"
-    source "$REPO_ROOT/lib/helpers/yaml.sh"
-    source "$REPO_ROOT/lib/helpers/project_config.sh"
-    source "$REPO_ROOT/lib/helpers/manifest.sh"
-    source "$REPO_ROOT/lib/helpers/backup.sh"
-    source "$REPO_ROOT/lib/helpers/backup_state.sh"
     # Read by tar and cmp, never by the binary, so it keeps its POSIX spelling.
     PROOF_DIR="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_rollback_proof.XXXXXX")"
     run_agentsync init --tools claude,codex --yes --no-sync >/dev/null
@@ -234,12 +228,15 @@ assert_refused_unchanged() {
 @test "rollback preflight restores an unsealed historical snapshot with a warning" {
     mkdir -p .codex
     printf 'before\n' > .codex/config.toml
+    sync_once
+    # A snapshot from before the seal existed: the same layout without after.tsv.
     local historical
-    historical="$(backup_create "$TEST_PROJECT" sync .codex/config.toml)"
+    historical="$(cat .ai/backups/.latest)"
+    rm ".ai/backups/$historical/after.tsv"
     printf 'after\n' > .codex/config.toml
-    run run_agentsync rollback "$(basename "$historical")" --yes
+    run run_agentsync rollback "$historical" --yes
     [ "$status" -eq 0 ]
-    printf '%s' "$output" | grep -qF -- "Warning: Backup $(basename "$historical") has no post-operation record; changes made after that operation cannot be detected."
+    printf '%s' "$output" | grep -qF -- "Warning: Backup $historical has no post-operation record; changes made after that operation cannot be detected."
     [ "$(cat .codex/config.toml)" = before ]
 }
 
@@ -384,78 +381,6 @@ assert_refused_unchanged() {
     run run_agentsync rollback "$undo_id" --yes
     [ "$status" -eq 0 ]
     assert_tree_equal .ai/src "$PROOF_DIR/before-init-rollback/.ai/src"
-}
-
-@test "rollback preflight catches edits during safety backup without arming destructive recovery" {
-    skip_on_windows "the race is staged through the Bash backup helper"
-    sync_once
-    checkpoint before-race
-    eval "$(declare -f backup_create | sed '1s/backup_create/real_backup_create/')"
-    backup_create() {
-        real_backup_create "$@" || return 1
-        mkdir -p "$TEST_PROJECT/.codex"
-        printf 'concurrent foreign change\n' > "$TEST_PROJECT/.codex/config.toml"
-    }
-    AGENTSYNC_REPO_ROOT="$TEST_PROJECT" run cmd_rollback "$SYNC_ID" --yes
-    [ "$status" -eq 1 ]
-    printf '%s' "$output" | grep -qF -- "Error: Rollback conflict: .codex/config.toml changed after the operation recorded in backup $SYNC_ID"
-    [ "$(cat .codex/config.toml)" = "concurrent foreign change" ]
-    assert_tree_equal .claude/skills "$PROOF_DIR/after-sync/.claude/skills"
-    cmp .ai/.sync-manifest "$PROOF_DIR/after-sync/.ai/.sync-manifest"
-    [ "$(cat .ai/backups/.latest)" = "$SYNC_ID" ]
-    [ "$(find .ai/backups -maxdepth 1 -name '*-rollback-*' | wc -l | tr -d ' ')" = 0 ]
-}
-
-@test "snapshot post-state refuses trailing-slash targets before traversing a link" {
-    skip_on_windows "the tar checkpoint cannot recreate Windows symlinks"
-    mkdir private-knowledge
-    printf 'mutable\n' > private-knowledge/data
-    checkpoint before-snapshot
-    local snapshot sealed=true
-    snapshot="$(backup_create "$TEST_PROJECT" sync managed/)"
-    checkpoint before-link
-    create_test_symlink "$TEST_PROJECT/private-knowledge" managed
-    checkpoint before-seal
-    backup_seal "$TEST_PROJECT" "$snapshot" || sealed=false
-    [ "$sealed" = false ]
-    [ "$BACKUP_SEAL_REASON" = "the snapshot target list is invalid" ]
-    [ ! -e "$snapshot/after.tsv" ]
-    assert_tree_equal . "$PROOF_DIR/before-seal"
-}
-
-@test "snapshot post-state records one line per path with batched hashes" {
-    mkdir -p .codex/sub
-    printf 'one\n' > .codex/config.toml
-    printf '#!/bin/sh\n' > .codex/sub/run.sh
-    chmod +x .codex/sub/run.sh
-    create_test_symlink "config.toml" .codex/link
-    local snapshot
-    snapshot="$(backup_create "$TEST_PROJECT" sync .codex absent.md)"
-    backup_seal "$TEST_PROJECT" "$snapshot"
-    local tab=$'\t' expected
-    expected="post-state-v2${tab}$(file_sha256 "$snapshot/targets.tsv")
-dir${tab}-${tab}.codex
-file${tab}$(file_sha256 .codex/config.toml)${tab}.codex/config.toml
-link${tab}config.toml${tab}.codex/link
-dir${tab}-${tab}.codex/sub
-exec${tab}$(file_sha256 .codex/sub/run.sh)${tab}.codex/sub/run.sh
-missing${tab}-${tab}absent.md"
-    [[ "$OSTYPE" != msys* ]] || skip "Windows derives the executable bit from file contents"
-    [ "$(cat "$snapshot/after.tsv")" = "$expected" ]
-}
-
-@test "snapshot post-state hashes names that hash tools escape" {
-    skip_on_windows "Windows does not allow these characters in filenames"
-    mkdir -p .codex
-    printf 'slash\n' > '.codex/back\slash'
-    printf 'newline\n' > $'.codex/new\nline'
-    printf 'percent\n' > '.codex/100%'
-    local snapshot tab=$'\t'
-    snapshot="$(backup_create "$TEST_PROJECT" sync .codex)"
-    backup_seal "$TEST_PROJECT" "$snapshot"
-    grep -qxF -- "file${tab}$(file_sha256 /dev/stdin < '.codex/back\slash')${tab}.codex/back\\slash" "$snapshot/after.tsv"
-    grep -qxF -- "file${tab}$(printf 'newline\n' | file_sha256 /dev/stdin)${tab}.codex/new%0Aline" "$snapshot/after.tsv"
-    grep -qxF -- "file${tab}$(file_sha256 /dev/stdin < '.codex/100%')${tab}.codex/100%25" "$snapshot/after.tsv"
 }
 
 @test "an unreadable file is the reported conflict, not the files hashed after it" {

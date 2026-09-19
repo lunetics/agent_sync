@@ -54,10 +54,10 @@ pub(crate) fn refuse_outside_tools_dir(
     Ok(1)
 }
 
-/// Argument surface of the ported commands. `bin/agentsync.sh` delegates only
-/// the commands in its `_NATIVE_COMMANDS`, so nothing else reaches this parser.
-/// Help and version flags are disabled: the Bash CLI owns `--help`, and
-/// `--version` must print `agentsync v<VERSION>`, not clap's format.
+/// Argument surface of the commands. `usage::wants_usage` answers `help` and
+/// the help flags before anything reaches this parser, so clap's help and
+/// version flags are disabled: `--version` must print `agentsync v<VERSION>`,
+/// not clap's format.
 #[derive(Debug, Parser)]
 #[command(
     name = "agentsync",

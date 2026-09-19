@@ -210,9 +210,9 @@ Expected: `41`.
 
 **Files:**
 - Delete: `bin/agentsync.sh`, `lib/sync.sh`, `lib/check.sh`, `lib/setup_hooks.sh`, `lib/helpers/` (45 files)
-- Modify: `.github/workflows/ci.yaml` (the `lint` job), `install.sh` (comments), `scripts/perf/bench.sh` (one note), `.gitignore` (`.last_update_check`, `.snapshot/` no longer produced), `src/main.rs` (the `AGENTSYNC_ENGINE_VERSION` guard and `Error::StaleBinary` go with the dispatcher)
+- Modify: `.github/workflows/ci.yaml` (the `lint` job), `scripts/perf/bench.sh` (times the binary; Bash rows need `AGENTSYNC_BASH_CLI`, a 0.37.0 checkout), `.gitignore` (`.last_update_check`, `.snapshot/` no longer produced), `src/main.rs` (the `AGENTSYNC_ENGINE_VERSION` guard and `Error::StaleBinary` go with the dispatcher), `src/lib.rs`, `src/cli/{mod,usage,notice,update}.rs` (doc comments that described the dispatcher in the present tense), `tests/{backup_retention,rollback_preflight,shared}.bats` (fixtures that sourced `lib/helpers`). `install.sh` keeps its `bin/agentsync.sh` mentions: they describe the source install of a tag older than 0.37.0, which still exists.
 
-- [ ] **Step 1: Delete and re-point**
+- [x] **Step 1: Delete and re-point**
 
 ```bash
 git rm -r bin/agentsync.sh lib/sync.sh lib/check.sh lib/setup_hooks.sh lib/helpers
@@ -223,22 +223,24 @@ Expected: `config.yaml  prompts  templates`.
 
 Then remove `guard_engine_version` and `Error::StaleBinary` (and the `tests/cli.rs` case that exercises them, if any), set the `lint` job to `shellcheck -x -S warning -e SC1091 install.sh lib/templates/guard/claude.sh`, and drop the `.ai/src` references Task 5 does not rewrite.
 
-- [ ] **Step 2: Verify**
+- [x] **Step 2: Verify**
 
 ```bash
 cargo fmt --all --check; cargo clippy --all-targets -- -D warnings; cargo test 2>&1 | grep 'test result' | head -4
 cargo build --release 2>&1 | tail -1
 shellcheck -x -S warning -e SC1091 install.sh lib/templates/guard/claude.sh; echo "shellcheck=$?"
-grep -rn 'agentsync\.sh\|lib/helpers\|AGENTSYNC_NATIVE\|_native_try' --include='*.bats' --include='*.bash' --include='*.rs' --include='*.yaml' --include='*.sh' . | grep -v '^./target\|^./docs/plans\|^./docs/specs\|install.sh' | wc -l
+grep -rn 'agentsync\.sh\|lib/helpers\|AGENTSYNC_NATIVE\|_native_try' --include='*.bats' --include='*.bash' --include='*.rs' --include='*.yaml' --include='*.sh' . | grep -v '^./target\|^./docs/plans\|^./docs/specs\|install.sh\|tests/install.bats\|scripts/perf/bench.sh\|AGENTSYNC_NATIVE_BIN' | grep -v ':[0-9]*:\s*//[/!]' | wc -l
 for f in tests/*.bats; do n=$(bats --tap "$f" 2>&1 | grep -c '^not ok'); [[ "$n" -eq 0 ]] || echo "$f $n"; done; echo suite-done
 ```
 
-Expected: fmt and clippy exit 0, the test counts of Task 3; `Finished`; `shellcheck=0`; `0`; only `suite-done`.
+Expected: fmt and clippy exit 0, `cargo test` 335/0/9/1 (the two `AGENTSYNC_ENGINE_VERSION` cases of `tests/cli.rs` are gone); `Finished`; `shellcheck=0`; `0`; only `suite-done`.
 
-- [ ] **Step 3: Commit**
+The grep excludes what stays on purpose: the `//!` module docs name the Bash function each file was ported from (readable at tag 0.37.0, as `src/lib.rs` says); `tests/install.bats` fakes a source install of an old tag; `bench.sh` documents `AGENTSYNC_BASH_CLI`; `AGENTSYNC_NATIVE_BIN` is the suite's binary override.
+
+- [x] **Step 3: Commit**
 
 ```bash
-git add -A bin lib .github/workflows/ci.yaml install.sh scripts/perf/bench.sh .gitignore src tests
+git add -A bin lib .github/workflows/ci.yaml scripts/perf/bench.sh .gitignore src tests
 git commit -m "feat(native): retire the Bash engine"
 ```
 

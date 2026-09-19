@@ -42,6 +42,30 @@ Write once → `agentsync sync` → every tool gets instructions in its native f
 
 The frontmatter above is the always-on default. Give a rule `paths:` frontmatter (a list of globs) and AgentSync emits each tool's **scoped** trigger instead (`alwaysApply: false`, `applyTo: <globs>`, `trigger: glob`; Claude keeps `paths:`), so domain rules load only when matching files are touched — keeping the always-on context lean.
 
+## Speed
+
+AgentSync was a Bash program until 0.37.0 and is a single Rust binary from
+0.38.0. On the repository's own benchmark fixture — 389 source files, 13 tools
+enabled, 3465 generated files — the same commands on the same machine:
+
+| Command | Bash 0.37.0 | Rust 0.38.0 |
+| --- | --- | --- |
+| `agentsync list` | 0.57 s | under 0.01 s |
+| `agentsync check` | 73.6 s | 0.25 s |
+| `agentsync sync` | 67.5 s | 2.5 s |
+| `agentsync sync --if-stale` | 0.18 s | 0.01 s |
+
+`check` is the one that changes what you can do with it: at 74 seconds it could
+not live in a pre-commit hook, and at a quarter of a second you stop noticing
+it. The old engine spawned a process for every value it read; the new one reads
+them in memory. Startup alone went from 38 ms to 5 ms, and the tool no longer
+needs `bash` on the machine at all.
+
+Method, the full table, and the ledger of everything else that changed are in
+[`docs/perf/2026-09-19-rust-result.md`](docs/perf/2026-09-19-rust-result.md),
+measured against [the Bash baseline](docs/perf/2026-09-13-bash-baseline.md)
+recorded before the migration started.
+
 ## Why not just...?
 
 - **...symlink the files?** Tools demand different extensions (`.mdc`, `.instructions.md`), different frontmatter, different nesting. Symlinks can't transform content — AgentSync does.

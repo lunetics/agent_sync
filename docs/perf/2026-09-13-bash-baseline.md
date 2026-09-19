@@ -1,5 +1,8 @@
 # Bash engine baseline, 2026-09-13
 
+> The migration finished on 2026-09-19. The result measured against this file
+> is [`2026-09-19-rust-result.md`](2026-09-19-rust-result.md).
+
 The number to compare the finished migration against. Taken while the Bash
 engine still answers every command except `version` and `list`, on a fixture
 that is generated rather than borrowed, so the same measurement can be repeated

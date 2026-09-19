@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.38.0
+
+The Bash engine is gone. 0.37.0 shipped the Rust binary while the shell implementation stayed in the repository as the reference; this release deletes it, and the test suite that graded both engines against each other is now Rust too. Nothing about using AgentSync changes — the commands, the config, and the generated output are the same — but the tool is faster than it has ever been, and it no longer needs `bash` on your machine.
+
+### Changed
+
+- **Everything is faster, and `check` is a different tool.** On the repository's benchmark fixture (389 source files, 13 tools, 3465 generated files), on one machine: `check` 73.6 s → 0.25 s, `sync` 67.5 s → 2.5 s, `sync --if-stale` 0.18 s → 0.01 s, `list` 0.57 s → under 0.01 s. Startup alone fell from 38 ms to 5 ms. A `check` that took over a minute could not sit in a pre-commit hook or a CI gate; at a quarter of a second it stops being a decision. The old engine spawned a process for every value it read from YAML, every path it resolved, and every hash it computed — that is the cost that disappeared. Method and the full table: [`docs/perf/2026-09-19-rust-result.md`](docs/perf/2026-09-19-rust-result.md), measured against the [baseline](docs/perf/2026-09-13-bash-baseline.md) recorded before the migration began.
+- **No runtime dependencies.** The binary needs neither `bash` nor coreutils. The repository keeps 390 lines of shell where a binary cannot serve: `install.sh`, which runs before a binary exists, and the guard hook, which runs in a teammate's checkout where the CLI is not installed. It held 18,566 lines before.
+- **Windows is a first-class platform, not a compatibility layer.** The binary runs natively; Git Bash is no longer involved. Its CI went from twelve sharded jobs to one, and the migration's own test run found a walk-up that could loop forever on a drive root — a bug the old suite could not reach, because every fixture it built started with `git init`.
+
+### Internal
+
+- The bats suite is retired. Its 727 cases across 41 files became Rust integration tests on `assert_cmd`, one commit per file, each test named after the case it replaces; `cargo test` is now the whole suite at 1066 tests and runs on Linux, macOS, and Windows in one job per platform. bats and GNU parallel are out of CI.
+- The migration is complete: `docs/specs/2026-09-12-rust-migration-design.md` and the plans under `docs/plans/` record every phase, its receipt, and the accepted deviations from the Bash engine's behaviour.
+
 ## 0.37.0
 
 AgentSync is now a single static binary. The engine was rewritten in Rust command by command behind the Bash dispatcher, each command proven byte-identical to its Bash predecessor by the bats suite and a parity harness, and this release is the first to ship it: macOS (Apple silicon and Intel), Linux (x86_64 and arm64, statically linked), and Windows (x86_64, no Git Bash needed).

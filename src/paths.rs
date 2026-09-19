@@ -416,7 +416,9 @@ impl Paths {
             return ExplicitSource::Inside;
         }
         let home = self.home.as_deref().and_then(canonical_dir);
-        if canonical == "/"
+        let is_filesystem_root = canonical == "/"
+            || drive_prefix(&canonical).is_some_and(|drive| canonical == format!("{drive}/"));
+        if is_filesystem_root
             || home.as_deref() == Some(canonical.as_str())
             || canonical == self.root_canonical
             || self.root_canonical.starts_with(&format!("{canonical}/"))

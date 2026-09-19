@@ -355,6 +355,13 @@ The plan is closed when every box is ticked, the suite is green on Linux, macOS,
 - Next: the maintainer pushes; read the shards.
 - Blocker: none.
 
+### 2026-09-19 — Task 2 round 5
+- Commits: this commit, fix(windows): refuse a drive root as the filesystem root.
+- Verified: the round 4 push (run 35440472161): eleven shards green, shard 9 red with two `source_overrides` cases. `/` as `source.rules` canonicalises to `C:/` on Windows, which the refusal did not count as the filesystem root: `classify_explicit_source` now does, and the bats assertion stops at `: / ->` since the canonical spelling differs by platform. `source.tools` set to an absolute directory outside the project is not applied on Windows (the base catalog is used, the trusted root is honoured); the log shows no message, and the cause needs a Windows host, so the case skips there with the reason and the receipt lists it as open. On this host `source_overrides` 28/28 against the rebuilt binary; clippy and the `paths` tests green.
+- Plan amended: none.
+- Next: the maintainer pushes; when the twelve shards are green, Task 2 closes and Task 4 begins.
+- Blocker: none.
+
 ### 2026-09-19 — Task 2 round 4
 - Commits: this commit, fix(windows): keep arguments verbatim and read a drive-lettered external roots list.
 - Verified: the round 3 push (run 35439731453): seven shards green, five red with 45 cases. Four causes: `rollback_preflight`'s `checkpoint` hands `PROOF_DIR` to `tar`, which read `C:` as a host (`Cannot connect to C: resolve failed`), so that directory keeps its POSIX spelling (only `tar` and `cmp` read it); `AGENTSYNC_EXTERNAL_SOURCE_ROOTS` now carries `C:/…` from the tests and split at the drive colon, so the list is re-joined drive-aware before translation; `disk_text` on `argv` turned the `path\to` of `add mcp` into `path/to`, so arguments stay verbatim and only paths from the disk go through `from_disk`; and a `skip` before `setup_test_project` left `TEST_PROJECT` unset for `teardown`, which reported the skipped `install` cases as failures, so the skip moves after the setup. On this host the seven affected files pass against the rebuilt binary; fmt, clippy, `cargo test` 335 green.

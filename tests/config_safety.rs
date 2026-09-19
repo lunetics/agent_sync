@@ -151,7 +151,7 @@ fn read_only_commands_reject_an_invalid_explicit_config_path_instead_of_using_th
     let missing_config = project.join("missing-agent-sync.yaml");
     let expected = format!(
         "AGENTSYNC_CONFIG_PATH is set but file not found: {}",
-        missing_config.display()
+        common::engine_path(&missing_config)
     );
 
     project

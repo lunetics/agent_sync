@@ -14,8 +14,12 @@ use std::path::Path;
 
 fn init_at(dir: &Path) {
     std::fs::create_dir_all(dir).unwrap();
+    // A null stdin and stdout, or `init` reads the runner's console as a
+    // terminal on Windows and waits for the wizard's answers forever.
     let status = std::process::Command::new(env!("CARGO_BIN_EXE_agentsync"))
         .current_dir(dir)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
         .args(["init", "--no-detect"])
         .env(
             "GIT_CONFIG_GLOBAL",

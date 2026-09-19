@@ -128,6 +128,16 @@ fn absent_git_config() -> PathBuf {
     std::env::temp_dir().join("agentsync-tests-absent-gitconfig")
 }
 
+/// A path spelled the way the engine spells it: `/`-separated even on
+/// Windows, where `Path::display` would print backslashes. An expectation
+/// about a path the engine prints, or a path written into a config the engine
+/// reads, goes through this — `tests/test_helper.bash` used `cygpath -ml` for
+/// the same reason.
+pub fn engine_path(path: &Path) -> String {
+    use agentsync::paths::DiskText;
+    path.disk_text()
+}
+
 /// Whether the platform honours `chmod 000` for this user: not root, not
 /// Windows, where Git Bash ignores permission bits.
 pub fn unreadable_dirs_are_possible() -> bool {

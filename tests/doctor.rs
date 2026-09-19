@@ -142,7 +142,7 @@ fn doctor_checks_explicit_external_sources_at_their_configured_location() {
     let project = Project::seeded(&[]);
     let outside = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(outside.path().join("rules")).unwrap();
-    let outside_str = outside.path().display().to_string();
+    let outside_str = common::engine_path(outside.path());
     // Overwrite the config wholesale, as the bats fixture does with `>`.
     project.write(
         ".ai/agent_sync.yaml",

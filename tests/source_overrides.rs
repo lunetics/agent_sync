@@ -617,7 +617,7 @@ fn customize_refuses_to_write_into_an_external_source_tools_directory() {
         .code(1)
         .stderr(predicate::str::contains(format!(
             "source.tools resolves outside the project: {}",
-            external_tools_root.path().display()
+            common::engine_path(external_tools_root.path())
         )));
     assert!(!external_tools_root.path().join("codex.yaml").exists());
 }
@@ -648,7 +648,7 @@ fn profile_remove_refuses_to_delete_from_an_external_source_tools_directory() {
         .lines()
         .map(|line| {
             if line.trim_start().starts_with("tools:") {
-                format!("  tools: \"{}\"", external_tools_dir.display())
+                format!("  tools: \"{}\"", common::engine_path(&external_tools_dir))
             } else {
                 line.to_string()
             }
@@ -666,7 +666,7 @@ fn profile_remove_refuses_to_delete_from_an_external_source_tools_directory() {
         .code(1)
         .stderr(predicate::str::contains(format!(
             "source.tools resolves outside the project: {}",
-            external_tools_dir.display()
+            common::engine_path(&external_tools_dir)
         )));
     assert!(external_tools_dir.join("claude-hub.yaml").exists());
     assert!(external_tools_dir.join("claude-hub/settings.json").exists());

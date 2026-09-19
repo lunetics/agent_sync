@@ -76,7 +76,7 @@ YAML
 @test "doctor checks explicit external sources at their configured location" {
     run_agentsync init >/dev/null
     local outside
-    outside="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_doctor_src.XXXXXX")"
+    outside="$(host_path "$(mktemp -d "${TMPDIR:-/tmp}/agentsync_doctor_src.XXXXXX")")"
     mkdir -p "$outside/rules"
     printf '%s\n' 'format: 2' 'tools:' '  enabled: []' 'source:' "  agents: \"$outside/AGENTS.md\"" "  rules: \"$outside/rules\"" \
         > .ai/agent_sync.yaml

@@ -171,6 +171,7 @@ complete_backup_count() {
 }
 
 @test "sync: out-of-repo env allow runs the post_sync hook" {
+    skip_on_windows "the hook runs through a POSIX shell"
     enable_tools claude
     mkdir -p .ai/src/tools
     printf 'post_sync: "touch post_sync_ran"\n' >> .ai/src/tools/claude.yaml

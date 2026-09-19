@@ -23,6 +23,7 @@ teardown() { teardown_test_project; }
 }
 
 @test "migrate copies the full prompt with an available clipboard tool" {
+    skip_on_windows "the pbcopy stand-in is a shell script the binary cannot spawn on Windows"
     local mock_bin="$TEST_PROJECT/mock-bin"
     local clipboard_capture="$TEST_PROJECT/clipboard.txt"
     mkdir -p "$mock_bin"

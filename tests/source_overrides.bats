@@ -38,7 +38,7 @@ write_rules_config() {
 }
 
 make_outside_rules() {
-    OUTSIDE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_outside.XXXXXX")"
+    OUTSIDE_ROOT="$(host_path "$(mktemp -d "${TMPDIR:-/tmp}/agentsync_outside.XXXXXX")")"
     mkdir -p "$OUTSIDE_ROOT/rules"
     printf '%s\n' '# Outside Rule' > "$OUTSIDE_ROOT/rules/outside.md"
 }
@@ -120,7 +120,7 @@ run_external_sync() {
 }
 
 @test "source.tools absolute override drives the same layout" {
-    EXTERNAL_TOOLS_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_external_tools.XXXXXX")"
+    EXTERNAL_TOOLS_ROOT="$(host_path "$(mktemp -d "${TMPDIR:-/tmp}/agentsync_external_tools.XXXXXX")")"
     write_external_fixture "$EXTERNAL_TOOLS_ROOT"
 
     AGENTSYNC_EXTERNAL_SOURCE_ROOTS="$EXTERNAL_TOOLS_ROOT" run run_external_sync
@@ -212,7 +212,7 @@ run_external_sync() {
 @test "external source layout cannot widen output targets through traversal" {
     write_external_fixture "sources/tools" "escape-link/skills"
     local outside
-    outside="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_output_escape.XXXXXX")"
+    outside="$(host_path "$(mktemp -d "${TMPDIR:-/tmp}/agentsync_output_escape.XXXXXX")")"
     create_test_symlink "$outside" "$TEST_PROJECT/escape-link"
 
     run run_external_sync
@@ -282,7 +282,7 @@ run_external_sync() {
     make_outside_rules
     write_rules_config "$OUTSIDE_ROOT/rules"
     local other_root
-    other_root="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_other.XXXXXX")"
+    other_root="$(host_path "$(mktemp -d "${TMPDIR:-/tmp}/agentsync_other.XXXXXX")")"
 
     run env -u AGENTSYNC_EXTERNAL_SOURCE_ROOTS "$AGENTSYNC_BIN" sync
     [ "$status" -eq 1 ]
@@ -345,7 +345,7 @@ run_external_sync() {
 
 @test "source containment: explicit source root at \$HOME is refused" {
     write_project_sources
-    OUTSIDE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_home.XXXXXX")"
+    OUTSIDE_ROOT="$(host_path "$(mktemp -d "${TMPDIR:-/tmp}/agentsync_home.XXXXXX")")"
     printf '%s\n' '# Home Rule' > "$OUTSIDE_ROOT/home.md"
     write_rules_config "$OUTSIDE_ROOT"
 
@@ -384,7 +384,7 @@ run_external_sync() {
 }
 
 @test "customize refuses to write into an external source.tools directory" {
-    EXTERNAL_TOOLS_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_external_tools.XXXXXX")"
+    EXTERNAL_TOOLS_ROOT="$(host_path "$(mktemp -d "${TMPDIR:-/tmp}/agentsync_external_tools.XXXXXX")")"
     write_external_fixture "$EXTERNAL_TOOLS_ROOT"
 
     run env AGENTSYNC_CONFIG_PATH="$EXTERNAL_CONFIG" "$AGENTSYNC_BIN" customize codex
@@ -400,7 +400,7 @@ run_external_sync() {
     [ "$status" -eq 0 ]
     mkdir -p "$TEST_PROJECT/sources/tools/claude-hub"
     printf '%s\n' '{}' > "$TEST_PROJECT/sources/tools/claude-hub/settings.json"
-    EXTERNAL_TOOLS_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_external_tools.XXXXXX")"
+    EXTERNAL_TOOLS_ROOT="$(host_path "$(mktemp -d "${TMPDIR:-/tmp}/agentsync_external_tools.XXXXXX")")"
     mv "$TEST_PROJECT/sources/tools" "$EXTERNAL_TOOLS_ROOT/tools"
     local config_tmp="$EXTERNAL_CONFIG.tmp"
     sed "s|^  tools: .*|  tools: \"$EXTERNAL_TOOLS_ROOT/tools\"|" "$EXTERNAL_CONFIG" > "$config_tmp"

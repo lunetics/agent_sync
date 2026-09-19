@@ -88,9 +88,15 @@ pub fn shell_init(
     }
     if shell.is_empty() {
         // Git Bash rewrites `$SHELL` with backslashes before it reaches the binary.
-        match shell_env.unwrap_or("").rsplit(['/', '\\']).next() {
-            Some("zsh") if shell_env.is_some_and(|s| s.len() > 3) => shell = "zsh".to_string(),
-            Some("bash") if shell_env.is_some_and(|s| s.len() > 4) => shell = "bash".to_string(),
+        let value = shell_env.unwrap_or("");
+        let leaf = value.rsplit(['/', '\\']).next().unwrap_or("");
+        let leaf = leaf
+            .strip_suffix(".exe")
+            .unwrap_or(leaf)
+            .to_ascii_lowercase();
+        match leaf.as_str() {
+            "zsh" if value.len() > 3 => shell = "zsh".to_string(),
+            "bash" if value.len() > 4 => shell = "bash".to_string(),
             _ => {}
         }
     }

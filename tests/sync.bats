@@ -7,7 +7,7 @@ BATS_NO_PARALLELIZE_WITHIN_FILE=1
 load test_helper
 
 setup_file() {
-    export SYNC_PROJECT="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_sync_test.XXXXXX")"
+    export SYNC_PROJECT="$(host_path "$(mktemp -d "${TMPDIR:-/tmp}/agentsync_sync_test.XXXXXX")")"
     cd "$SYNC_PROJECT"
     git init --quiet
     git config user.email "test@test.com"

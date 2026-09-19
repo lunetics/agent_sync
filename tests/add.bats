@@ -251,7 +251,8 @@ teardown() { teardown_test_project; }
 }
 
 @test "add mcp JSON-escapes quotes and backslashes in values" {
-    run run_agentsync add mcp weird --command 'say "hi" path\to' --env 'MSG=a"b'
+    # Git Bash would rewrite the backslash in the argument as a path separator.
+    MSYS_NO_PATHCONV=1 run run_agentsync add mcp weird --command 'say "hi" path\to' --env 'MSG=a"b'
     [ "$status" -eq 0 ]
     python3 -c "import json; e=json.load(open('.ai/src/mcp.json'))['mcpServers']['weird']; \
                 assert e['command'] == 'say \"hi\" path\\\\to'; \

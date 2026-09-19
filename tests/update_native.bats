@@ -10,6 +10,7 @@ teardown_file() { teardown_seed_project; }
 
 setup() {
     clone_seed
+    skip_on_windows "the curl stand-in is a shell script the binary cannot spawn on Windows"
     NATIVE_BIN="${AGENTSYNC_NATIVE_BIN:-$REPO_ROOT/target/release/agentsync}"
     [[ -x "$NATIVE_BIN" ]] || skip "no native binary at $NATIVE_BIN"
     ENGINE_VERSION="$(cat "$REPO_ROOT/VERSION")"

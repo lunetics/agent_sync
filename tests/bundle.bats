@@ -12,6 +12,7 @@ teardown() { teardown_test_project; }
 # Put a `curl` on PATH that serves $TEST_PROJECT/github/<owner>_<repo>-<branch>.tar.gz
 # for the archive URL import builds, and fails like `curl -f` otherwise.
 github_stub() {
+    skip_on_windows "the curl stand-in is a shell script the binary cannot spawn on Windows"
     mkdir -p stub github
     cat > stub/curl <<'EOF'
 #!/usr/bin/env bash

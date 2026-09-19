@@ -10,7 +10,7 @@ setup() {
     source "$REPO_ROOT/lib/helpers/manifest.sh"
     source "$REPO_ROOT/lib/helpers/backup.sh"
     source "$REPO_ROOT/lib/helpers/backup_state.sh"
-    PROOF_DIR="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_rollback_proof.XXXXXX")"
+    PROOF_DIR="$(host_path "$(mktemp -d "${TMPDIR:-/tmp}/agentsync_rollback_proof.XXXXXX")")"
     run_agentsync init --tools claude,codex --yes --no-sync >/dev/null
     checkpoint initialized
     cat > .ai/agent_sync.yaml <<'YAML'
@@ -386,6 +386,7 @@ assert_refused_unchanged() {
 }
 
 @test "rollback preflight catches edits during safety backup without arming destructive recovery" {
+    skip_on_windows "the race is staged through the Bash backup helper"
     sync_once
     checkpoint before-race
     eval "$(declare -f backup_create | sed '1s/backup_create/real_backup_create/')"
@@ -486,6 +487,7 @@ missing${tab}-${tab}absent.md"
 }
 
 @test "sync with a FIFO under a target succeeds and records it by type" {
+    skip_on_windows "Windows has no FIFOs"
     command -v mkfifo >/dev/null 2>&1 || skip "mkfifo is unavailable"
     mkdir -p .claude/skills
     mkfifo .claude/skills/pipe || skip "the filesystem does not support FIFOs"

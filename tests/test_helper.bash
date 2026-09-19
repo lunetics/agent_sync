@@ -32,6 +32,15 @@ host_path() {
     esac
 }
 
+# Skip a case that needs something Git Bash cannot give the binary: a shell
+# script standing in for a program the binary spawns, a FIFO, a POSIX shell
+# for a hook. Usage: skip_on_windows "<reason>"
+skip_on_windows() {
+    case "$(uname -s 2>/dev/null)" in
+        MINGW*|MSYS*|CYGWIN*) skip "$1" ;;
+    esac
+}
+
 setup_test_project() {
     TEST_PROJECT="$(host_path "$(mktemp -d "${TMPDIR:-/tmp}/agentsync_test.XXXXXX")")"
     cd "$TEST_PROJECT" || return 1

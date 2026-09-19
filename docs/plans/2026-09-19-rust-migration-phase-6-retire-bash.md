@@ -354,3 +354,10 @@ The plan is closed when every box is ticked, the suite is green on Linux, macOS,
 - Plan amended: none.
 - Next: the maintainer pushes; read the shards.
 - Blocker: none.
+
+### 2026-09-19 — Task 2 round 3
+- Commits: this commit, test: name the fixtures Windows can read and skip what Git Bash cannot stand in for.
+- Verified: the round 2 push (run 35437525303): Linux and macOS green; Windows 520 cases passing, 29 failing, shards 1, 7, and 12 green. The 29 fall into: fourteen tests whose stand-in for a program the binary spawns is a shell script on `PATH` (`curl` in `update_native`, `install`, `bundle`; `pbcopy` in `migrate`; the `agentsync` shim of the hooks gate), which `CreateProcess` cannot run, so they skip on Windows with the reason; eight `source_overrides` and one `doctor` case that write a `mktemp` path into `agent_sync.yaml` as `/tmp/…`, now spelled through `host_path` (the `sync.bats` and `rollback_preflight.bats` temp roots too); `$SHELL` reaching the binary as `…\bash` or `bash.exe`, read leaf-wise and case-insensitively; a FIFO, the `post_sync` hook through a POSIX shell, and the rollback race staged through the Bash backup helper, skipped with their reasons; and `add mcp` with a backslash in an argument that Git Bash rewrote as a path, run with `MSYS_NO_PATHCONV=1`. On this host the twelve edited files pass against the rebuilt binary; fmt, clippy, `cargo test` green; the helper lints. Noted for Task 4: `backup_retention.bats`, `rollback_preflight.bats`, and `shared.bats` still source `lib/helpers` for fixtures (`backup_create`, `cmd_rollback`, `shared_cleanup_overlay`); those cases are retired or rewritten before the deletion.
+- Plan amended: none.
+- Next: the maintainer pushes; read the shards.
+- Blocker: none.

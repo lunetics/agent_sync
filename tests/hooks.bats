@@ -114,6 +114,7 @@ shim_agentsync_on_path() {
 }
 
 @test "setup-hooks: committed gate blocks a commit whose outputs lag the source" {
+    skip_on_windows "the gate's agentsync shim is a shell script; git on Windows finds the real one first"
     shim_agentsync_on_path
     run_agentsync init --tools claude --yes >/dev/null 2>&1
     run_agentsync setup-hooks >/dev/null

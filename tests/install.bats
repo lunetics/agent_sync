@@ -119,6 +119,7 @@ EOF
 }
 
 setup() {
+    skip_on_windows "the curl stand-in is a shell script Windows cannot run as curl"
     setup_test_project
     export HOME="$TEST_PROJECT/home"
     mkdir -p "$HOME"

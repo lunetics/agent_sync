@@ -65,17 +65,23 @@ fn seed_recovery(project: &Project) {
 
     // `touch -t 202001010000`: old enough for the 24-hour stale-staging sweep;
     // `.tmp.sync.fresh` and `unrelated` keep their just-created mtime.
+    backdate(&project.join(".ai/backups/.latest.tmp.old"));
+    backdate(&project.join(".ai/backups/.gitignore.tmp.old"));
+    #[cfg(unix)]
+    backdate(&project.join(".ai/backups/.tmp.sync.old"));
+}
+
+/// `touch -t 202001010000`. Windows refuses `set_modified` on a handle that is
+/// not open for writing, and the standard library cannot open a directory for
+/// writing there at all — so the two cases that need a stale staging
+/// *directory* are `#[cfg(unix)]`.
+fn backdate(path: &Path) {
     let old = UNIX_EPOCH + Duration::from_secs(1_577_836_800);
-    for rel in [
-        ".ai/backups/.tmp.sync.old",
-        ".ai/backups/.latest.tmp.old",
-        ".ai/backups/.gitignore.tmp.old",
-    ] {
-        std::fs::File::open(project.join(rel))
-            .unwrap()
-            .set_modified(old)
-            .unwrap();
-    }
+    #[cfg(unix)]
+    let file = std::fs::File::open(path).unwrap();
+    #[cfg(not(unix))]
+    let file = std::fs::OpenOptions::new().write(true).open(path).unwrap();
+    file.set_modified(old).unwrap();
 }
 
 /// Every regular file's relative path and content hash, standing in for the
@@ -134,6 +140,9 @@ fn assert_recovery_preserved(before: &[(String, String)], after: &[(String, Stri
     }
 }
 
+// The swept `.tmp.sync.old` must be older than the sweep window, and only
+// Unix can backdate a directory here.
+#[cfg(unix)]
 #[test]
 fn retention_default_sync_still_sweeps_staging_when_both_snapshot_limits_are_zero() {
     let project = Project::empty();
@@ -158,6 +167,9 @@ fn retention_default_sync_still_sweeps_staging_when_both_snapshot_limits_are_zer
     );
 }
 
+// The swept `.tmp.sync.old` must be older than the sweep window, and only
+// Unix can backdate a directory here.
+#[cfg(unix)]
 #[test]
 fn retention_bounded_sync_applies_age_and_count_limits_and_sweeps_old_staging() {
     let project = Project::empty();

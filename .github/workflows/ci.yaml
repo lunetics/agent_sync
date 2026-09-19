@@ -39,5 +39,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
       - run: cargo clippy --all-targets -- -D warnings
-      - run: cargo test
+        # --no-fail-fast: report every failing crate in one run, not the first.
+      - run: cargo test --no-fail-fast
       - run: cargo build --release

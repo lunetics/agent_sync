@@ -17,13 +17,13 @@ _dedupe_make_parent_child_identical() {
     local parent_dir="$TEST_PROJECT/parent"
     local child_dir="$parent_dir/child"
     mkdir -p "$parent_dir"
-    ( cd "$parent_dir" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect >/dev/null )
+    ( cd "$parent_dir" && "$AGENTSYNC_BIN" init --no-detect >/dev/null )
     echo "shared rule" > "$parent_dir/.ai/src/rules/shared.md"
     mkdir -p "$parent_dir/.ai/src/skills/foo"
     echo "shared skill" > "$parent_dir/.ai/src/skills/foo/SKILL.md"
 
     mkdir -p "$child_dir"
-    ( cd "$child_dir" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect >/dev/null )
+    ( cd "$child_dir" && "$AGENTSYNC_BIN" init --no-detect >/dev/null )
     cp "$parent_dir/.ai/src/rules/shared.md" "$child_dir/.ai/src/rules/shared.md"
     mkdir -p "$child_dir/.ai/src/skills/foo"
     cp "$parent_dir/.ai/src/skills/foo/SKILL.md" "$child_dir/.ai/src/skills/foo/SKILL.md"
@@ -33,7 +33,7 @@ _dedupe_make_parent_child_identical() {
 
 @test "dedupe requires TTY without --yes" {
     _dedupe_make_parent_child_identical >/dev/null
-    run bash -c "cd '$TEST_PROJECT/parent/child' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' dedupe </dev/null"
+    run bash -c "cd '$TEST_PROJECT/parent/child' && '$AGENTSYNC_BIN' dedupe </dev/null"
     [ "$status" -ne 0 ]
     [[ "$output" == *"interactive TTY"* ]]
 }
@@ -43,7 +43,7 @@ _dedupe_make_parent_child_identical() {
     pair=$(_dedupe_make_parent_child_identical)
     local child="${pair##* }"
 
-    run bash -c "cd '$child' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' dedupe --yes"
+    run bash -c "cd '$child' && '$AGENTSYNC_BIN' dedupe --yes"
     [ "$status" -eq 0 ]
     [[ "$output" == *"rules/shared.md"* ]]
     [[ "$output" == *"skills/foo/SKILL.md"* ]]
@@ -57,13 +57,13 @@ _dedupe_make_parent_child_identical() {
     local parent_dir="$TEST_PROJECT/parent"
     local child_dir="$parent_dir/child"
     mkdir -p "$parent_dir"
-    ( cd "$parent_dir" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect >/dev/null )
+    ( cd "$parent_dir" && "$AGENTSYNC_BIN" init --no-detect >/dev/null )
     echo "parent version" > "$parent_dir/.ai/src/rules/shared.md"
     mkdir -p "$child_dir"
-    ( cd "$child_dir" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect >/dev/null )
+    ( cd "$child_dir" && "$AGENTSYNC_BIN" init --no-detect >/dev/null )
     echo "child version" > "$child_dir/.ai/src/rules/shared.md"
 
-    run bash -c "cd '$child_dir' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' dedupe --yes"
+    run bash -c "cd '$child_dir' && '$AGENTSYNC_BIN' dedupe --yes"
     [ "$status" -eq 0 ]
     [[ "$output" == *"divergent"* ]] || [[ "$output" == *"Divergent: 1"* ]]
     [ -f "$child_dir/.ai/src/rules/shared.md" ]
@@ -75,15 +75,15 @@ _dedupe_make_parent_child_identical() {
     local parent_dir="$TEST_PROJECT/parent"
     local child_dir="$parent_dir/child"
     mkdir -p "$parent_dir"
-    ( cd "$parent_dir" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect >/dev/null )
+    ( cd "$parent_dir" && "$AGENTSYNC_BIN" init --no-detect >/dev/null )
     # Overwrite the shipped comments.md in parent with a stable test value.
     echo "comments rule" > "$parent_dir/.ai/src/rules/comments.md"
 
     mkdir -p "$child_dir"
-    ( cd "$child_dir" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect >/dev/null )
+    ( cd "$child_dir" && "$AGENTSYNC_BIN" init --no-detect >/dev/null )
     cp "$parent_dir/.ai/src/rules/comments.md" "$child_dir/.ai/src/rules/comments.md"
 
-    run bash -c "cd '$child_dir' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' dedupe --yes"
+    run bash -c "cd '$child_dir' && '$AGENTSYNC_BIN' dedupe --yes"
     [ "$status" -eq 0 ]
     [ ! -f "$child_dir/.ai/src/rules/comments.md" ]
     grep -q "^  declined:" "$child_dir/.ai/agent_sync.yaml"
@@ -95,7 +95,7 @@ _dedupe_make_parent_child_identical() {
     pair=$(_dedupe_make_parent_child_identical)
     local child="${pair##* }"
 
-    run bash -c "cd '$child' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' dedupe --yes"
+    run bash -c "cd '$child' && '$AGENTSYNC_BIN' dedupe --yes"
     [ "$status" -eq 0 ]
     # rules/shared.md is NOT a shipped template — must not be added to declined.
     ! grep -q "rules/shared.md" "$child/.ai/agent_sync.yaml" || false
@@ -105,19 +105,19 @@ _dedupe_make_parent_child_identical() {
     local parent_dir="$TEST_PROJECT/parent"
     local child_dir="$TEST_PROJECT/unrelated"
     mkdir -p "$parent_dir"
-    ( cd "$parent_dir" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect >/dev/null )
+    ( cd "$parent_dir" && "$AGENTSYNC_BIN" init --no-detect >/dev/null )
     echo "shared" > "$parent_dir/.ai/src/rules/shared.md"
     mkdir -p "$child_dir"
-    ( cd "$child_dir" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect >/dev/null )
+    ( cd "$child_dir" && "$AGENTSYNC_BIN" init --no-detect >/dev/null )
     cp "$parent_dir/.ai/src/rules/shared.md" "$child_dir/.ai/src/rules/shared.md"
 
     # Without --against, child has no parent walk-up target (sibling, not nested).
-    run bash -c "cd '$child_dir' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' dedupe --yes"
+    run bash -c "cd '$child_dir' && '$AGENTSYNC_BIN' dedupe --yes"
     [ "$status" -eq 0 ]
     [ -f "$child_dir/.ai/src/rules/shared.md" ]
 
     # With --against, the dupe is found and removed.
-    run bash -c "cd '$child_dir' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' dedupe --against '$parent_dir' --yes"
+    run bash -c "cd '$child_dir' && '$AGENTSYNC_BIN' dedupe --against '$parent_dir' --yes"
     [ "$status" -eq 0 ]
     [ ! -f "$child_dir/.ai/src/rules/shared.md" ]
 }
@@ -126,17 +126,17 @@ _dedupe_make_parent_child_identical() {
     # Three children under one parent. Each child has an identical dupe.
     local root="$TEST_PROJECT/root"
     mkdir -p "$root"
-    ( cd "$root" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect >/dev/null )
+    ( cd "$root" && "$AGENTSYNC_BIN" init --no-detect >/dev/null )
     echo "shared" > "$root/.ai/src/rules/shared.md"
 
     local name
     for name in alpha bravo charlie; do
         mkdir -p "$root/$name"
-        ( cd "$root/$name" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect >/dev/null )
+        ( cd "$root/$name" && "$AGENTSYNC_BIN" init --no-detect >/dev/null )
         cp "$root/.ai/src/rules/shared.md" "$root/$name/.ai/src/rules/shared.md"
     done
 
-    run bash -c "cd '$root' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' dedupe --workspace --yes"
+    run bash -c "cd '$root' && '$AGENTSYNC_BIN' dedupe --workspace --yes"
     [ "$status" -eq 0 ]
     # Each child's dupe was removed; the parent's own file is untouched.
     [ -f "$root/.ai/src/rules/shared.md" ]
@@ -167,7 +167,7 @@ _dedupe_make_parent_child_identical() {
         git init --quiet
         git config user.email "test@test.com"
         git config user.name "Test"
-        AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect >/dev/null
+        "$AGENTSYNC_BIN" init --no-detect >/dev/null
     )
     echo "shared" > "$outer/.ai/src/rules/shared.md"
 
@@ -177,7 +177,7 @@ _dedupe_make_parent_child_identical() {
         git init --quiet
         git config user.email "test@test.com"
         git config user.name "Test"
-        AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect >/dev/null
+        "$AGENTSYNC_BIN" init --no-detect >/dev/null
     )
     cp "$outer/.ai/src/rules/shared.md" "$inner/.ai/src/rules/shared.md"
     cat >> "$inner/.ai/agent_sync.yaml" <<'EOF'
@@ -187,7 +187,7 @@ shared:
   inherit: rules
 EOF
 
-    run bash -c "cd '$inner' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' dedupe --yes"
+    run bash -c "cd '$inner' && '$AGENTSYNC_BIN' dedupe --yes"
     [ "$status" -eq 0 ]
     [[ "$output" == *"(from shared.path)"* ]]
     [ ! -f "$inner/.ai/src/rules/shared.md" ]
@@ -199,12 +199,12 @@ EOF
     # own .git (walk-up would miss it). Both must dedupe.
     local root="$TEST_PROJECT/root"
     mkdir -p "$root"
-    ( cd "$root" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect >/dev/null )
+    ( cd "$root" && "$AGENTSYNC_BIN" init --no-detect >/dev/null )
     echo "shared" > "$root/.ai/src/rules/shared.md"
 
     # samerepo: no own .git, walk-up would find parent.
     mkdir -p "$root/samerepo"
-    ( cd "$root/samerepo" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect >/dev/null )
+    ( cd "$root/samerepo" && "$AGENTSYNC_BIN" init --no-detect >/dev/null )
     cp "$root/.ai/src/rules/shared.md" "$root/samerepo/.ai/src/rules/shared.md"
     cat >> "$root/samerepo/.ai/agent_sync.yaml" <<'EOF'
 
@@ -220,7 +220,7 @@ EOF
         git init --quiet
         git config user.email "test@test.com"
         git config user.name "Test"
-        AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect >/dev/null
+        "$AGENTSYNC_BIN" init --no-detect >/dev/null
     )
     cp "$root/.ai/src/rules/shared.md" "$root/ownrepo/.ai/src/rules/shared.md"
     cat >> "$root/ownrepo/.ai/agent_sync.yaml" <<'EOF'
@@ -230,7 +230,7 @@ shared:
   inherit: rules
 EOF
 
-    run bash -c "cd '$root' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' dedupe --workspace --yes"
+    run bash -c "cd '$root' && '$AGENTSYNC_BIN' dedupe --workspace --yes"
     [ "$status" -eq 0 ]
     # Both children must have their dupe removed.
     [ ! -f "$root/samerepo/.ai/src/rules/shared.md" ]
@@ -264,7 +264,7 @@ EOF
         cp "$parent_dir/.ai/src/rules/$name.md" "$child_dir/.ai/src/rules/$name.md"
     done
 
-    run bash -c "cd '$child_dir' && LC_ALL=en_US.UTF-8 AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' dedupe --yes"
+    run bash -c "cd '$child_dir' && LC_ALL=en_US.UTF-8 '$AGENTSYNC_BIN' dedupe --yes"
     [ "$status" -eq 0 ]
     [[ "$output" == *"rules/B.md (deleted)"*"rules/_x.md (deleted)"*"rules/a.md (deleted)"* ]]
 }

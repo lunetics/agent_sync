@@ -65,7 +65,7 @@ github_archive() {
 
 @test "export sizes a relative archive from the project root" {
     mkdir -p sub
-    run bash -c "cd sub && AGENTSYNC_REPO_ROOT='$TEST_PROJECT' AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' export -o rel.tgz"
+    run bash -c "cd sub && AGENTSYNC_REPO_ROOT='$TEST_PROJECT' '$AGENTSYNC_BIN' export -o rel.tgz"
     [ "$status" -eq 0 ]
     [ -f rel.tgz ]
     grep -qF -- "rel.tgz (" <<<"$output"
@@ -83,7 +83,7 @@ github_archive() {
     run_agentsync export -o bundle.tgz >/dev/null
     mkdir -p fresh
     mv bundle.tgz fresh/
-    run bash -c "cd fresh && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' import bundle.tgz"
+    run bash -c "cd fresh && '$AGENTSYNC_BIN' import bundle.tgz"
     [ "$status" -eq 0 ]
     grep -qF -- "Imported!" <<<"$output"
     [ -f fresh/.ai/src/AGENTS.md ]
@@ -102,7 +102,7 @@ github_archive() {
     run_agentsync export -o bundle.tgz >/dev/null
     mkdir -p fresh
     mv bundle.tgz fresh/
-    run bash -c "cd fresh && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' import bundle.tgz --dry-run"
+    run bash -c "cd fresh && '$AGENTSYNC_BIN' import bundle.tgz --dry-run"
     [ "$status" -eq 0 ]
     grep -qF -- "Dry run" <<<"$output"
     [ ! -e fresh/.ai ]

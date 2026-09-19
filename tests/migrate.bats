@@ -37,7 +37,7 @@ teardown() { teardown_test_project; }
         AGENTSYNC_NO_CLIPBOARD=0 \
         MIGRATE_CLIPBOARD_CAPTURE="$clipboard_capture" \
         AGENTSYNC_HOME="$REPO_ROOT" \
-        bash "$AGENTSYNC_BIN" migrate
+        "$AGENTSYNC_BIN" migrate
 
     [ "$status" -eq 0 ]
     [ -s "$clipboard_capture" ]
@@ -275,7 +275,7 @@ teardown() { teardown_test_project; }
         printf '{}\n' > ".ai/src/settings/$name.json"
     done
 
-    run env LC_ALL=en_US.UTF-8 AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" migrate --legacy
+    run env LC_ALL=en_US.UTF-8 "$AGENTSYNC_BIN" migrate --legacy
     [ "$status" -eq 0 ]
     [[ "$output" == *"settings/Zed.json"*"settings/_x.json"*"settings/claude.json"* ]]
 }

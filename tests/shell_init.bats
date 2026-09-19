@@ -40,7 +40,7 @@ teardown() { teardown_test_project; }
         AGENTSYNC_BIN="$AGENTSYNC_BIN" \
         TEST_PROJECT_ROOT="$PWD/project" \
         bash -c '
-            eval "$(bash "$AGENTSYNC_BIN" shell-init bash)"
+            eval "$("$AGENTSYNC_BIN" shell-init bash)"
             cd "$TEST_PROJECT_ROOT/nested"
             _agentsync_autosync
         '
@@ -61,7 +61,7 @@ teardown() { teardown_test_project; }
         AGENTSYNC_BIN="$AGENTSYNC_BIN" \
         TEST_PROJECT_ROOT="$PWD/project" \
         bash -c '
-            eval "$(bash "$AGENTSYNC_BIN" shell-init bash)"
+            eval "$("$AGENTSYNC_BIN" shell-init bash)"
             cd "$TEST_PROJECT_ROOT"
             _agentsync_autosync
         '
@@ -99,7 +99,7 @@ teardown() { teardown_test_project; }
     printf '#!/bin/sh\nexit 0\n' > stub/agentsync
     chmod +x stub/agentsync
     run env PATH="$PWD/stub:$PATH" zsh -c "
-        eval \"\$(AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' shell-init zsh)\"
+        eval \"\$('$AGENTSYNC_BIN' shell-init zsh)\"
         cd '$PWD/proj'
         print OK
     "
@@ -109,13 +109,13 @@ teardown() { teardown_test_project; }
 }
 
 @test "shell-init auto-detects zsh from \$SHELL" {
-    run env SHELL=/usr/bin/zsh AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" shell-init
+    run env SHELL=/usr/bin/zsh "$AGENTSYNC_BIN" shell-init
     [ "$status" -eq 0 ]
     [[ "$output" == *"agentsync shell hook (zsh)"* ]]
 }
 
 @test "shell-init auto-detects bash from \$SHELL" {
-    run env SHELL=/bin/bash AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" shell-init
+    run env SHELL=/bin/bash "$AGENTSYNC_BIN" shell-init
     [ "$status" -eq 0 ]
     [[ "$output" == *"agentsync shell hook (bash)"* ]]
 }
@@ -126,7 +126,7 @@ teardown() { teardown_test_project; }
 }
 
 @test "shell-init errors when the shell cannot be detected" {
-    run env SHELL= AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" shell-init
+    run env SHELL= "$AGENTSYNC_BIN" shell-init
     [ "$status" -eq 2 ]
 }
 

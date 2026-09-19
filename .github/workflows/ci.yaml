@@ -2,10 +2,6 @@ name: CI
 
 on:
   push:
-    # The migration branch accumulates every phase and is not merged before the
-    # cutover (docs/specs/2026-09-12-rust-migration-design.md, Phase 5), so it
-    # needs its own trigger or nothing is ever checked on Linux and Windows.
-    # Remove the pattern at the cutover.
     branches: [main, 'feat/native-engine**']
   pull_request:
     branches: [main]
@@ -30,17 +26,26 @@ jobs:
           shellcheck -x -S warning -e SC1091 lib/setup_hooks.sh
           shellcheck -x -S warning -e SC1091 lib/helpers/*.sh
 
-  # Linux/macOS parallelize the whole suite with GNU parallel — a few minutes.
-  test-unix:
-    name: Test (${{ matrix.os }})
+  # The Rust gates and the bats suite against the release build. Linux and
+  # macOS parallelize the suite with GNU parallel — a few minutes.
+  native:
+    name: Native engine (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+      - run: cargo build --release
       - name: Install bats-core and GNU parallel
         shell: bash
         run: |
@@ -49,20 +54,18 @@ jobs:
           else
             brew install bats-core parallel
           fi
-      - name: Run tests
+      - name: The bats suite against the binary
         shell: bash
         env:
           TERM: xterm
-        run: bats --jobs 4 tests/ --tap
+        run: bats --jobs 4 --tap --print-output-on-failure tests/
 
   # git-bash can't run bats --jobs (no flock; GNU parallel hangs for hours) and
-  # the full suite runs serially in ~58m. Shard the files across jobs instead:
-  # each job runs its slice serially. The floor is the slowest single file (it
-  # can't be split) plus per-job overhead, ~4-5m; 12 shards lands near it. More
-  # shards (>16) do nothing — there are only 27 files and the heavy ones are
-  # already isolated.
+  # a serial run exceeds 90 minutes (run 35424805832), so the files are sharded
+  # across jobs: each job runs its slice serially. The floor is the slowest
+  # single file plus per-job overhead, ~4-5m; 12 shards lands near it.
   test-windows:
-    name: Test (windows, shard ${{ matrix.shard }}/12)
+    name: Native engine (windows, shard ${{ matrix.shard }}/12)
     runs-on: windows-latest
     timeout-minutes: 30
     strategy:
@@ -71,6 +74,9 @@ jobs:
         shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release
       - name: Cache bats-core
         id: cache-bats
         uses: actions/cache@v4
@@ -118,73 +124,4 @@ jobs:
           done <<< "$sorted"
           printf 'shard %s/%s: %d files\n' "$SHARD" "$TOTAL" "${#mine[@]}"
           printf '  %s\n' "${mine[@]}"
-          bats "${mine[@]}" --tap
-
-  native:
-    name: Native engine (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo fmt --all --check
-      - run: cargo clippy --all-targets -- -D warnings
-      - run: cargo test
-      - run: cargo build --release
-      - name: Install bats-core and GNU parallel
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          if [[ "$RUNNER_OS" == "Linux" ]]; then
-            sudo apt-get install -y bats parallel
-          else
-            brew install bats-core parallel
-          fi
-      - name: Cache bats-core
-        if: runner.os == 'Windows'
-        id: cache-bats
-        uses: actions/cache@v4
-        with:
-          path: ~/.local
-          key: bats-core-${{ runner.os }}-v1
-      - name: Install bats-core
-        if: runner.os == 'Windows' && steps.cache-bats.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          git clone --depth 1 https://github.com/bats-core/bats-core.git /tmp/bats-core
-          /tmp/bats-core/install.sh "$HOME/.local"
-      - name: Put bats on PATH
-        if: runner.os == 'Windows'
-        shell: bash
-        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      # Every command that writes outputs goes through the native sync from
-      # Phase 3 on, so the whole suite is the native contract.
-      - name: The Bash suite against the native engine
-        if: runner.os != 'Windows'
-        shell: bash
-        env:
-          TERM: xterm
-          AGENTSYNC_NATIVE: "1"
-        run: bats --jobs 4 --tap --print-output-on-failure tests/
-      # Git Bash cannot run bats --jobs; the binary forks nothing, so the
-      # suite runs serially and unsharded here (Phase 5e). Advisory until the
-      # Windows follow-up lands: under Git Bash the binary receives POSIX
-      # paths it cannot resolve, and a prompt on the runner's console blocks
-      # (run 35424805832 on 2026-09-19); the Bash shard matrix above stays
-      # the Windows gate meanwhile.
-      - name: The Bash suite against the native engine (serial)
-        if: runner.os == 'Windows'
-        shell: bash
-        continue-on-error: true
-        timeout-minutes: 30
-        env:
-          TERM: xterm
-          AGENTSYNC_NATIVE: "1"
-        run: bats --tap --print-output-on-failure tests/
+          bats "${mine[@]}" --tap --print-output-on-failure

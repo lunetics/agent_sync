@@ -10,8 +10,8 @@ setup_file() {
     seed_project
     (
         cd "$TEST_SEED"
-        AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" enable claude --no-scaffold >/dev/null
-        AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync >/dev/null
+        "$AGENTSYNC_BIN" enable claude --no-scaffold >/dev/null
+        "$AGENTSYNC_BIN" sync >/dev/null
     )
 }
 teardown_file() { teardown_seed_project; }
@@ -49,7 +49,7 @@ teardown() { teardown_test_project; }
 @test "drift: second sync produces byte-identical manifest" {
     local first
     first=$(file_sha256 .ai/.sync-manifest)
-    AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync >/dev/null
+    "$AGENTSYNC_BIN" sync >/dev/null
     local second
     second=$(file_sha256 .ai/.sync-manifest)
     [ "$first" = "$second" ]
@@ -59,7 +59,7 @@ teardown() { teardown_test_project; }
 
 @test "drift: manual edit triggers refusal" {
     echo "MANUAL EDIT" >> .claude/rules/core.md
-    run env AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync
+    run env "$AGENTSYNC_BIN" sync
     [ "$status" -ne 0 ]
     [[ "$output" == *"Manual edits detected"* ]]
     [[ "$output" == *".claude/rules/core.md"* ]]
@@ -67,7 +67,7 @@ teardown() { teardown_test_project; }
 
 @test "drift: refused sync leaves edited file untouched" {
     echo "MANUAL EDIT" >> .claude/rules/core.md
-    AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync >/dev/null 2>&1 || true
+    "$AGENTSYNC_BIN" sync >/dev/null 2>&1 || true
     grep -q "MANUAL EDIT" .claude/rules/core.md
 }
 
@@ -75,7 +75,7 @@ teardown() { teardown_test_project; }
     local before
     before=$(file_sha256 .ai/.sync-manifest)
     echo "MANUAL EDIT" >> .claude/rules/core.md
-    AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync >/dev/null 2>&1 || true
+    "$AGENTSYNC_BIN" sync >/dev/null 2>&1 || true
     local after
     after=$(file_sha256 .ai/.sync-manifest)
     [ "$before" = "$after" ]
@@ -83,7 +83,7 @@ teardown() { teardown_test_project; }
 
 @test "drift: --force overwrites edited file" {
     echo "MANUAL EDIT" >> .claude/rules/core.md
-    run env AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync --force
+    run env "$AGENTSYNC_BIN" sync --force
     [ "$status" -eq 0 ]
     ! grep -q "MANUAL EDIT" .claude/rules/core.md
 }
@@ -92,7 +92,7 @@ teardown() { teardown_test_project; }
     echo "MANUAL EDIT" >> .claude/rules/core.md
     local before
     before=$(file_sha256 .ai/.sync-manifest)
-    AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync --force >/dev/null
+    "$AGENTSYNC_BIN" sync --force >/dev/null
     local after
     after=$(file_sha256 .ai/.sync-manifest)
     # Manifest content should be identical to first run (we restored source content),
@@ -104,7 +104,7 @@ teardown() { teardown_test_project; }
 
 @test "drift: manually deleted dest is rewritten without error" {
     rm .claude/rules/core.md
-    run env AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync
+    run env "$AGENTSYNC_BIN" sync
     [ "$status" -eq 0 ]
     [ -f ".claude/rules/core.md" ]
 }
@@ -113,7 +113,7 @@ teardown() { teardown_test_project; }
     echo "MANUAL EDIT" >> .claude/rules/core.md
     local before
     before=$(file_sha256 .ai/.sync-manifest)
-    run env AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync --dry-run
+    run env "$AGENTSYNC_BIN" sync --dry-run
     [ "$status" -eq 0 ]
     local after
     after=$(file_sha256 .ai/.sync-manifest)
@@ -125,28 +125,28 @@ teardown() { teardown_test_project; }
 
 @test "drift: disabling a tool drops its entries from the manifest" {
     grep -q "^.claude/" .ai/.sync-manifest
-    AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" disable claude >/dev/null
-    AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync >/dev/null
+    "$AGENTSYNC_BIN" disable claude >/dev/null
+    "$AGENTSYNC_BIN" sync >/dev/null
     ! grep -q "^.claude/" .ai/.sync-manifest
 }
 
 # ── Doctor drift section ────────────────────────────────────────────────────
 
 @test "drift: doctor reports clean manifest when nothing changed" {
-    run env AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" doctor
+    run env "$AGENTSYNC_BIN" doctor
     [[ "$output" == *"match the manifest"* ]]
 }
 
 @test "drift: doctor reports edited file as drift" {
     echo "MANUAL EDIT" >> .claude/rules/core.md
-    run env AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" doctor
+    run env "$AGENTSYNC_BIN" doctor
     [[ "$output" == *".claude/rules/core.md"* ]]
     [[ "$output" == *"edited since last sync"* ]]
 }
 
 @test "drift: doctor reports deleted file as missing" {
     rm .claude/rules/core.md
-    run env AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" doctor
+    run env "$AGENTSYNC_BIN" doctor
     [[ "$output" == *".claude/rules/core.md"* ]]
     [[ "$output" == *"missing"* ]]
 }
@@ -155,7 +155,7 @@ teardown() { teardown_test_project; }
 
 @test "drift: sync preserves a user-added rule in a generated dir" {
     echo "my own rule" > .claude/rules/my-own.md
-    run env AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync
+    run env "$AGENTSYNC_BIN" sync
     [ "$status" -eq 0 ]
     [ -f ".claude/rules/my-own.md" ]
     [[ "$output" == *"Kept"* ]]
@@ -164,20 +164,20 @@ teardown() { teardown_test_project; }
 
 @test "drift: preserved user-added file is not recorded in the manifest" {
     echo "my own rule" > .claude/rules/my-own.md
-    AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync >/dev/null
+    "$AGENTSYNC_BIN" sync >/dev/null
     ! grep -q "my-own.md" .ai/.sync-manifest
 }
 
 @test "drift: sync --force prunes a user-added rule in a generated dir" {
     echo "my own rule" > .claude/rules/my-own.md
-    run env AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync --force
+    run env "$AGENTSYNC_BIN" sync --force
     [ "$status" -eq 0 ]
     [ ! -f ".claude/rules/my-own.md" ]
 }
 
 @test "drift: dry-run previews keeping a user-added file without deleting it" {
     echo "my own rule" > .claude/rules/my-own.md
-    run env AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync --dry-run
+    run env "$AGENTSYNC_BIN" sync --dry-run
     [ "$status" -eq 0 ]
     [[ "$output" == *"Would keep"* ]]
     [ -f ".claude/rules/my-own.md" ]
@@ -185,20 +185,20 @@ teardown() { teardown_test_project; }
 
 @test "drift: obsolete sync-generated rule is still pruned when removed from source" {
     echo "# Temp" > .ai/src/rules/temp-rule.md
-    AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync >/dev/null
+    "$AGENTSYNC_BIN" sync >/dev/null
     [ -f ".claude/rules/temp-rule.md" ]
     rm .ai/src/rules/temp-rule.md
-    AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync >/dev/null
+    "$AGENTSYNC_BIN" sync >/dev/null
     [ ! -f ".claude/rules/temp-rule.md" ]
 }
 
 @test "drift: obsolete sync-generated skill directory is pruned when removed from source" {
     mkdir -p .ai/src/skills/temp-skill
     printf -- '---\nname: temp-skill\n---\n' > .ai/src/skills/temp-skill/SKILL.md
-    AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync >/dev/null
+    "$AGENTSYNC_BIN" sync >/dev/null
     [ -f ".claude/skills/temp-skill/SKILL.md" ]
     rm -rf .ai/src/skills/temp-skill
-    run env AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync
+    run env "$AGENTSYNC_BIN" sync
     [ "$status" -eq 0 ]
     [[ "$output" != *"Kept .claude/skills/temp-skill"* ]]
     [ ! -e ".claude/skills/temp-skill" ]
@@ -207,7 +207,7 @@ teardown() { teardown_test_project; }
 @test "drift: sync preserves a user-added skill directory in a generated dir" {
     mkdir -p .claude/skills/my-own
     echo "mine" > .claude/skills/my-own/SKILL.md
-    run env AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync
+    run env "$AGENTSYNC_BIN" sync
     [ "$status" -eq 0 ]
     [[ "$output" == *"Kept .claude/skills/my-own"* ]]
     [ -f ".claude/skills/my-own/SKILL.md" ]
@@ -220,7 +220,7 @@ teardown() { teardown_test_project; }
 @test "drift: --if-stale is a no-op when source is older than the manifest" {
     # Manifest in the future → nothing under .ai/src/ is newer → fresh.
     touch -t 203012312359 .ai/.sync-manifest
-    run env AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync --if-stale
+    run env "$AGENTSYNC_BIN" sync --if-stale
     [ "$status" -eq 0 ]
     [[ "$output" != *"Starting AgentSync Config Sync"* ]]
 }
@@ -229,7 +229,7 @@ teardown() { teardown_test_project; }
     touch -t 203012312359 .ai/.sync-manifest
     local before
     before=$(file_sha256 .ai/.sync-manifest)
-    env AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync --if-stale >/dev/null
+    env "$AGENTSYNC_BIN" sync --if-stale >/dev/null
     local after
     after=$(file_sha256 .ai/.sync-manifest)
     [ "$before" = "$after" ]
@@ -238,14 +238,14 @@ teardown() { teardown_test_project; }
 @test "drift: --if-stale runs a full sync when source is newer than the manifest" {
     # Manifest in the past → every source file is newer → stale.
     touch -t 200001010000 .ai/.sync-manifest
-    run env AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync --if-stale
+    run env "$AGENTSYNC_BIN" sync --if-stale
     [ "$status" -eq 0 ]
     [[ "$output" == *"Starting AgentSync Config Sync"* ]]
 }
 
 @test "drift: --if-stale treats a missing manifest as stale and re-syncs" {
     rm .ai/.sync-manifest
-    run env AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync --if-stale
+    run env "$AGENTSYNC_BIN" sync --if-stale
     [ "$status" -eq 0 ]
     [[ "$output" == *"Starting AgentSync Config Sync"* ]]
     [ -f ".ai/.sync-manifest" ]
@@ -255,7 +255,7 @@ teardown() { teardown_test_project; }
 
 @test "drift: first-sync baseline message printed" {
     rm .ai/.sync-manifest
-    run env AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync
+    run env "$AGENTSYNC_BIN" sync
     [ "$status" -eq 0 ]
     [[ "$output" == *"Initialized .ai/.sync-manifest"* ]]
     [ -f ".ai/.sync-manifest" ]

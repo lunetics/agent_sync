@@ -18,12 +18,12 @@ _shared_make_pair() {
     local parent_dir="$TEST_PROJECT/parent"
     local child_dir="$parent_dir/child"
     mkdir -p "$parent_dir"
-    ( cd "$parent_dir" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect --yes >/dev/null )
+    ( cd "$parent_dir" && "$AGENTSYNC_BIN" init --no-detect --yes >/dev/null )
     echo "parent-rule" > "$parent_dir/.ai/src/rules/parent-only.md"
 
     mkdir -p "$child_dir"
-    ( cd "$child_dir" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect --yes >/dev/null )
-    ( cd "$child_dir" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" enable claude --no-scaffold >/dev/null )
+    ( cd "$child_dir" && "$AGENTSYNC_BIN" init --no-detect --yes >/dev/null )
+    ( cd "$child_dir" && "$AGENTSYNC_BIN" enable claude --no-scaffold >/dev/null )
     # Remove default rules so the test is unambiguous about what's inherited.
     rm -f "$child_dir/.ai/src/rules/"*.md
     echo "child-rule" > "$child_dir/.ai/src/rules/child-only.md"
@@ -46,12 +46,12 @@ _shared_make_sparse_pair() {
     local init_flags=(--no-templates --no-detect --content rules --yes)
 
     mkdir -p "$parent_dir"
-    ( cd "$parent_dir" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init "${init_flags[@]}" >/dev/null )
+    ( cd "$parent_dir" && "$AGENTSYNC_BIN" init "${init_flags[@]}" >/dev/null )
     echo "parent-rule" > "$parent_dir/.ai/src/rules/parent-only.md"
 
     mkdir -p "$child_dir"
-    ( cd "$child_dir" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init "${init_flags[@]}" >/dev/null )
-    ( cd "$child_dir" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" enable claude --no-scaffold >/dev/null )
+    ( cd "$child_dir" && "$AGENTSYNC_BIN" init "${init_flags[@]}" >/dev/null )
+    ( cd "$child_dir" && "$AGENTSYNC_BIN" enable claude --no-scaffold >/dev/null )
     echo "child-rule" > "$child_dir/.ai/src/rules/child-only.md"
     echo "# Child" > "$child_dir/.ai/AGENTS.md"
     sed 's|agents: ".ai/src/AGENTS.md"|agents: ".ai/AGENTS.md"|' "$child_dir/.ai/agent_sync.yaml" > "$child_dir/.ai/agent_sync.yaml.tmp"
@@ -78,7 +78,7 @@ EOF
     pair=$(_shared_make_sparse_pair)
     child="${pair##* }"
 
-    run bash -c "cd '$child' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' sync"
+    run bash -c "cd '$child' && '$AGENTSYNC_BIN' sync"
     [ "$status" -eq 0 ]
     [[ "$output" == *"Shared overlay active"* ]]
     [ -f "$child/.claude/rules/parent-only.md" ]
@@ -90,7 +90,7 @@ EOF
     pair=$(_shared_make_pair)
     child="${pair##* }"
 
-    run bash -c "cd '$child' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' sync"
+    run bash -c "cd '$child' && '$AGENTSYNC_BIN' sync"
     [ "$status" -eq 0 ]
     [[ "$output" == *"Shared overlay active"* ]]
     # Inherited parent file present in child output.
@@ -108,7 +108,7 @@ EOF
     echo "PARENT VERSION" > "$parent/.ai/src/rules/clash.md"
     echo "CHILD VERSION" > "$child/.ai/src/rules/clash.md"
 
-    run bash -c "cd '$child' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' sync"
+    run bash -c "cd '$child' && '$AGENTSYNC_BIN' sync"
     [ "$status" -eq 0 ]
     grep -q "CHILD VERSION" "$child/.claude/rules/clash.md"
 }
@@ -123,7 +123,7 @@ EOF
     mkdir -p "$parent/.ai/src/skills/parent-skill"
     echo "ps" > "$parent/.ai/src/skills/parent-skill/SKILL.md"
 
-    run bash -c "cd '$child' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' sync"
+    run bash -c "cd '$child' && '$AGENTSYNC_BIN' sync"
     [ "$status" -eq 0 ]
     # Inherited via rules — present.
     [ -f "$child/.claude/rules/parent-only.md" ]
@@ -139,7 +139,7 @@ EOF
     printf '%s\n' '---' 'name: child-skill' 'description: child fixture skill' '---' \
         > "$child/.ai/src/skills/child-skill/SKILL.md"
 
-    run bash -c "cd '$child' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' sync"
+    run bash -c "cd '$child' && '$AGENTSYNC_BIN' sync"
     [ "$status" -eq 0 ]
     [ -f "$child/.claude/skills/child-skill/SKILL.md" ]
     [ -f "$child/.claude/skills/agentsync/SKILL.md" ]
@@ -170,7 +170,7 @@ EOF
     pair=$(_shared_make_pair)
     child="${pair##* }"
 
-    TMPDIR="$sandbox" run bash -c "cd '$child' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' sync"
+    TMPDIR="$sandbox" run bash -c "cd '$child' && '$AGENTSYNC_BIN' sync"
     [ "$status" -eq 0 ]
     # Nothing at all: the run directory, the overlay inside it, and every other
     # scratch file the run created.
@@ -220,7 +220,7 @@ EOF
     pair=$(_shared_make_pair)
     child="${pair##* }"
 
-    TMPDIR="$sandbox" run bash -c "cd '$child' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' sync --dry-run"
+    TMPDIR="$sandbox" run bash -c "cd '$child' && '$AGENTSYNC_BIN' sync --dry-run"
     [ "$status" -eq 0 ]
     [[ "$output" == *"Shared overlay active"* ]]
     [ ! -f "$child/.claude/rules/parent-only.md" ]
@@ -236,7 +236,7 @@ EOF
     # Force a duplicate in child for an inherited category.
     cp "$parent/.ai/src/rules/parent-only.md" "$child/.ai/src/rules/parent-only.md"
 
-    run bash -c "cd '$child' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' doctor"
+    run bash -c "cd '$child' && '$AGENTSYNC_BIN' doctor"
     [ "$status" -eq 0 ]
     [[ "$output" == *"rules/parent-only.md — duplicate"* ]]
     [[ "$output" == *"inherited via shared:"* ]]
@@ -246,7 +246,7 @@ EOF
     local parent_dir="$TEST_PROJECT/parent"
     local child_dir="$parent_dir/child"
     mkdir -p "$parent_dir"
-    ( cd "$parent_dir" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect --yes >/dev/null )
+    ( cd "$parent_dir" && "$AGENTSYNC_BIN" init --no-detect --yes >/dev/null )
     cat > "$parent_dir/.ai/src/rules/governance-rule.md" <<'EOF'
 ---
 name: governance-rule
@@ -257,7 +257,7 @@ parent body
 EOF
 
     mkdir -p "$child_dir"
-    ( cd "$child_dir" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect --yes >/dev/null )
+    ( cd "$child_dir" && "$AGENTSYNC_BIN" init --no-detect --yes >/dev/null )
     cat > "$child_dir/.ai/src/rules/governance-rule.md" <<'EOF'
 ---
 name: governance-rule
@@ -267,7 +267,7 @@ category: governance
 CHILD overrides body
 EOF
 
-    run bash -c "cd '$child_dir' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' doctor"
+    run bash -c "cd '$child_dir' && '$AGENTSYNC_BIN' doctor"
     [ "$status" -eq 0 ]
     [[ "$output" == *"governance file diverges from parent"* ]]
     [[ "$output" == *"likely a mistake"* ]]
@@ -277,14 +277,14 @@ EOF
     local parent_dir="$TEST_PROJECT/parent"
     local child_dir="$parent_dir/child"
     mkdir -p "$parent_dir"
-    ( cd "$parent_dir" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect --yes >/dev/null )
+    ( cd "$parent_dir" && "$AGENTSYNC_BIN" init --no-detect --yes >/dev/null )
     echo "no frontmatter, parent" > "$parent_dir/.ai/src/rules/plain.md"
 
     mkdir -p "$child_dir"
-    ( cd "$child_dir" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect --yes >/dev/null )
+    ( cd "$child_dir" && "$AGENTSYNC_BIN" init --no-detect --yes >/dev/null )
     echo "no frontmatter, child" > "$child_dir/.ai/src/rules/plain.md"
 
-    run bash -c "cd '$child_dir' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' doctor"
+    run bash -c "cd '$child_dir' && '$AGENTSYNC_BIN' doctor"
     [ "$status" -eq 0 ]
     [[ "$output" == *"diverges from parent"* ]]
     [[ "$output" != *"governance file diverges"* ]]

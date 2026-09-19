@@ -232,7 +232,7 @@ pub fn release(
         .install_dir
         .as_deref()
         .filter(|dir| Path::new(dir).join("VERSION").is_file());
-    let repo: PathBuf = if cwd.join("VERSION").is_file() && cwd.join("bin/agentsync.sh").is_file() {
+    let repo: PathBuf = if cwd.join("VERSION").is_file() && cwd.join("Cargo.toml").is_file() {
         cwd.to_path_buf()
     } else if let Some(dir) = install_dir {
         PathBuf::from(dir)
@@ -462,8 +462,6 @@ mod checkout_tests {
     fn checkout(version: &str) -> (tempfile::TempDir, PathBuf) {
         let dir = tempfile::tempdir().unwrap();
         let root = std::fs::canonicalize(dir.path()).unwrap();
-        std::fs::create_dir_all(root.join("bin")).unwrap();
-        std::fs::write(root.join("bin/agentsync.sh"), "").unwrap();
         std::fs::write(root.join("VERSION"), format!("{version}\n")).unwrap();
         std::fs::write(root.join("Cargo.toml"), TOML.replace("1.0.0", version)).unwrap();
         std::fs::write(root.join("Cargo.lock"), LOCK.replace("1.0.0", version)).unwrap();
@@ -615,13 +613,11 @@ mod checkout_tests {
             err,
             "Error: Cannot find the agentsync crate version in Cargo.lock\n"
         );
+        // Cargo.toml is what makes a directory a checkout now (Phase 6).
         std::fs::remove_file(root.join("Cargo.toml")).unwrap();
         sh(&root, &["commit", "-q", "-am", "toml"]);
         let (_, _, err) = run(&["patch", "--no-push"], &root, None, Some("y"));
-        assert_eq!(
-            err,
-            "Error: Cannot find the agentsync crate version in Cargo.toml\n"
-        );
+        assert_eq!(err, "Error: Must be run from the AgentSync repository.\n");
         assert_eq!(sh(&root, &["status", "--porcelain"]), "");
         assert_eq!(sh(&root, &["tag", "-l"]), "");
     }

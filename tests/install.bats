@@ -42,7 +42,13 @@ _build_origin_fixture() {
         git config user.email "test@test.com"
         git config user.name "Test"
 
-        cp -R "$REPO_ROOT/bin" "$REPO_ROOT/lib" .
+        # A source install links bin/agentsync.sh and checks lib/ exists; the
+        # tags this fixture publishes stand for releases older than the binary,
+        # so a stub that answers `version` is all they need.
+        mkdir -p bin lib/helpers
+        printf '#!/usr/bin/env bash\necho "agentsync v$(cat "$(dirname "$0")/../VERSION")"\n' > bin/agentsync.sh
+        chmod +x bin/agentsync.sh
+        touch lib/helpers/.keep
         printf '%s\n' "$FIXTURE_OLD" > VERSION
         git add -A
         git commit --quiet -m "fixture engine $FIXTURE_OLD"
@@ -214,62 +220,4 @@ teardown() {
     [ "$status" -eq 0 ]
     [ "$("$TEST_PROJECT/bin/agentsync" version)" = "agentsync v$FIXTURE_NEW" ]
     [ -d "$TEST_PROJECT/engine/.git" ]
-}
-
-@test "update <version>: pins an installed engine to that release" {
-    env AGENTSYNC_VERSION="$FIXTURE_NEW" bash "$REPO_ROOT/install.sh" >/dev/null
-    run env AGENTSYNC_HOME="$TEST_PROJECT/engine" bash "$TEST_PROJECT/engine/bin/agentsync.sh" update "$FIXTURE_OLD"
-    [ "$status" -eq 0 ]
-    [ "$(cat "$TEST_PROJECT/engine/VERSION")" = "$FIXTURE_OLD" ]
-    [[ "$output" == *"$FIXTURE_OLD"* ]]
-    [[ "$output" != *"Switched to the agentsync binary"* ]]
-}
-
-@test "update <version>: rejects a version that is not a release tag" {
-    env AGENTSYNC_VERSION="$FIXTURE_NEW" bash "$REPO_ROOT/install.sh" >/dev/null
-    run env AGENTSYNC_HOME="$TEST_PROJECT/engine" bash "$TEST_PROJECT/engine/bin/agentsync.sh" update "$FIXTURE_ABSENT"
-    [ "$status" -ne 0 ]
-    [[ "$output" == *"$FIXTURE_ABSENT"* ]]
-    [ "$(cat "$TEST_PROJECT/engine/VERSION")" = "$FIXTURE_NEW" ]
-}
-
-@test "update <version>: a source install switches to the binary when the release has one" {
-    env AGENTSYNC_VERSION="$FIXTURE_OLD" bash "$REPO_ROOT/install.sh" >/dev/null
-    publish_release "$FIXTURE_NEW"
-    run env AGENTSYNC_HOME="$TEST_PROJECT/engine" bash "$TEST_PROJECT/engine/bin/agentsync.sh" update "$FIXTURE_NEW"
-    [ "$status" -eq 0 ]
-    [ "$(cat "$TEST_PROJECT/engine/VERSION")" = "$FIXTURE_NEW" ]
-    [[ "$output" == *"Switched to the agentsync binary"* ]]
-    [ -x "$TEST_PROJECT/engine/bin/$FIXTURE_EXE" ]
-    # The switch re-points a symlink only; where Git Bash copied the link
-    # instead, the copy keeps running the checkout, as the Bash relink did.
-    if [[ -L "$TEST_PROJECT/bin/agentsync" ]]; then
-        cmp -s "$TEST_PROJECT/bin/agentsync" "$TEST_PROJECT/engine/bin/$FIXTURE_EXE"
-        [ "$("$TEST_PROJECT/bin/agentsync" version)" = "agentsync v$FIXTURE_NEW" ]
-    fi
-}
-
-@test "update: a source install already at a binary release still switches to it" {
-    env AGENTSYNC_VERSION="$FIXTURE_NEW" bash "$REPO_ROOT/install.sh" >/dev/null
-    publish_release "$FIXTURE_NEW"
-    run env AGENTSYNC_HOME="$TEST_PROJECT/engine" bash "$TEST_PROJECT/engine/bin/agentsync.sh" update "$FIXTURE_NEW"
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"Already up to date!"* ]]
-    [[ "$output" == *"Switched to the agentsync binary"* ]]
-    [ -x "$TEST_PROJECT/engine/bin/$FIXTURE_EXE" ]
-    if [[ -L "$TEST_PROJECT/bin/agentsync" ]]; then
-        [ "$("$TEST_PROJECT/bin/agentsync" version)" = "agentsync v$FIXTURE_NEW" ]
-    fi
-}
-
-@test "update <version>: a bad checksum keeps the source install on Bash" {
-    env AGENTSYNC_VERSION="$FIXTURE_OLD" bash "$REPO_ROOT/install.sh" >/dev/null
-    publish_release "$FIXTURE_NEW"
-    printf '0000  archive.tar.xz\n' > "$FAKE_RELEASES/$FIXTURE_NEW/archive.tar.xz.sha256"
-    run env AGENTSYNC_HOME="$TEST_PROJECT/engine" bash "$TEST_PROJECT/engine/bin/agentsync.sh" update "$FIXTURE_NEW"
-    [ "$status" -eq 0 ]
-    [ "$(cat "$TEST_PROJECT/engine/VERSION")" = "$FIXTURE_NEW" ]
-    [[ "$output" == *"checksum mismatch"* ]]
-    [ ! -e "$TEST_PROJECT/engine/bin/$FIXTURE_EXE" ]
-    cmp -s "$TEST_PROJECT/bin/agentsync" "$TEST_PROJECT/engine/bin/agentsync.sh"
 }

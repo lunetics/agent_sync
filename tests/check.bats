@@ -9,8 +9,8 @@ setup_file() {
     seed_project
     (
         cd "$TEST_SEED" || exit
-        AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" enable claude >/dev/null
-        AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync >/dev/null
+        "$AGENTSYNC_BIN" enable claude >/dev/null
+        "$AGENTSYNC_BIN" sync >/dev/null
     )
 }
 teardown_file() { teardown_seed_project; }

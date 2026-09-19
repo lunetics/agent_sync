@@ -57,7 +57,7 @@ docs/specs/2026-09-12-rust-migration-design.md       the dispatcher section, Pha
 
 **Files:** none changed.
 
-- [ ] **Step 1: Record the baseline**
+- [x] **Step 1: Record the baseline**
 
 ```bash
 git log --oneline -1
@@ -68,7 +68,7 @@ grep -c 'bin/agentsync.sh' src/cli/release.rs
 ls lib/helpers/*.sh | wc -l
 ```
 
-Expected: `5613d4c fix(prompts): read a terminal answer a byte at a time like read -r` or later; `326 passed`, `0 passed`, `11 passed`, `1 passed`; `51`; `24`; `2`; `45`.
+Expected: `5613d4c fix(prompts): read a terminal answer a byte at a time like read -r` or later; `326 passed`, `0 passed`, `11 passed`, `1 passed`; `51`; `14` (the plan's 24 counted the files that source `lib/` too); `2`; `45`.
 
 ---
 
@@ -90,28 +90,28 @@ run_agentsync() { "$AGENTSYNC_BIN" "$@"; }             # AGENTSYNC_HOME no longe
 // src/cli/release.rs: a checkout is a directory with VERSION and Cargo.toml naming the crate
 ```
 
-- [ ] **Step 1: The helper and the call sites**
+- [x] **Step 1: The helper and the call sites**
 
-In `tests/test_helper.bash` replace the `AGENTSYNC_BIN` line with a lookup of `target/release/agentsync` then `target/release/agentsync.exe`, delete the `AGENTSYNC_NATIVE` export and its comment, and make `run_agentsync` and `seed_project` execute `"$AGENTSYNC_BIN"` without `AGENTSYNC_HOME`. Then, in every file `grep -l 'bash "\$AGENTSYNC_BIN"' tests/*.bats` names, replace `bash "$AGENTSYNC_BIN"` with `"$AGENTSYNC_BIN"` (a write-then-`mv` `sed`, one file at a time) and drop `AGENTSYNC_HOME="$REPO_ROOT"` from those lines. Remove `tests/native_dispatch.bats` and `tests/native_parity.bats`.
+In `tests/test_helper.bash` replace the `AGENTSYNC_BIN` line with a lookup of `target/release/agentsync` then `target/release/agentsync.exe`, export it (the `bash -c '…'` call sites expand it in a child shell), delete the `AGENTSYNC_NATIVE` export and its comment, add `AGENTSYNC_HOME` to the `unset` line (without it `release` falls back to the developer's `~/.agentsync` when the working directory is not a checkout), and make `run_agentsync` and `seed_project` execute `"$AGENTSYNC_BIN"`. Then, in every bats file, replace the four call forms with a `sed` script file (a write-then-`mv`, one file at a time): `AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN"` and `bash "$AGENTSYNC_BIN"`, their single-quoted twins inside `bash -c "…"`, and `SHELL=/bin/bash "$AGENTSYNC_BIN"` kept intact; the `script -c` line of `init.bats` and the PATH shim of `hooks.bats` by hand. Remove `tests/native_dispatch.bats` and `tests/native_parity.bats`, and the two `rollback_preflight.bats` cases guarded by `AGENTSYNC_NATIVE != 1` (they shimmed `sha256sum` for Bash's seal; the binary hashes in-process, Phase 3b deviation).
 
-Run: `grep -c 'bash "\$AGENTSYNC_BIN"' tests/*.bats | grep -v ':0$' | wc -l; grep -rn 'AGENTSYNC_NATIVE' tests/ | wc -l; ls tests/*.bats | wc -l`
-Expected: `0`; `0`; `49`.
+Run: `grep -rn 'bash "\$AGENTSYNC_BIN"\|bash '"'"'\$AGENTSYNC_BIN'"'"'' tests/ | wc -l; grep -rn 'AGENTSYNC_NATIVE\b' tests/ | wc -l; ls tests/*.bats | wc -l; grep -c '^@test' tests/rollback_preflight.bats`
+Expected: `0`; `0`; `49`; `28`.
 
-- [ ] **Step 2: `release` recognises a checkout without the dispatcher**
+- [x] **Step 2: `release` recognises a checkout without the dispatcher**
 
-In `src/cli/release.rs`, replace the `bin/agentsync.sh` condition with `Cargo.toml` (the file `crate_version` already reads), and update the unit test that names `bin/agentsync.sh`. In `tests/release.bats`, seed the checkout with `VERSION`, `CHANGELOG.md`, `Cargo.toml`, and `Cargo.lock` only, and run `"$AGENTSYNC_BIN" release …` in it. Record under "Accepted deviations": `Phase 6: release recognises a checkout by VERSION and Cargo.toml; Bash looked for bin/agentsync.sh, which Phase 6 deletes.`
+In `src/cli/release.rs`, replace the `bin/agentsync.sh` condition with `Cargo.toml` (the file `crate_version` already reads), and update the unit test that names `bin/agentsync.sh`: a checkout without `Cargo.toml` is now refused as `Must be run from the AgentSync repository.`, so the `refusals_leave_the_checkout_untouched_like_release_sh` assertion and the bats case `release fails without Cargo.toml` assert that message. In `tests/release.bats`, seed the checkout with `VERSION`, `CHANGELOG.md`, `Cargo.toml`, and `Cargo.lock` only, drop the `AGENTSYNC_NATIVE_BIN` lookup in `setup`, and run `"$AGENTSYNC_BIN" release …` in it. Record under "Accepted deviations": `Phase 6: release recognises a checkout by VERSION and Cargo.toml, and a directory without Cargo.toml is refused as Must be run from the AgentSync repository.; Bash looked for bin/agentsync.sh, which Phase 6 deletes, and reported the missing manifest as a missing crate version.`
 
 Run: `cargo test release 2>&1 | grep 'test result' | head -1; bats --tap tests/release.bats | grep -c '^ok'`
 Expected: every `release` test passing; `18`.
 
-- [ ] **Step 3: `install.bats` without `bin/` and `lib/` to copy**
+- [x] **Step 3: `install.bats` without `bin/` and `lib/` to copy**
 
-In `_build_origin_fixture`, replace `cp -R "$REPO_ROOT/bin" "$REPO_ROOT/lib" .` with a committed stub `bin/agentsync.sh` (two lines: the shebang and `echo "agentsync v$(cat "$(dirname "$0")/../VERSION")"`) plus an empty `lib/helpers/` directory (the installer checks `lib/` exists for a source install). Retire the four `update <version>` cases (they ran Bash's `update`); keep the nine installer cases.
+In `_build_origin_fixture`, replace `cp -R "$REPO_ROOT/bin" "$REPO_ROOT/lib" .` with a committed stub `bin/agentsync.sh` (two lines: the shebang and `echo "agentsync v$(cat "$(dirname "$0")/../VERSION")"`) plus a `lib/helpers/.keep` (the installer checks `lib/` exists for a source install). Retire the five `update` cases at the end of the file (they ran Bash's `update` and its switch to the binary); keep the nine installer cases.
 
 Run: `grep -c '^@test' tests/install.bats; bats --tap tests/install.bats | grep -c '^ok'`
 Expected: `9`; `9`.
 
-- [ ] **Step 4: The suite on Linux and macOS**
+- [x] **Step 4: The suite on Linux and macOS**
 
 ```bash
 cargo build --release 2>&1 | tail -1
@@ -120,11 +120,11 @@ for f in tests/*.bats; do n=$(bats --tap "$f" 2>&1 | grep -c '^not ok'); [[ "$n"
 
 Expected: `Finished`; only `suite-done` (every file 0 failures on the development host; the Linux run is the pushed CI).
 
-- [ ] **Step 5: CI**
+- [x] **Step 5: CI**
 
-In `.github/workflows/ci.yaml`: delete the `test-unix` job; in `test-windows` build the binary first (`dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`, `cargo build --release`) and keep the shard run as is; in `native` drop the Windows steps and the `continue-on-error` step (the shards are the Windows gate), keep `cargo fmt`, `clippy`, `cargo test`, `cargo build --release`, and the `bats --jobs 4 --tap --print-output-on-failure tests/` run on Linux and macOS without `AGENTSYNC_NATIVE`. Validate with `ruby -ryaml -e 'YAML.safe_load(File.read(".github/workflows/ci.yaml"), aliases: true)'`.
+In `.github/workflows/ci.yaml`: delete the `test-unix` job; in `test-windows` (renamed `Native engine (windows, shard n/12)`) build the binary first (`dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`, `cargo build --release`) and keep the shard run with `--print-output-on-failure`; in `native` drop the Windows leg and the advisory step (the shards are the Windows gate), keep `cargo fmt`, `clippy`, `cargo test`, `cargo build --release`, and the `bats --jobs 4 --tap --print-output-on-failure tests/` run on Linux and macOS without `AGENTSYNC_NATIVE`; the `lint` job keeps its full list until Task 4. Validate with `ruby -ryaml -e 'YAML.safe_load(File.read(".github/workflows/ci.yaml"), aliases: true)'`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add tests/ src/cli/release.rs .github/workflows/ci.yaml docs/specs/2026-09-12-rust-migration-design.md
@@ -276,4 +276,11 @@ The plan is closed when every box is ticked, the suite is green on Linux, macOS,
 - Verified: the closure was read from the tree: 24 bats files call `bash "$AGENTSYNC_BIN"`, `release.bats` and `install.bats` copy `bin/` and `lib/` into their fixtures, `src/cli/release.rs` names `bin/agentsync.sh` twice, `lib/helpers/` holds 45 files, the Bash-unit files count 142 cases including `changelog_render` and `update`, which the spec's list omits. The Windows facts come from run 35424805832 (2026-09-19): every command through the binary failed with `Directory not found: .`, and the run hung after `dedupe requires TTY without --yes` until the 90-minute limit. No code was drafted: Task 1 is mechanical, Task 2 needs CI, Task 3 is a table the task produces, Task 4 is deletion.
 - Plan amended: none.
 - Next: Task 0 Step 1, after the review; the maintainer pushes after each of Tasks 1, 2 (per fix), 3, 4, 5, since Linux and Windows are checked only in CI.
+- Blocker: none.
+
+### 2026-09-19 — Tasks 0 and 1 done
+- Commits: this commit, test: drive the bats suite through the binary. The maintainer asked to continue; the eight review decisions taken as recommended.
+- Verified: baseline at `1dac2c1`: 326/0/11/1, 51 files, 14 files with `bash "$AGENTSYNC_BIN"` (the plan said 24; amended), `release.rs` naming the dispatcher twice, 45 helpers. Task 1: no dispatcher call form left, no `AGENTSYNC_NATIVE` in `tests/`, 49 files, `rollback_preflight` 28 cases; `cargo test release` 10/10 with the new refusal; `release.bats` 18/18; `install.bats` 9/9 against the stub origin; every bats file against `target/release/agentsync` one at a time, outside the sandbox for the pty and `diff` cases: `TOTAL 0` over 49 files (the first sweep left 38 failures in eight files, all from two `sed` misses: the single-quoted call form inside `bash -c` and `SHELL=/bin/bash`, plus the `init` pty line, the `hooks` PATH shim, and two Bash-only seal cases); fmt, clippy, `cargo test` 326/0/11/1, ShellCheck on the helper exit 0; the workflow parsed with three jobs. A near miss found and closed: without `AGENTSYNC_HOME` in the helper's `unset`, `release fails without Cargo.toml` fell back to the developer's `~/.agentsync` (its dirty tree made `release` refuse; nothing was changed there).
+- Plan amended: Task 0 count 14; Task 1 Step 1 names the four call forms, the `sed` script file, the `unset`, the export, and the two retired `rollback_preflight` cases; Step 2 names the new refusal message and its two assertions; Step 3 retires five cases; Step 5 keeps the full lint list until Task 4.
+- Next: the maintainer pushes `feat/native-engine-phase-6`; Linux and macOS must be green, Windows shards are expected red until Task 2. Then Task 2 Step 1: read the shard logs.
 - Blocker: none.

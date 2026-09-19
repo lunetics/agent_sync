@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 # Shared test helpers for bats tests.
 
-# Path to the agentsync CLI
-AGENTSYNC_BIN="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/bin/agentsync.sh"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# Out-of-repo trust signals from the developer's shell must not leak into tests.
-unset AGENTSYNC_ALLOW_POST_SYNC AGENTSYNC_SKIP_POST_SYNC AGENTSYNC_SKIP_HOOKS AGENTSYNC_EXTERNAL_SOURCE_ROOTS
+# The binary under test: the release build, `cargo build --release` first.
+AGENTSYNC_BIN="${AGENTSYNC_NATIVE_BIN:-$REPO_ROOT/target/release/agentsync}"
+if [[ ! -x "$AGENTSYNC_BIN" ]] && [[ -x "$AGENTSYNC_BIN.exe" ]]; then
+    AGENTSYNC_BIN="$AGENTSYNC_BIN.exe"
+fi
+export AGENTSYNC_BIN
 
-# Ported commands run in Bash unless a run opts into the native engine
-# (`AGENTSYNC_NATIVE=1 bats tests/`), so a stray release build never changes
-# what the suite exercises.
-export AGENTSYNC_NATIVE="${AGENTSYNC_NATIVE:-0}"
+# Out-of-repo trust signals from the developer's shell must not leak into tests,
+# and neither may the developer's install: `release` falls back to
+# AGENTSYNC_HOME when the working directory is not a checkout.
+unset AGENTSYNC_ALLOW_POST_SYNC AGENTSYNC_SKIP_POST_SYNC AGENTSYNC_SKIP_HOOKS AGENTSYNC_EXTERNAL_SOURCE_ROOTS AGENTSYNC_HOME
 
 # The developer's own git config must not decide test outcomes — a global
 # core.hooksPath, for one, moves where hooks are installed. A path that does not
@@ -49,9 +51,9 @@ teardown_test_project() {
     [[ -n "${TEST_PROJECT:-}" ]] && _rm_rf_resilient "$TEST_PROJECT"
 }
 
-# Run agentsync from the repo (not installed version)
+# Run the binary under test, never an installed agentsync.
 run_agentsync() {
-    AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" "$@"
+    "$AGENTSYNC_BIN" "$@"
 }
 
 # SHA-256 of one file, in the engine's own detection order. Git Bash on Windows
@@ -107,7 +109,7 @@ seed_project() {
         git init --quiet
         git config user.email "test@test.com"
         git config user.name "Test"
-        AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init "$@" >/dev/null
+        "$AGENTSYNC_BIN" init "$@" >/dev/null
     )
     export AGENTSYNC_HOME="$REPO_ROOT"
 }

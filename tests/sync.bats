@@ -15,7 +15,7 @@ setup_file() {
 
     # Init + full sync once. Minimal init; sync falls back to base templates
     # for hooks/mcp/settings when project overrides are absent (Phase 2).
-    AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --outputs local
+    "$AGENTSYNC_BIN" init --outputs local
     echo "node_modules/" > .gitignore
 
     # Tests assert sync output for these tools — enable explicitly.
@@ -31,7 +31,7 @@ setup_file() {
     printf '%s\n' '---' 'description: Explicit-only fixture command' 'disable-model-invocation: true' '---' '' 'Body.' \
         > .ai/src/commands/explicit-only.md
 
-    AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync
+    "$AGENTSYNC_BIN" sync
 }
 
 teardown_file() {
@@ -172,16 +172,16 @@ setup() {
 @test "sync: Codex drops the openai.yaml opt-out once the command allows model invocation again" {
     printf '%s\n' '---' 'description: Explicit-only fixture command' '---' '' 'Body.' \
         > .ai/src/commands/explicit-only.md
-    AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync >/dev/null 2>&1
+    "$AGENTSYNC_BIN" sync >/dev/null 2>&1
     [ ! -e ".agents/skills/command-explicit-only/agents/openai.yaml" ]
     printf '%s\n' '---' 'description: Explicit-only fixture command' 'disable-model-invocation: true' '---' '' 'Body.' \
         > .ai/src/commands/explicit-only.md
-    AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync >/dev/null 2>&1
+    "$AGENTSYNC_BIN" sync >/dev/null 2>&1
     [ -f ".agents/skills/command-explicit-only/agents/openai.yaml" ]
 }
 
 @test "sync: Codex repeat sync is idempotent (no command-* sweep)" {
-    AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync >/dev/null 2>&1
+    "$AGENTSYNC_BIN" sync >/dev/null 2>&1
     [ -d ".agents/skills/command-fix-issue" ]
     [ -d ".agents/skills/command-review" ]
 }
@@ -351,7 +351,7 @@ setup() {
     # both tools share .agents/skills), nor "Removed" the nested AGENTS file
     # .amazonq/rules/00-context.md (written by the agents step, then swept by the
     # rules step) only to re-copy it every run.
-    run env AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync
+    run env "$AGENTSYNC_BIN" sync
     [ "$status" -eq 0 ]
     [[ "$output" != *"Kept .agents/skills/command-"* ]]
     [[ "$output" != *"Removed: .amazonq/rules/00-context.md"* ]]

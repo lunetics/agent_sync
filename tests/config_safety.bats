@@ -16,7 +16,7 @@ run_agentsync_env() {
     local env_name="$1"
     local env_value="$2"
     shift 2
-    env "$env_name=$env_value" AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" "$@"
+    env "$env_name=$env_value" "$AGENTSYNC_BIN" "$@"
 }
 
 @test "an invalid explicit config path fails without falling back or mutating outputs" {
@@ -39,7 +39,7 @@ run_agentsync_env() {
     mkdir -p .claude/skills
     touch .claude/skills/config-safety-sentinel.md
 
-    run env -u AGENTSYNC_CONFIG_PATH AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync
+    run env -u AGENTSYNC_CONFIG_PATH "$AGENTSYNC_BIN" sync
 
     [ "$status" -ne 0 ]
     printf '%s' "$output" | grep -qF "No project configuration found and no tool is enabled"
@@ -52,7 +52,7 @@ run_agentsync_env() {
     printf '# Project\n' > .ai/src/AGENTS.md
     printf 'enabled: true\n' > .ai/src/tools/claude.yaml
 
-    run env -u AGENTSYNC_CONFIG_PATH AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync
+    run env -u AGENTSYNC_CONFIG_PATH "$AGENTSYNC_BIN" sync
 
     [ "$status" -eq 0 ]
     [ -f CLAUDE.md ]
@@ -76,7 +76,7 @@ run_agentsync_env() {
     mkdir -p .claude/skills
     touch .claude/skills/config-safety-sentinel.md
 
-    run env -u AGENTSYNC_CONFIG_PATH AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync --dry-run
+    run env -u AGENTSYNC_CONFIG_PATH "$AGENTSYNC_BIN" sync --dry-run
 
     [ "$status" -eq 0 ]
     [ -f .claude/skills/config-safety-sentinel.md ]

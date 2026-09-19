@@ -137,7 +137,7 @@ run_external_sync() {
     run run_external_sync
     [ "$status" -eq 0 ]
 
-    run env AGENTSYNC_CONFIG_PATH="$EXTERNAL_CONFIG" AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" check
+    run env AGENTSYNC_CONFIG_PATH="$EXTERNAL_CONFIG" "$AGENTSYNC_BIN" check
 
     [ "$status" -eq 0 ]
     [[ "$output" == *"synced"* ]]
@@ -147,7 +147,7 @@ run_external_sync() {
     write_external_fixture "sources/tools"
     printf '%s\n' 'agentsync_version: "0.0.0"' >> "$EXTERNAL_CONFIG"
 
-    run env AGENTSYNC_CONFIG_PATH="$EXTERNAL_CONFIG" AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" check
+    run env AGENTSYNC_CONFIG_PATH="$EXTERNAL_CONFIG" "$AGENTSYNC_BIN" check
 
     [ "$status" -eq 1 ]
     [[ "$output" == *"pins agentsync 0.0.0"* ]]
@@ -164,7 +164,7 @@ run_external_sync() {
     [ -z "$(git diff -- .ai/.sync-manifest .gitignore)" ]
 
     printf '%s\n' '# changed externally' >> "$TEST_PROJECT/sources/skills/external-skill/SKILL.md"
-    run env AGENTSYNC_CONFIG_PATH="$EXTERNAL_CONFIG" AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" check
+    run env AGENTSYNC_CONFIG_PATH="$EXTERNAL_CONFIG" "$AGENTSYNC_BIN" check
     [ "$status" -eq 1 ]
     [[ "$output" == *"out of sync"* ]]
 }
@@ -175,7 +175,7 @@ run_external_sync() {
     [ "$status" -eq 0 ]
 
     printf '%s\n' '{"external":false}' > "$TEST_PROJECT/sources/tools/claude/settings.json"
-    run env AGENTSYNC_CONFIG_PATH="$EXTERNAL_CONFIG" AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync --if-stale
+    run env AGENTSYNC_CONFIG_PATH="$EXTERNAL_CONFIG" "$AGENTSYNC_BIN" sync --if-stale
 
     [ "$status" -eq 0 ]
     [ "$(cat .external/settings.json)" = '{"external":false}' ]
@@ -184,13 +184,13 @@ run_external_sync() {
 @test "show and doctor resolve an external tool catalog" {
     write_external_fixture "sources/tools"
 
-    run env AGENTSYNC_CONFIG_PATH="$EXTERNAL_CONFIG" AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" show claude
+    run env AGENTSYNC_CONFIG_PATH="$EXTERNAL_CONFIG" "$AGENTSYNC_BIN" show claude
     [ "$status" -eq 0 ]
     [[ "$output" == *"External Claude"* ]]
 
     # The fixture's settings payload does not register the guard, so doctor
     # warns (exit 1) about the unwired guard script.
-    run env AGENTSYNC_CONFIG_PATH="$EXTERNAL_CONFIG" AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" doctor
+    run env AGENTSYNC_CONFIG_PATH="$EXTERNAL_CONFIG" "$AGENTSYNC_BIN" doctor
     [ "$status" -eq 1 ]
     printf '%s' "$output" | grep -qF -- "External Claude"
 }
@@ -227,7 +227,7 @@ run_external_sync() {
 @test "profile variants use the configured external source.tools directory" {
     write_external_fixture "sources/tools"
 
-    run env AGENTSYNC_CONFIG_PATH="$EXTERNAL_CONFIG" AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" profile add hub --tools claude
+    run env AGENTSYNC_CONFIG_PATH="$EXTERNAL_CONFIG" "$AGENTSYNC_BIN" profile add hub --tools claude
 
     [ "$status" -eq 0 ]
     [ -f "$TEST_PROJECT/sources/tools/claude-hub.yaml" ]
@@ -284,7 +284,7 @@ run_external_sync() {
     local other_root
     other_root="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_other.XXXXXX")"
 
-    run env -u AGENTSYNC_EXTERNAL_SOURCE_ROOTS AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync
+    run env -u AGENTSYNC_EXTERNAL_SOURCE_ROOTS "$AGENTSYNC_BIN" sync
     [ "$status" -eq 1 ]
     printf '%s' "$output" | grep -qF -- "source.rules points outside the project at"
     printf '%s' "$output" | grep -qF -- "which AGENTSYNC_EXTERNAL_SOURCE_ROOTS does not list"
@@ -312,7 +312,7 @@ run_external_sync() {
     make_outside_rules
     write_rules_config "$OUTSIDE_ROOT/rules"
 
-    run env -u AGENTSYNC_EXTERNAL_SOURCE_ROOTS AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" doctor
+    run env -u AGENTSYNC_EXTERNAL_SOURCE_ROOTS "$AGENTSYNC_BIN" doctor
 
     [ "$status" -eq 2 ]
     printf '%s' "$output" | grep -qF -- "source.rules points outside the project and AGENTSYNC_EXTERNAL_SOURCE_ROOTS does not list it"
@@ -349,7 +349,7 @@ run_external_sync() {
     printf '%s\n' '# Home Rule' > "$OUTSIDE_ROOT/home.md"
     write_rules_config "$OUTSIDE_ROOT"
 
-    run env HOME="$OUTSIDE_ROOT" AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" sync
+    run env HOME="$OUTSIDE_ROOT" "$AGENTSYNC_BIN" sync
 
     [ "$status" -eq 1 ]
     printf '%s' "$output" | grep -qF -- "source.rules must not be the filesystem root, the home directory, or the project root or its ancestor"
@@ -387,7 +387,7 @@ run_external_sync() {
     EXTERNAL_TOOLS_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_external_tools.XXXXXX")"
     write_external_fixture "$EXTERNAL_TOOLS_ROOT"
 
-    run env AGENTSYNC_CONFIG_PATH="$EXTERNAL_CONFIG" AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" customize codex
+    run env AGENTSYNC_CONFIG_PATH="$EXTERNAL_CONFIG" "$AGENTSYNC_BIN" customize codex
 
     [ "$status" -eq 1 ]
     printf '%s' "$output" | grep -qF -- "source.tools resolves outside the project: $EXTERNAL_TOOLS_ROOT"
@@ -396,7 +396,7 @@ run_external_sync() {
 
 @test "profile remove refuses to delete from an external source.tools directory" {
     write_external_fixture "sources/tools"
-    run env AGENTSYNC_CONFIG_PATH="$EXTERNAL_CONFIG" AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" profile add hub --tools claude
+    run env AGENTSYNC_CONFIG_PATH="$EXTERNAL_CONFIG" "$AGENTSYNC_BIN" profile add hub --tools claude
     [ "$status" -eq 0 ]
     mkdir -p "$TEST_PROJECT/sources/tools/claude-hub"
     printf '%s\n' '{}' > "$TEST_PROJECT/sources/tools/claude-hub/settings.json"
@@ -406,7 +406,7 @@ run_external_sync() {
     sed "s|^  tools: .*|  tools: \"$EXTERNAL_TOOLS_ROOT/tools\"|" "$EXTERNAL_CONFIG" > "$config_tmp"
     mv "$config_tmp" "$EXTERNAL_CONFIG"
 
-    run env AGENTSYNC_CONFIG_PATH="$EXTERNAL_CONFIG" AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" profile remove hub --yes
+    run env AGENTSYNC_CONFIG_PATH="$EXTERNAL_CONFIG" "$AGENTSYNC_BIN" profile remove hub --yes
 
     [ "$status" -eq 1 ]
     printf '%s' "$output" | grep -qF -- "source.tools resolves outside the project: $EXTERNAL_TOOLS_ROOT/tools"

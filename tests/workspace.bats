@@ -17,17 +17,17 @@ _workspace_init_pair() {
     local root="$TEST_PROJECT/root"
     local leaf="$root/leaf"
     mkdir -p "$root"
-    ( cd "$root" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect >/dev/null )
-    ( cd "$root" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" enable claude --no-scaffold >/dev/null )
+    ( cd "$root" && "$AGENTSYNC_BIN" init --no-detect >/dev/null )
+    ( cd "$root" && "$AGENTSYNC_BIN" enable claude --no-scaffold >/dev/null )
     mkdir -p "$leaf"
-    ( cd "$leaf" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect >/dev/null )
-    ( cd "$leaf" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" enable claude --no-scaffold >/dev/null )
+    ( cd "$leaf" && "$AGENTSYNC_BIN" init --no-detect >/dev/null )
+    ( cd "$leaf" && "$AGENTSYNC_BIN" enable claude --no-scaffold >/dev/null )
     echo "$root $leaf"
 }
 
 @test "sync --workspace fails when no .ai/ found below cwd" {
     # cwd is a fresh test project with no .ai/ yet.
-    run bash -c "cd '$TEST_PROJECT' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' sync --workspace"
+    run bash -c "cd '$TEST_PROJECT' && '$AGENTSYNC_BIN' sync --workspace"
     [ "$status" -ne 0 ]
     [[ "$output" == *"No .ai/ directories found"* ]]
 }
@@ -38,7 +38,7 @@ _workspace_init_pair() {
     root="${pair%% *}"
     leaf="${pair##* }"
 
-    run bash -c "cd '$root' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' sync --workspace --dry-run"
+    run bash -c "cd '$root' && '$AGENTSYNC_BIN' sync --workspace --dry-run"
     [ "$status" -eq 0 ]
     [[ "$output" == *"Found 2 project(s)"* ]]
     [[ "$output" == *"→ leaf"* ]]
@@ -58,7 +58,7 @@ _workspace_init_pair() {
     root="${pair%% *}"
     leaf="${pair##* }"
 
-    run bash -c "cd '$root' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' sync --workspace"
+    run bash -c "cd '$root' && '$AGENTSYNC_BIN' sync --workspace"
     [ "$status" -eq 0 ]
     # Each project gets its own CLAUDE.md (claude is enabled in both).
     [ -f "$root/CLAUDE.md" ]
@@ -73,7 +73,7 @@ _workspace_init_pair() {
 
     # --only=cursor (not enabled) → claude output should NOT be touched.
     rm -f "$root/CLAUDE.md" "$leaf/CLAUDE.md"
-    run bash -c "cd '$root' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' sync --workspace --only cursor"
+    run bash -c "cd '$root' && '$AGENTSYNC_BIN' sync --workspace --only cursor"
     [ "$status" -eq 0 ]
     [ ! -f "$root/CLAUDE.md" ]
     [ ! -f "$leaf/CLAUDE.md" ]
@@ -87,7 +87,7 @@ _workspace_init_pair() {
     leaf="${pair##* }"
     rm -f "$leaf/.ai/src/AGENTS.md"
 
-    run bash -c "cd '$root' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' sync --workspace"
+    run bash -c "cd '$root' && '$AGENTSYNC_BIN' sync --workspace"
     # Root must still produce CLAUDE.md; leaf's failure must not abort the loop.
     [ -f "$root/CLAUDE.md" ]
 }
@@ -102,7 +102,7 @@ _workspace_init_pair() {
     mkdir -p "$root/node_modules/some-pkg/.ai/src"
     mkdir -p "$root/.git/odd/.ai/src"
 
-    run bash -c "cd '$root' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' sync --workspace --dry-run"
+    run bash -c "cd '$root' && '$AGENTSYNC_BIN' sync --workspace --dry-run"
     [ "$status" -eq 0 ]
     # bats takes the last command's status, so the discriminating assertions go
     # last — a vacuous check after them would mask a real failure.
@@ -119,7 +119,7 @@ _workspace_init_pair() {
     # second project nested inside the first.
     mkdir -p "$root/.ai/backups/20200101T000000Z-init-1/files/.ai/src"
 
-    run bash -c "cd '$root' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' sync --workspace --dry-run"
+    run bash -c "cd '$root' && '$AGENTSYNC_BIN' sync --workspace --dry-run"
     [ "$status" -eq 0 ]
     [[ "$output" != *"backups"* ]]
 }

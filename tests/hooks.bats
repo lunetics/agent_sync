@@ -23,8 +23,7 @@ init_mode() {
 # can call it. Also keeps the developer's real install out of the test.
 shim_agentsync_on_path() {
     mkdir -p "$TEST_PROJECT/bin"
-    printf '#!/bin/sh\nAGENTSYNC_HOME=%s exec bash %s "$@"\n' \
-        "$REPO_ROOT" "$AGENTSYNC_BIN" > "$TEST_PROJECT/bin/agentsync"
+    printf '#!/bin/sh\nexec "%s" "$@"\n' "$AGENTSYNC_BIN" > "$TEST_PROJECT/bin/agentsync"
     chmod +x "$TEST_PROJECT/bin/agentsync"
     export PATH="$TEST_PROJECT/bin:$PATH"
 }

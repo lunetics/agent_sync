@@ -23,10 +23,6 @@ setup_file() {
     TEST_SEED="$(mktemp -d "${TMPDIR:-/tmp}/agentsync_release_seed.XXXXXX")"
     export TEST_SEED
 
-    cp -R "$REPO_ROOT/bin" "$TEST_SEED/bin"
-    cp -R "$REPO_ROOT/lib" "$TEST_SEED/lib"
-    # The seed's dispatcher hands its VERSION to the native binary, which refuses
-    # any other, so the seed starts from the repository's version.
     cp "$REPO_ROOT/VERSION" "$TEST_SEED/VERSION"
     read -r SEED_VERSION < "$TEST_SEED/VERSION"
     export SEED_VERSION
@@ -55,17 +51,6 @@ setup() {
     git config user.name "Test"
     git add -A
     git commit -m "seed" --quiet
-    export AGENTSYNC_HOME="$TEST_PROJECT"
-    # The seed has no target/, so a native run names the repository's binary.
-    if [[ -z "${AGENTSYNC_NATIVE_BIN:-}" ]]; then
-        local candidate
-        for candidate in "$REPO_ROOT/target/release/agentsync" "$REPO_ROOT/target/release/agentsync.exe"; do
-            if [[ -x "$candidate" ]]; then
-                export AGENTSYNC_NATIVE_BIN="$candidate"
-                break
-            fi
-        done
-    fi
 }
 
 teardown() {
@@ -74,28 +59,28 @@ teardown() {
 }
 
 @test "release patch bumps version" {
-    echo "y" | bash bin/agentsync.sh release patch --no-push
+    echo "y" | "$AGENTSYNC_BIN" release patch --no-push
     local version
     read -r version < VERSION
     [ "$version" = "$(bumped patch)" ]
 }
 
 @test "release minor bumps version" {
-    echo "y" | bash bin/agentsync.sh release minor --no-push
+    echo "y" | "$AGENTSYNC_BIN" release minor --no-push
     local version
     read -r version < VERSION
     [ "$version" = "$(bumped minor)" ]
 }
 
 @test "release major bumps version" {
-    echo "y" | bash bin/agentsync.sh release major --no-push
+    echo "y" | "$AGENTSYNC_BIN" release major --no-push
     local version
     read -r version < VERSION
     [ "$version" = "$(bumped major)" ]
 }
 
 @test "release bumps Cargo.toml and Cargo.lock with VERSION" {
-    echo "y" | bash bin/agentsync.sh release minor --no-push
+    echo "y" | "$AGENTSYNC_BIN" release minor --no-push
     grep -qx "version = \"$(bumped minor)\"" Cargo.toml
     [ "$(grep -c '^version = ' Cargo.toml)" -eq 1 ]
     grep -q 'clap = { version = "4.6"' Cargo.toml
@@ -106,12 +91,12 @@ teardown() {
 }
 
 @test "release creates git tag" {
-    echo "y" | bash bin/agentsync.sh release patch --no-push
+    echo "y" | "$AGENTSYNC_BIN" release patch --no-push
     git tag -l | grep -qx "$(bumped patch)"
 }
 
 @test "release tags with the CHANGELOG section of the new version" {
-    echo "y" | bash bin/agentsync.sh release patch --no-push
+    echo "y" | "$AGENTSYNC_BIN" release patch --no-push
     local message
     message="$(git tag -l --format='%(contents)' "$(bumped patch)")"
     [ "$message" = "v$(bumped patch)
@@ -122,18 +107,18 @@ A patch.
 }
 
 @test "release creates commit" {
-    echo "y" | bash bin/agentsync.sh release patch --no-push
+    echo "y" | "$AGENTSYNC_BIN" release patch --no-push
     git log --oneline -1 | grep -q "release: v$(bumped patch)"
 }
 
 @test "release commits VERSION, Cargo.toml, and Cargo.lock together" {
-    echo "y" | bash bin/agentsync.sh release patch --no-push
+    echo "y" | "$AGENTSYNC_BIN" release patch --no-push
     [ "$(git show --format= --name-only HEAD | tr '\n' ' ')" = "Cargo.lock Cargo.toml VERSION " ]
     [ -z "$(git status --porcelain)" ]
 }
 
 @test "release default is patch" {
-    echo "y" | bash bin/agentsync.sh release --no-push
+    echo "y" | "$AGENTSYNC_BIN" release --no-push
     local version
     read -r version < VERSION
     [ "$version" = "$(bumped patch)" ]
@@ -141,13 +126,13 @@ A patch.
 
 @test "release fails on dirty working tree" {
     echo "uncommitted" > dirty_file.txt
-    run bash -c 'echo "y" | bash bin/agentsync.sh release patch --no-push'
+    run bash -c 'echo "y" | "$AGENTSYNC_BIN" release patch --no-push'
     [ "$status" -eq 1 ]
     [[ "$output" == *"not clean"* ]]
 }
 
 @test "release fails with unknown bump type" {
-    run bash -c 'echo "y" | bash bin/agentsync.sh release banana'
+    run bash -c 'echo "y" | "$AGENTSYNC_BIN" release banana'
     [ "$status" -eq 1 ]
     [[ "$output" == *"Unknown bump type"* ]]
 }
@@ -155,7 +140,7 @@ A patch.
 @test "release fails when Cargo.lock has no agentsync entry and writes nothing" {
     printf 'version = 4\n' > Cargo.lock
     git commit -qam "lock without agentsync"
-    run bash -c 'echo "y" | bash bin/agentsync.sh release patch --no-push'
+    run bash -c 'echo "y" | "$AGENTSYNC_BIN" release patch --no-push'
     [ "$status" -eq 1 ]
     [[ "$output" == *"Cannot find the agentsync crate version in Cargo.lock"* ]]
     [[ "$output" != *"Continue?"* ]]
@@ -168,20 +153,20 @@ A patch.
 @test "release fails without Cargo.toml" {
     git rm -q Cargo.toml
     git commit -qm "no manifest"
-    run bash -c 'echo "y" | bash bin/agentsync.sh release patch --no-push'
+    run bash -c 'echo "y" | "$AGENTSYNC_BIN" release patch --no-push'
     [ "$status" -eq 1 ]
-    [[ "$output" == *"Cannot find the agentsync crate version in Cargo.toml"* ]]
+    [[ "$output" == *"Must be run from the AgentSync repository."* ]]
 }
 
 @test "release can be cancelled" {
-    echo "n" | bash bin/agentsync.sh release patch --no-push
+    echo "n" | "$AGENTSYNC_BIN" release patch --no-push
     local version
     read -r version < VERSION
     [ "$version" = "$SEED_VERSION" ]
 }
 
 @test "release exits 1 at end of input on the prompt" {
-    run bash bin/agentsync.sh release patch --no-push < /dev/null
+    run "$AGENTSYNC_BIN" release patch --no-push < /dev/null
     [ "$status" -eq 1 ]
     [[ "$output" == *"Continue? [Y/n]: " ]]
     local version
@@ -190,7 +175,7 @@ A patch.
 }
 
 @test "release --no-push does not push" {
-    run bash -c 'echo "y" | bash bin/agentsync.sh release patch --no-push'
+    run bash -c 'echo "y" | "$AGENTSYNC_BIN" release patch --no-push'
     [ "$status" -eq 0 ]
     [[ "$output" == *"local only"* ]]
     [[ "$output" == *"--no-push"* ]]
@@ -199,7 +184,7 @@ A patch.
 @test "release pushes main and the tag to origin" {
     git init --bare --quiet "$TEST_PROJECT.remote.git"
     git remote add origin "$TEST_PROJECT.remote.git"
-    run bash -c 'echo "y" | bash bin/agentsync.sh release patch'
+    run bash -c 'echo "y" | "$AGENTSYNC_BIN" release patch'
     [ "$status" -eq 0 ]
     [[ "$output" == *"Pushing to origin..."* ]]
     [[ "$output" == *"Released v$(bumped patch)!"* ]]
@@ -208,7 +193,7 @@ A patch.
 }
 
 @test "release without an origin stops at the push with git's status" {
-    run bash -c 'echo "y" | bash bin/agentsync.sh release patch'
+    run bash -c 'echo "y" | "$AGENTSYNC_BIN" release patch'
     [ "$status" -eq 128 ]
     [[ "$output" == *"Pushing to origin..."* ]]
     [[ "$output" != *"Released"* ]]

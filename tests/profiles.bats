@@ -8,7 +8,7 @@ setup_file() {
     seed_project --no-detect --yes
     (
         cd "$TEST_SEED"
-        AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" enable claude --no-scaffold >/dev/null
+        "$AGENTSYNC_BIN" enable claude --no-scaffold >/dev/null
     )
 }
 teardown_file() { teardown_seed_project; }
@@ -150,7 +150,7 @@ teardown() { teardown_test_project; }
     # AND layers a profile on top.
     local parent="$TEST_PROJECT/parent"
     mkdir -p "$parent"
-    ( cd "$parent" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect --yes >/dev/null )
+    ( cd "$parent" && "$AGENTSYNC_BIN" init --no-detect --yes >/dev/null )
     echo "from-parent" > "$parent/.ai/src/rules/parent-only.md"
 
     cat >> .ai/agent_sync.yaml <<'EOF'

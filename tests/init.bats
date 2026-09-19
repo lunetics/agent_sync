@@ -190,9 +190,9 @@ teardown() {
     # through both lists, keep committed outputs, decline at Proceed.
     local keys=$'\e[B\n\ny\nn\n'
     if script --version >/dev/null 2>&1; then
-        run bash -c 'printf "%s" "$1" | script -q -c "AGENTSYNC_HOME=\"$2\" bash \"$3\" init" /dev/null' _ "$keys" "$REPO_ROOT" "$AGENTSYNC_BIN"
+        run bash -c 'printf "%s" "$1" | script -q -c "\"$2\" init" /dev/null' _ "$keys" "$AGENTSYNC_BIN"
     else
-        run bash -c 'printf "%s" "$1" | script -q /dev/null bash "$3" init' _ "$keys" "$REPO_ROOT" "$AGENTSYNC_BIN"
+        run bash -c 'printf "%s" "$1" | script -q /dev/null "$2" init' _ "$keys" "$AGENTSYNC_BIN"
     fi
     [[ "$output" == *"Tools to enable"* ]]
     [[ "$output" == *"(space: toggle"* ]]

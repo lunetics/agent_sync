@@ -341,13 +341,13 @@ JSON
     local parent_dir="$TEST_PROJECT/parent"
     local child_dir="$parent_dir/child"
     mkdir -p "$parent_dir"
-    ( cd "$parent_dir" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect >/dev/null )
+    ( cd "$parent_dir" && "$AGENTSYNC_BIN" init --no-detect >/dev/null )
     echo "shared content" > "$parent_dir/.ai/src/rules/shared.md"
     mkdir -p "$child_dir"
-    ( cd "$child_dir" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect >/dev/null )
+    ( cd "$child_dir" && "$AGENTSYNC_BIN" init --no-detect >/dev/null )
     cp "$parent_dir/.ai/src/rules/shared.md" "$child_dir/.ai/src/rules/shared.md"
 
-    run bash -c "cd '$child_dir' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' doctor"
+    run bash -c "cd '$child_dir' && '$AGENTSYNC_BIN' doctor"
     [ "$status" -eq 0 ]
     [[ "$output" == *"rules/shared.md — duplicate of parent"* ]]
     [[ "$output" == *"agentsync dedupe"* ]]
@@ -357,13 +357,13 @@ JSON
     local parent_dir="$TEST_PROJECT/parent"
     local child_dir="$parent_dir/child"
     mkdir -p "$parent_dir"
-    ( cd "$parent_dir" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect >/dev/null )
+    ( cd "$parent_dir" && "$AGENTSYNC_BIN" init --no-detect >/dev/null )
     echo "parent version" > "$parent_dir/.ai/src/rules/shared.md"
     mkdir -p "$child_dir"
-    ( cd "$child_dir" && AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect >/dev/null )
+    ( cd "$child_dir" && "$AGENTSYNC_BIN" init --no-detect >/dev/null )
     echo "child version" > "$child_dir/.ai/src/rules/shared.md"
 
-    run bash -c "cd '$child_dir' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' doctor"
+    run bash -c "cd '$child_dir' && '$AGENTSYNC_BIN' doctor"
     [ "$status" -eq 0 ]
     [[ "$output" == *"rules/shared.md — diverges from parent"* ]]
 }
@@ -380,7 +380,7 @@ JSON
         git init --quiet
         git config user.email "test@test.com"
         git config user.name "Test"
-        AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect >/dev/null
+        "$AGENTSYNC_BIN" init --no-detect >/dev/null
     )
     echo "shared content" > "$outer/.ai/src/rules/shared.md"
 
@@ -390,7 +390,7 @@ JSON
         git init --quiet
         git config user.email "test@test.com"
         git config user.name "Test"
-        AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect >/dev/null
+        "$AGENTSYNC_BIN" init --no-detect >/dev/null
     )
     cp "$outer/.ai/src/rules/shared.md" "$inner/.ai/src/rules/shared.md"
     cat >> "$inner/.ai/agent_sync.yaml" <<'EOF'
@@ -400,7 +400,7 @@ shared:
   inherit: rules
 EOF
 
-    run bash -c "cd '$inner' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' doctor"
+    run bash -c "cd '$inner' && '$AGENTSYNC_BIN' doctor"
     [ "$status" -eq 0 ]
     [[ "$output" == *"rules/shared.md — duplicate of parent"* ]]
     [[ "$output" == *"(from shared.path)"* ]]
@@ -418,7 +418,7 @@ EOF
         git init --quiet
         git config user.email "test@test.com"
         git config user.name "Test"
-        AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect >/dev/null
+        "$AGENTSYNC_BIN" init --no-detect >/dev/null
     )
     echo "would be dupe" > "$outer/.ai/src/rules/shared.md"
     mkdir -p "$inner"
@@ -427,11 +427,11 @@ EOF
         git init --quiet
         git config user.email "test@test.com"
         git config user.name "Test"
-        AGENTSYNC_HOME="$REPO_ROOT" bash "$AGENTSYNC_BIN" init --no-detect >/dev/null
+        "$AGENTSYNC_BIN" init --no-detect >/dev/null
     )
     cp "$outer/.ai/src/rules/shared.md" "$inner/.ai/src/rules/shared.md"
 
-    run bash -c "cd '$inner' && AGENTSYNC_HOME='$REPO_ROOT' bash '$AGENTSYNC_BIN' doctor"
+    run bash -c "cd '$inner' && '$AGENTSYNC_BIN' doctor"
     [ "$status" -eq 0 ]
     # Should NOT find the parent — git boundary stops the walk.
     [[ "$output" != *"duplicate of parent"* ]]

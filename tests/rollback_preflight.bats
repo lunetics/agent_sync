@@ -495,36 +495,3 @@ missing${tab}-${tab}absent.md"
     SYNC_ID="$(cat .ai/backups/.latest)"
     grep -qF -- "$(printf 'other\t-\t.claude/skills/pipe')" ".ai/backups/$SYNC_ID/after.tsv"
 }
-
-@test "a seal that cannot hash warns and keeps the completed sync" {
-    [[ "$AGENTSYNC_NATIVE" != 1 ]] || skip "the native engine hashes in-process"
-    local shims="$PROOF_DIR/shims" tool
-    mkdir -p "$shims"
-    for tool in sha256sum shasum; do
-        printf '#!/bin/sh\nexit 1\n' > "$shims/$tool"
-        chmod +x "$shims/$tool"
-    done
-    PATH="$shims:$PATH" run run_agentsync sync
-    [ "$status" -eq 0 ]
-    printf '%s' "$output" | grep -qF -- "Could not record the post-sync state (could not hash"
-    [ "$(printf '%s' "$output" | grep -cF -- "restoring pre-sync state")" = 0 ]
-    SYNC_ID="$(cat .ai/backups/.latest)"
-    [ -d .claude/skills ]
-    [ ! -e ".ai/backups/$SYNC_ID/after.tsv" ]
-    [ -z "$(find .ai/backups -name '.tmp.seal.*')" ]
-}
-
-@test "the seal stages its record where stale-staging sweeps reclaim it" {
-    [[ "$AGENTSYNC_NATIVE" != 1 ]] || skip "the native engine hashes in-process"
-    local shims="$PROOF_DIR/shims" real tool
-    real="$(command -v sha256sum || command -v shasum)"
-    tool="${real##*/}"
-    mkdir -p "$shims"
-    printf '#!/bin/sh\ncase "$*" in *targets.tsv*) ls -A "%s/.ai/backups" > "%s/staging.log" ;; esac\nexec "%s" "$@"\n' \
-        "$TEST_PROJECT" "$PROOF_DIR" "$real" > "$shims/$tool"
-    chmod +x "$shims/$tool"
-    PATH="$shims:$PATH" run run_agentsync sync
-    [ "$status" -eq 0 ]
-    grep -q '^\.tmp\.seal\.' "$PROOF_DIR/staging.log"
-    [ -z "$(find .ai/backups -name '.tmp.seal.*' -o -name '.after.tmp.*')" ]
-}

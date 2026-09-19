@@ -694,6 +694,10 @@ Appended one line at a time as they are found, with the phase:
   `bin/` (`target/.update_cache` for a developer build), refreshed from the
   latest GitHub release rather than the newest tag; the checkout's
   `.update_cache` stays Bash's.
+- Phase 6: `release` recognises a checkout by `VERSION` and `Cargo.toml`, and a
+  directory without `Cargo.toml` is refused as `Must be run from the AgentSync
+  repository.`; Bash looked for `bin/agentsync.sh`, which Phase 6 deletes, and
+  reported the missing manifest as a missing crate version.
 
 ## Risks
 

@@ -89,7 +89,7 @@ pub fn canonical_root(root: &str) -> Result<String, Error> {
 }
 
 fn canonical_dir(dir: &Path) -> std::io::Result<String> {
-    std::fs::canonicalize(dir).map(|p| p.to_string_lossy().into_owned())
+    std::fs::canonicalize(dir).map(|p| paths::from_disk(&p))
 }
 
 fn exists_or_link(path: &Path) -> bool {
@@ -98,7 +98,7 @@ fn exists_or_link(path: &Path) -> bool {
 
 /// `_backup_validate_rel`.
 pub(crate) fn validate_rel(rel: &str, allow_store_parent: bool) -> Result<(), Error> {
-    if rel.is_empty() || rel == "." || rel.starts_with('/') {
+    if rel.is_empty() || rel == "." || crate::paths::is_absolute(rel) {
         let shown = if rel.is_empty() { "<empty>" } else { rel };
         return Err(refuse(format!("Refusing unsafe backup target: {shown}")));
     }
@@ -165,7 +165,7 @@ fn target_abs(supplied_root: &str, canonical_root: &str, target: &str) -> Result
         rest
     } else if let Some(rest) = target.strip_prefix(&format!("{canonical_root}/")) {
         rest
-    } else if !target.starts_with('/') {
+    } else if !crate::paths::is_absolute(target) {
         target
     } else {
         return Err(refuse(format!(
@@ -1307,5 +1307,22 @@ mod tests {
             snapshot_path(&root, &id).unwrap_err().to_string(),
             format!("Backup snapshot is missing or incomplete: {id}")
         );
+    }
+
+    #[test]
+    fn targets_with_spaces_round_trip() {
+        let p = Project::new();
+        p.write("tool config/settings file.json", "before\n");
+        let snapshot = create_at(
+            &p.root,
+            "sync",
+            &[p.abs("tool config/settings file.json")],
+            at(1_789_323_442),
+            Retention::Bounded,
+        )
+        .unwrap();
+        p.write("tool config/settings file.json", "after\n");
+        restore(&p.root, &paths::leaf(&snapshot)).unwrap();
+        assert_eq!(p.read("tool config/settings file.json"), "before\n");
     }
 }

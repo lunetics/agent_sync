@@ -218,7 +218,7 @@ pub fn setup_hooks(
         return Ok(1);
     }
     let mut hooks_dir = git(&root, &["rev-parse", "--git-path", "hooks"]).unwrap_or_default();
-    if !hooks_dir.starts_with('/') {
+    if !crate::paths::is_absolute(&hooks_dir) {
         hooks_dir = format!("{root}/{hooks_dir}");
     }
     let git_dir = git(&root, &["rev-parse", "--absolute-git-dir"]).unwrap_or_default();

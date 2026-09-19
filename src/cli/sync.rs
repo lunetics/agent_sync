@@ -283,7 +283,7 @@ fn is_stale(root: &str, run: &Run, tools_dir: &str) -> bool {
         if rel.is_empty() {
             continue;
         }
-        let abs = if rel.starts_with('/') {
+        let abs = if crate::paths::is_absolute(rel) {
             rel.to_string()
         } else {
             format!("{root}/{rel}")

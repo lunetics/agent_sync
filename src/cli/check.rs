@@ -252,7 +252,7 @@ fn seed_workspace(
         if raw.is_empty() {
             continue;
         }
-        let abs = if raw.starts_with('/') {
+        let abs = if crate::paths::is_absolute(&raw) {
             paths::normalize(&raw)
         } else {
             paths::normalize(&format!("{root}/{raw}"))

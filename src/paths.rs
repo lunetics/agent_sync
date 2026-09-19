@@ -24,10 +24,76 @@ pub fn is_within(path: &str, root: &str) -> bool {
             .is_some_and(|rest| rest.starts_with('/'))
 }
 
-/// `_path_parent_r`: `dirname` without the process.
+/// The `X:` of a Windows drive-rooted path (`C:/Users`, `C:\Users`, `C:`).
+fn drive_prefix(path: &str) -> Option<&str> {
+    let bytes = path.as_bytes();
+    (bytes.len() >= 2
+        && bytes[0].is_ascii_alphabetic()
+        && bytes[1] == b':'
+        && matches!(bytes.get(2), None | Some(b'/') | Some(b'\\')))
+    .then(|| &path[..2])
+}
+
+/// A path the engine treats as absolute: `/`-rooted, or drive-rooted as the
+/// Windows binary spells its own working directory.
+pub fn is_absolute(path: &str) -> bool {
+    path.starts_with('/') || drive_prefix(path).is_some()
+}
+
+/// A path the operating system handed back, spelled the way the engine spells
+/// paths: on Windows the `\\?\` prefix `canonicalize` adds is dropped and the
+/// separators are `/`; elsewhere the bytes are unchanged.
+pub fn from_disk(path: &Path) -> String {
+    let text = path.to_string_lossy().into_owned();
+    if !cfg!(windows) {
+        return text;
+    }
+    let text = text
+        .strip_prefix("\\\\?\\UNC\\")
+        .map(|rest| format!("\\\\{rest}"))
+        .or_else(|| text.strip_prefix("\\\\?\\").map(str::to_string))
+        .unwrap_or(text);
+    text.replace('\\', "/")
+}
+
+/// A path Git Bash handed over: a `/`-rooted one is translated through
+/// `cygpath -w` when `msystem` (the `MSYSTEM` variable) is set, so `/tmp/x`
+/// and `/c/Users/x` reach the Windows binary as paths it can open; any other
+/// path, or a host without `cygpath`, leaves it unchanged.
+pub fn from_msys(path: &str, msystem: Option<&str>) -> String {
+    if msystem.is_none() || !path.starts_with('/') {
+        return path.to_string();
+    }
+    let output = std::process::Command::new("cygpath")
+        .args(["-w", path])
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .output();
+    match output {
+        Ok(out) if out.status.success() => {
+            let translated = String::from_utf8_lossy(&out.stdout)
+                .trim_end_matches(['\r', '\n'])
+                .to_string();
+            if translated.is_empty() {
+                path.to_string()
+            } else {
+                from_disk(Path::new(&translated))
+            }
+        }
+        _ => path.to_string(),
+    }
+}
+
+/// `_path_parent_r`: `dirname` without the process; a drive root is its own
+/// parent, as `/` is.
 pub fn parent(path: &str) -> String {
     if path.is_empty() {
         return ".".to_string();
+    }
+    if let Some(drive) = drive_prefix(path)
+        && path[2..].trim_end_matches(['/', '\\']).is_empty()
+    {
+        return format!("{drive}/");
     }
     let trimmed = trim_trailing_slashes(path);
     if trimmed == "/" {
@@ -39,6 +105,8 @@ pub fn parent(path: &str) -> String {
             let head = trim_trailing_slashes(&trimmed[..idx]);
             if head.is_empty() {
                 "/".to_string()
+            } else if drive_prefix(head).is_some() && head.len() == 2 {
+                format!("{head}/")
             } else {
                 head.to_string()
             }
@@ -64,10 +132,15 @@ fn trim_trailing_slashes(path: &str) -> &str {
     }
 }
 
-/// Collapses empty, `.` and `..` segments of an absolute path.
+/// Collapses empty, `.` and `..` segments of an absolute path. A drive-rooted
+/// path keeps its `X:` and reads `\` as a separator too.
 pub fn normalize(path: &str) -> String {
+    let (root, rest) = match drive_prefix(path) {
+        Some(drive) => (format!("{drive}/"), &path[2..]),
+        None => ("/".to_string(), path),
+    };
     let mut segments: Vec<&str> = Vec::new();
-    for segment in path.split('/') {
+    for segment in rest.split(['/', '\\']) {
         match segment {
             "" | "." => {}
             ".." => {
@@ -76,14 +149,14 @@ pub fn normalize(path: &str) -> String {
             other => segments.push(other),
         }
     }
-    format!("/{}", segments.join("/"))
+    format!("{root}{}", segments.join("/"))
 }
 
 /// The project root as Bash's `cd "$REPO_ROOT" && pwd` spells it: the logical
 /// `$PWD` when it names the working directory, so a symlinked root keeps its
 /// spelling in display and manifest paths.
 pub fn logical_root(env_root: Option<&str>, cwd: &Path, pwd: Option<&str>) -> String {
-    let cwd_text = cwd.to_string_lossy().into_owned();
+    let cwd_text = from_disk(cwd);
     let logical_cwd = match pwd {
         Some(pwd)
             if pwd.starts_with('/')
@@ -94,11 +167,13 @@ pub fn logical_root(env_root: Option<&str>, cwd: &Path, pwd: Option<&str>) -> St
         _ => cwd_text,
     };
     let base = match env_root {
-        Some(root) if root.starts_with('/') || Path::new(root).is_absolute() => root.to_string(),
+        Some(root) if is_absolute(root) || Path::new(root).is_absolute() => {
+            from_disk(Path::new(root))
+        }
         Some(root) => format!("{logical_cwd}/{root}"),
         None => logical_cwd,
     };
-    if base.starts_with('/') {
+    if is_absolute(&base) {
         normalize(&base)
     } else {
         base
@@ -225,9 +300,12 @@ impl Paths {
     /// Paths for a root on disk, canonicalised the way `cd -P && pwd` does.
     pub fn for_disk_root(root: &str) -> Self {
         let canonical = std::fs::canonicalize(root)
-            .map(|p| p.to_string_lossy().into_owned())
+            .map(|p| from_disk(&p))
             .unwrap_or_else(|_| root.to_string());
-        Self::new(root, &canonical, std::env::var("HOME").ok().as_deref())
+        let home = std::env::var("HOME")
+            .ok()
+            .map(|home| from_msys(&home, std::env::var("MSYSTEM").ok().as_deref()));
+        Self::new(root, &canonical, home.as_deref())
     }
 
     /// Paths for a project a render writes in place: below the root, too, a
@@ -242,7 +320,7 @@ impl Paths {
 
     /// `normalize_absolute_path_r`: relative paths are taken from the root.
     pub fn absolute(&self, path: &str) -> String {
-        if path.starts_with('/') {
+        if is_absolute(path) {
             normalize(path)
         } else {
             normalize(&format!("{}/{path}", self.root))
@@ -297,10 +375,12 @@ impl Paths {
     /// The directories `AGENTSYNC_EXTERNAL_SOURCE_ROOTS` lists, colon-separated;
     /// a relative entry, or one that is not a directory, trusts nothing.
     pub fn trust_external_roots(&mut self, raw: Option<&str>) {
+        // `main` rejoins translated Windows entries with `;`, since `C:/…` holds a colon.
+        let separator = if cfg!(windows) { ';' } else { ':' };
         self.external = raw
             .unwrap_or_default()
-            .split(':')
-            .filter(|entry| entry.starts_with('/') && Path::new(entry).is_dir())
+            .split(separator)
+            .filter(|entry| is_absolute(entry) && Path::new(entry).is_dir())
             .filter_map(canonical_dir)
             .collect();
     }
@@ -434,9 +514,7 @@ impl Paths {
 }
 
 fn canonical_dir(dir: &str) -> Option<String> {
-    std::fs::canonicalize(dir)
-        .ok()
-        .map(|p| p.to_string_lossy().into_owned())
+    std::fs::canonicalize(dir).ok().map(|p| from_disk(&p))
 }
 
 /// What `explicit_source_root_r` returns: 0, 1, 2, and 3, with the canonical root.
@@ -489,8 +567,8 @@ fn link_target(link: &str) -> Option<String> {
         }
         hops += 1;
         let target = std::fs::read_link(&path).ok()?;
-        let target = target.to_string_lossy().into_owned();
-        path = if target.starts_with('/') {
+        let target = from_disk(&target);
+        path = if is_absolute(&target) {
             target
         } else {
             format!("{}/{target}", canonical_dir(&parent(&path))?)
@@ -586,6 +664,28 @@ mod tests {
         assert_eq!(paths().absolute(".claude/./rules/"), "/proj/.claude/rules");
         assert_eq!(paths().absolute("a/../../x"), "/x");
         assert_eq!(paths().absolute("/a//b/.."), "/a");
+    }
+
+    #[test]
+    fn a_drive_rooted_path_is_absolute_and_keeps_its_drive() {
+        assert!(is_absolute("/x"));
+        assert!(is_absolute("C:/Users"));
+        assert!(is_absolute("c:\\Users\\x"));
+        assert!(is_absolute("C:"));
+        assert!(!is_absolute("x/y"));
+        assert!(!is_absolute("C"));
+        assert!(!is_absolute("Cd:/x"));
+        assert_eq!(normalize("C:\\Users\\me\\proj/."), "C:/Users/me/proj");
+        assert_eq!(normalize("C:/a/../b//c/"), "C:/b/c");
+        assert_eq!(normalize("C:/"), "C:/");
+        assert_eq!(parent("C:/Users/me"), "C:/Users");
+        assert_eq!(parent("C:/Users"), "C:/");
+        assert_eq!(parent("C:/"), "C:/");
+        assert_eq!(parent("C:"), "C:/");
+        assert_eq!(leaf("C:/Users/me"), "me");
+        assert!(is_within("C:/Users/me/.ai", "C:/Users/me"));
+        assert_eq!(from_msys("C:/x", Some("MINGW64")), "C:/x");
+        assert_eq!(from_msys("/tmp/x", None), "/tmp/x");
     }
 
     #[test]

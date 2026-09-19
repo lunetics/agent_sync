@@ -170,7 +170,7 @@ pub fn setup_shared(
         return Ok(None);
     }
     let root = s.paths.root.clone();
-    let parent_root = if raw_path.starts_with('/') {
+    let parent_root = if crate::paths::is_absolute(&raw_path) {
         raw_path.clone()
     } else {
         format!("{root}/{raw_path}")
@@ -258,7 +258,7 @@ pub fn setup_profile(
     sources: &mut Sources,
 ) -> Result<bool, Error> {
     let overlay = profiles::overlay_dir(config, name);
-    let overlay_root = if overlay.starts_with('/') {
+    let overlay_root = if crate::paths::is_absolute(&overlay) {
         overlay
     } else {
         format!("{}/{overlay}", s.paths.root)
@@ -284,7 +284,7 @@ pub fn shared_parent_src(config: &str, root: &str) -> Option<String> {
     if raw.is_empty() {
         return None;
     }
-    let parent_root = if raw.starts_with('/') {
+    let parent_root = if crate::paths::is_absolute(&raw) {
         raw
     } else {
         format!("{root}/{raw}")

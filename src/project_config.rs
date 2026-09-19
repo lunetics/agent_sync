@@ -16,7 +16,7 @@ pub enum Selection {
 /// `.ai/agent_sync.yaml`, then `agent_sync.yaml`. `is_file` answers `[[ -f ]]`.
 pub fn select(root: &str, explicit: Option<&str>, is_file: &dyn Fn(&str) -> bool) -> Selection {
     if let Some(raw) = explicit.filter(|raw| !raw.is_empty()) {
-        let path = if raw.starts_with('/') {
+        let path = if crate::paths::is_absolute(raw) {
             raw.to_string()
         } else {
             format!("{root}/{raw}")

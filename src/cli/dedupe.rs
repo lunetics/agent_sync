@@ -178,7 +178,7 @@ fn run_one(run: &mut Run, repo_root: &str, against: &str, cwd: &str) -> Result<u
     }
 
     let logical = |path: &str| {
-        if path.starts_with('/') {
+        if crate::paths::is_absolute(path) {
             paths::normalize(path)
         } else {
             paths::normalize(&format!("{cwd}/{path}"))

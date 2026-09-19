@@ -253,7 +253,7 @@ impl<'a> Resolver<'a> {
                 found.tool
             ));
         }
-        if raw.starts_with('/') {
+        if crate::paths::is_absolute(&raw) {
             found.source_rel = self.strip_root(&raw);
             found.source_abs = raw;
         } else {
@@ -284,7 +284,7 @@ impl<'a> Resolver<'a> {
             } else {
                 String::new()
             };
-            let declared_abs = if declared.is_empty() || declared.starts_with('/') {
+            let declared_abs = if declared.is_empty() || crate::paths::is_absolute(&declared) {
                 declared
             } else {
                 format!("{root}/{declared}")

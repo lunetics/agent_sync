@@ -106,7 +106,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
             .iter()
             .map(|a| a.to_string_lossy().into_owned())
             .collect();
-        let prompt_root = match var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty()) {
+        let prompt_root = match path_var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty()) {
             Some(root) => root,
             None => {
                 let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
@@ -183,7 +183,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
             .map(|a| a.to_string_lossy().into_owned())
             .collect();
         let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
-        let env_root = var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty());
+        let env_root = path_var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty());
         let root = match env_root {
             Some(root) => root,
             None => paths::logical_root(None, &cwd, var("PWD").as_deref()),
@@ -228,7 +228,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
             .collect();
         let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
         let logical_cwd = paths::logical_root(None, &cwd, var("PWD").as_deref());
-        let env_root = var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty());
+        let env_root = path_var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty());
         let root = paths::logical_root(env_root.as_deref(), &cwd, var("PWD").as_deref());
         let style = Style::for_stdout();
         if command == "export" {
@@ -265,7 +265,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
             .iter()
             .map(|a| a.to_string_lossy().into_owned())
             .collect();
-        let env_root = var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty());
+        let env_root = path_var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty());
         let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
         let root = paths::logical_root(env_root.as_deref(), &cwd, var("PWD").as_deref());
         return cli::add::add(
@@ -279,7 +279,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
     if args.first().and_then(|a| a.to_str()) == Some("doctor") {
         let env = cli::doctor::Env {
             version: engine_version(),
-            external_roots: var("AGENTSYNC_EXTERNAL_SOURCE_ROOTS"),
+            external_roots: external_roots_var(),
         };
         return cli::doctor::doctor(
             &Project::discover,
@@ -308,7 +308,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
         let mut env = cli::init::Env {
             version: engine_version(),
             cwd,
-            config_path: var("AGENTSYNC_CONFIG_PATH"),
+            config_path: path_var("AGENTSYNC_CONFIG_PATH"),
             backup_limit: var("AGENTSYNC_BACKUP_LIMIT"),
             backup_max_age: var("AGENTSYNC_BACKUP_MAX_AGE_DAYS"),
             interactive: prompts::is_tty(),
@@ -329,7 +329,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
             .iter()
             .map(|a| a.to_string_lossy().into_owned())
             .collect();
-        let root = match var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty()) {
+        let root = match path_var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty()) {
             Some(root) => root,
             None => {
                 let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
@@ -465,11 +465,11 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
         Command::Check => {
             let root = project_root()?;
             let env = Env {
-                config_path: std::env::var("AGENTSYNC_CONFIG_PATH").ok(),
+                config_path: path_var("AGENTSYNC_CONFIG_PATH"),
                 skip_post_sync: Some("true".to_string()),
                 allow_post_sync: None,
                 backup: None,
-                external_source_roots: var("AGENTSYNC_EXTERNAL_SOURCE_ROOTS"),
+                external_source_roots: external_roots_var(),
             };
             let mut out = std::io::stdout().lock();
             let mut err = std::io::stderr().lock();
@@ -489,15 +489,16 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
             ))
         }
         Command::Rollback { args } => {
-            let supplied_root = match var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty()) {
-                Some(root) => root,
-                None => {
-                    let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
-                    paths::logical_root(None, &cwd, var("PWD").as_deref())
-                }
-            };
+            let supplied_root =
+                match path_var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty()) {
+                    Some(root) => root,
+                    None => {
+                        let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
+                        paths::logical_root(None, &cwd, var("PWD").as_deref())
+                    }
+                };
             let env = cli::rollback::Env {
-                config_path: var("AGENTSYNC_CONFIG_PATH"),
+                config_path: path_var("AGENTSYNC_CONFIG_PATH"),
                 backup_limit: var("AGENTSYNC_BACKUP_LIMIT"),
                 backup_max_age: var("AGENTSYNC_BACKUP_MAX_AGE_DAYS"),
             };
@@ -528,18 +529,41 @@ fn var(name: &str) -> Option<String> {
     std::env::var(name).ok()
 }
 
+/// An environment variable holding one path, translated from Git Bash's
+/// spelling on Windows.
+fn path_var(name: &str) -> Option<String> {
+    var(name).map(|path| paths::from_msys(&path, var("MSYSTEM").as_deref()))
+}
+
+/// `AGENTSYNC_EXTERNAL_SOURCE_ROOTS`, colon-separated as Bash reads it; on
+/// Windows each entry is translated and the list rejoined with `;`, the
+/// separator `Paths::trust_external_roots` splits there.
+fn external_roots_var() -> Option<String> {
+    let raw = var("AGENTSYNC_EXTERNAL_SOURCE_ROOTS")?;
+    if !cfg!(windows) {
+        return Some(raw);
+    }
+    let msystem = var("MSYSTEM");
+    Some(
+        raw.split(':')
+            .map(|entry| paths::from_msys(entry, msystem.as_deref()))
+            .collect::<Vec<_>>()
+            .join(";"),
+    )
+}
+
 fn sync_env() -> cli::sync::Env {
     let skip_backup = var("AGENTSYNC_INTERNAL_SKIP_BACKUP").as_deref() == Some("true");
     cli::sync::Env {
         render: Env {
-            config_path: var("AGENTSYNC_CONFIG_PATH"),
+            config_path: path_var("AGENTSYNC_CONFIG_PATH"),
             skip_post_sync: var("AGENTSYNC_SKIP_POST_SYNC"),
             allow_post_sync: var("AGENTSYNC_ALLOW_POST_SYNC"),
             backup: (!skip_backup).then(|| agentsync::render::BackupBounds {
                 limit: var("AGENTSYNC_BACKUP_LIMIT"),
                 max_age: var("AGENTSYNC_BACKUP_MAX_AGE_DAYS"),
             }),
-            external_source_roots: var("AGENTSYNC_EXTERNAL_SOURCE_ROOTS"),
+            external_source_roots: external_roots_var(),
         },
         skip_backup,
         backup_limit: var("AGENTSYNC_BACKUP_LIMIT"),
@@ -583,9 +607,7 @@ fn streams() -> Sink {
 /// `REPO_ROOT` as `lib/check.sh` derives it: `AGENTSYNC_REPO_ROOT`, else the
 /// working directory, spelled logically.
 fn project_root() -> Result<String, Error> {
-    let env_root = std::env::var("AGENTSYNC_REPO_ROOT")
-        .ok()
-        .filter(|root| !root.is_empty());
+    let env_root = path_var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty());
     let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
     let root = paths::logical_root(
         env_root.as_deref(),
@@ -607,7 +629,7 @@ fn current_exe() -> std::io::Result<PathBuf> {
 
 /// `${AGENTSYNC_REPO_ROOT:-$PWD}`, spelled logically.
 fn notice_root() -> Result<String, Error> {
-    let env_root = var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty());
+    let env_root = path_var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty());
     let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
     Ok(paths::logical_root(
         env_root.as_deref(),

@@ -126,7 +126,7 @@ pub fn effective_source(
     }
     let declared = tool.value(&format!("targets.{resource}.source"));
     if !declared.is_empty() {
-        let abs = if declared.starts_with('/') {
+        let abs = if crate::paths::is_absolute(&declared) {
             PathBuf::from(&declared)
         } else {
             project.root.join(&declared)
@@ -177,7 +177,7 @@ pub fn resolve_source(s: &mut Session, tool: &Tool, resource: &str) -> Option<St
 
     let declared = tool.value(&format!("targets.{resource}.source"));
     if !declared.is_empty() {
-        let declared_abs = if declared.starts_with('/') {
+        let declared_abs = if crate::paths::is_absolute(&declared) {
             declared.clone()
         } else {
             format!("{root}/{declared}")

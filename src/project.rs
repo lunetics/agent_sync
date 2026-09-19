@@ -17,13 +17,17 @@ impl Project {
     /// `_list_prepare_context`: `AGENTSYNC_REPO_ROOT` when set, else the
     /// working directory, with `AGENTSYNC_CONFIG_PATH` authoritative.
     pub fn discover() -> Result<Self, Error> {
+        let msystem = std::env::var("MSYSTEM").ok();
         let env_root = std::env::var("AGENTSYNC_REPO_ROOT")
             .ok()
-            .filter(|root| !root.is_empty());
+            .filter(|root| !root.is_empty())
+            .map(|root| paths::from_msys(&root, msystem.as_deref()));
         let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
         let pwd = std::env::var("PWD").ok();
         let root = paths::logical_root(env_root.as_deref(), &cwd, pwd.as_deref());
-        let explicit = std::env::var("AGENTSYNC_CONFIG_PATH").ok();
+        let explicit = std::env::var("AGENTSYNC_CONFIG_PATH")
+            .ok()
+            .map(|path| paths::from_msys(&path, msystem.as_deref()));
         Self::select(root, explicit.as_deref())
     }
 
@@ -54,7 +58,7 @@ impl Project {
         };
         let tools_dir = if configured.is_empty() {
             root.join(".ai").join("src").join("tools")
-        } else if configured.starts_with('/') {
+        } else if crate::paths::is_absolute(&configured) {
             PathBuf::from(configured)
         } else {
             root.join(configured)

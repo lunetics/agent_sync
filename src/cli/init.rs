@@ -198,7 +198,7 @@ pub fn init(
     }
 
     let requested = options.target.clone().unwrap_or_else(|| ".".to_string());
-    let target = if requested.starts_with('/') {
+    let target = if crate::paths::is_absolute(&requested) {
         paths::normalize(&requested)
     } else {
         paths::normalize(&format!("{}/{requested}", run.env.cwd))

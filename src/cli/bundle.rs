@@ -277,7 +277,7 @@ pub fn export(
         )?;
         return Ok(1);
     }
-    let archive = if output.starts_with('/') {
+    let archive = if crate::paths::is_absolute(&output) {
         PathBuf::from(&output)
     } else {
         Path::new(root).join(&output)
@@ -723,7 +723,7 @@ pub fn import(
             )?;
             return Ok(1);
         };
-        let shown = crate::paths::normalize(&if source.starts_with('/') {
+        let shown = crate::paths::normalize(&if crate::paths::is_absolute(&source) {
             source.clone()
         } else {
             format!("{}/{source}", env.cwd)

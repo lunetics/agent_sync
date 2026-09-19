@@ -33,7 +33,7 @@
 
 ## Module closure
 
-- [ ] **Step 1: Record the baseline**
+- [x] **Step 1: Record the baseline**
 
 ```bash
 git log --oneline -1
@@ -107,7 +107,7 @@ pub fn unreadable_dirs_are_possible() -> bool;      // unix and not root
 #[cfg(unix)] pub fn chmod(path: &Path, mode: u32);
 ```
 
-- [ ] **Step 1: The harness**
+- [x] **Step 1: The harness**
 
 Create `tests/common/mod.rs`:
 
@@ -260,7 +260,7 @@ pub fn chmod(path: &Path, mode: u32) {
 }
 ````
 
-- [ ] **Step 2: Port `cli.bats`**
+- [x] **Step 2: Port `cli.bats`**
 
 Append to `tests/cli.rs`, after `a_failing_post_sync_hook_restores_the_pre_sync_state`:
 
@@ -330,7 +330,7 @@ fn rollback_help_documents_safe_restore_options() {
 
 Then `git rm tests/cli.bats`.
 
-- [ ] **Step 3: `cargo test` on Windows**
+- [x] **Step 3: `cargo test` on Windows**
 
 In `.github/workflows/ci.yaml`, in the `test-windows` job, after `- run: cargo build --release` add:
 
@@ -342,7 +342,7 @@ In `.github/workflows/ci.yaml`, in the `test-windows` job, after `- run: cargo b
 Validate: `ruby -ryaml -e 'YAML.safe_load(File.read(".github/workflows/ci.yaml"), aliases: true); puts "ci.yaml ok"'`
 Expected: `ci.yaml ok`.
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 ```bash
 cargo fmt --all --check; cargo clippy --all-targets -- -D warnings 2>&1 | tail -1; cargo test 2>&1 | grep 'test result'
@@ -353,7 +353,7 @@ for f in tests/*.bats; do n=$(bats --tap "$f" 2>&1 | grep -c '^not ok'); [[ "$n"
 
 Expected: fmt exit 0, `Finished`; the `test result` lines in `cargo test`'s order (unit, then the test crates alphabetically, then doc-tests): `335`, `14` (cli), `1` (interrupt), `0` (doc); `Finished`; `40`; only `suite-done`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add tests/common/mod.rs tests/cli.rs tests/cli.bats .github/workflows/ci.yaml docs/plans/2026-09-19-rust-migration-phase-7a-harness-cli-list-check.md

@@ -219,3 +219,64 @@ fn a_failing_post_sync_hook_restores_the_pre_sync_state() {
     assert!(!dir.path().join(".claude/rules").exists());
     assert!(!dir.path().join(".ai/.sync-manifest").exists());
 }
+
+mod common;
+
+// `tests/cli.bats`: help, version, unknown commands. The version cases are
+// asserted above (`version_prints_the_engine_version`,
+// `version_flags_match_the_bash_cli`).
+
+#[test]
+fn help_shows_usage() {
+    common::Project::empty()
+        .agentsync()
+        .arg("help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("AgentSync"))
+        .stdout(predicate::str::contains("COMMANDS"))
+        .stdout(predicate::str::contains("init"))
+        .stdout(predicate::str::contains("sync"))
+        .stdout(predicate::str::contains("rollback"));
+}
+
+#[test]
+fn help_flag_shows_usage() {
+    common::Project::empty()
+        .agentsync()
+        .arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("COMMANDS"));
+}
+
+#[test]
+fn unknown_command_fails_with_error() {
+    common::Project::empty()
+        .agentsync()
+        .arg("nonexistent")
+        .assert()
+        .code(1)
+        .stderr(predicate::str::contains("Unknown command"));
+}
+
+#[test]
+fn no_arguments_shows_help() {
+    common::Project::empty()
+        .agentsync()
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("COMMANDS"));
+}
+
+#[test]
+fn rollback_help_documents_safe_restore_options() {
+    common::Project::empty()
+        .agentsync()
+        .args(["rollback", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("--list"))
+        .stdout(predicate::str::contains("--dry-run"))
+        .stdout(predicate::str::contains("--yes"));
+}

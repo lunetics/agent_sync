@@ -260,8 +260,10 @@ mod tests {
         assert_eq!(
             err.to_string(),
             format!(
+                // The engine spells a disk path its own way, `/`-separated
+                // even on Windows, so the expectation goes through `disk_text`.
                 "AGENTSYNC_CONFIG_PATH is set but file not found: {}/missing.yaml",
-                dir.path().display()
+                dir.path().disk_text()
             )
         );
     }

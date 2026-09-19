@@ -16,6 +16,27 @@ use assert_cmd::Command;
 use common::Project;
 use predicates::prelude::*;
 
+/// Copy the binary under test to `dst` and wait until it can be executed.
+///
+/// `cargo test` runs these tests in parallel, and Linux refuses to exec a file
+/// that another thread still holds open for writing: a `fs::copy` handle here
+/// is inherited by a process another test spawns, and the exec fails with
+/// `ETXTBSY` until that child exits. Retrying the spawn is the fix.
+fn install_binary(src: &Path, dst: &Path) {
+    std::fs::copy(src, dst).unwrap();
+    std::fs::set_permissions(dst, std::fs::Permissions::from_mode(0o755)).unwrap();
+    for _ in 0..200 {
+        match StdCommand::new(dst).arg("version").output() {
+            Ok(_) => return,
+            Err(e) if e.kind() == std::io::ErrorKind::ExecutableFileBusy => {
+                std::thread::sleep(std::time::Duration::from_millis(25));
+            }
+            Err(e) => panic!("{}: {e}", dst.display()),
+        }
+    }
+    panic!("{} stayed busy", dst.display());
+}
+
 fn engine_version() -> String {
     include_str!("../VERSION").trim().to_string()
 }
@@ -37,8 +58,7 @@ impl Install {
         let install_dir = project.join("install/bin");
         std::fs::create_dir_all(&install_dir).unwrap();
         let install_bin = install_dir.join("agentsync");
-        std::fs::copy(&native_bin, &install_bin).unwrap();
-        std::fs::set_permissions(&install_bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+        install_binary(&native_bin, &install_bin);
         std::fs::write(project.join("install/.update_cache"), "9.9.9\n").unwrap();
 
         let fake_releases = project.join("releases");
@@ -377,7 +397,7 @@ fn a_changed_overridden_field_is_reported_queued_and_fails_strict() {
     assert!(queue.contains("to_version: \"9.9.9\""));
     assert!(queue.contains("your_override: \".claude/my-rules\""));
 
-    std::fs::copy(&install.native_bin, &install.install_bin).unwrap();
+    install_binary(&install.native_bin, &install.install_bin);
     install
         .agentsync()
         .args(["update", "9.9.9", "--strict"])

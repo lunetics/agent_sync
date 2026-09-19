@@ -37,7 +37,14 @@ fn run_guard(project: &Project, stdin: &[u8]) -> Output {
         .stderr(Stdio::piped())
         .spawn()
         .unwrap();
-    child.stdin.take().unwrap().write_all(stdin).unwrap();
+    // A hook is free to exit without reading its payload, which closes the
+    // pipe under the write: a project override that is just `exit 0` loses
+    // this race on a loaded runner.
+    match child.stdin.take().unwrap().write_all(stdin) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => {}
+        Err(e) => panic!("writing the hook payload: {e}"),
+    }
     child.wait_with_output().unwrap()
 }
 

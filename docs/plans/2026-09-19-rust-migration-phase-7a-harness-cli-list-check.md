@@ -377,7 +377,7 @@ The body names the retired cases: `version prints version`, `--version prints ve
 fn list(project: &Project) -> assert_cmd::assert::Assert;   // `agentsync list`, asserted success
 ```
 
-- [ ] **Step 1: Port `list.bats`**
+- [x] **Step 1: Port `list.bats`**
 
 Create `tests/list.rs`:
 
@@ -449,7 +449,7 @@ fn list_survives_a_tool_override_that_does_not_set_enabled() {
 
 Then `git rm tests/list.bats`.
 
-- [ ] **Step 2: Verify**
+- [x] **Step 2: Verify**
 
 ```bash
 cargo fmt --all --check; cargo clippy --all-targets -- -D warnings 2>&1 | tail -1; cargo test 2>&1 | grep 'test result'
@@ -460,7 +460,7 @@ for f in tests/*.bats; do n=$(bats --tap "$f" 2>&1 | grep -c '^not ok'); [[ "$n"
 
 Expected: fmt exit 0, `Finished`; `335`, `14` (cli), `1` (interrupt), `7` (list), `0` (doc); `Finished`; `39`; only `suite-done`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add tests/list.rs tests/list.bats docs/plans/2026-09-19-rust-migration-phase-7a-harness-cli-list-check.md

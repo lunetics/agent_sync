@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.37.0
+
+AgentSync is now a single static binary. The engine was rewritten in Rust command by command behind the Bash dispatcher, each command proven byte-identical to its Bash predecessor by the bats suite and a parity harness, and this release is the first to ship it: macOS (Apple silicon and Intel), Linux (x86_64 and arm64, statically linked), and Windows (x86_64, no Git Bash needed).
+
+### Added
+
+- **Binary installs.** `curl -fsSL https://raw.githubusercontent.com/yelmuratoff/agent_sync/main/install.sh | bash` downloads the release archive for your platform from GitHub Releases, verifies its sha256, places `~/.agentsync/bin/agentsync`, and links it. `AGENTSYNC_VERSION=<tag>` still pins; a tag older than this release has no archive and installs from source as before. The cargo-dist installers (`agentsync-installer.sh`, `agentsync-installer.ps1`) ship alongside.
+- **`agentsync update` replaces the binary.** The latest release, or `update <version>`, is downloaded and verified, the new binary's embedded tool catalog is compared with the running one against your overrides (`--strict` fails on a conflict, the queue goes to `.ai/.pending-resolutions.yaml` for `agentsync resolve`), the release's changelog is printed, and the binary is swapped in place. An existing source install moves to the binary by itself the next time `agentsync update` reaches a release that ships one.
+- **Releases are built by cargo-dist**: five archives, sha256 sums, artifact attestations, and the installers, dispatched by the auto-tag workflow for the tag it creates from `VERSION`.
+
+### Changed
+
+- The update banner and the project-format notice print from the binary. The banner reads `.update_cache` beside the install's `bin/`, refreshed in the background from the latest GitHub release.
+- `sync` and `check` no longer fork: the 13-tool sync that took 6 seconds in Bash runs in a fraction of a second, so `check` in a pre-commit hook or a CI gate stops being the slow step.
+- Directory listings, tool slugs, and globs read in byte order where Bash followed the locale's collation; every other accepted difference from the Bash engine is listed in `docs/specs/2026-09-12-rust-migration-design.md` under "Accepted deviations".
+
+### Internal
+
+- `bin/agentsync.sh` and `lib/` stay in the repository as the Bash reference and parity harness until the next phase deletes them; `AGENTSYNC_NATIVE=0` still forces them for a ported command.
+
 ## 0.36.0
 
 Sources can live outside the project, rollback no longer discards what changed after the operation it undoes, and `agent_sync.yaml` gains a strict engine pin and a retention mode that never prunes recovery data. Every change in this release started as a pull request from [@lunetics](https://github.com/lunetics) (#9, #10, #11, #12, #13).

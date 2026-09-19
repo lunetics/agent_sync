@@ -219,13 +219,19 @@ pub fn find_parent_ai_src(start: &str) -> Option<String> {
     }
     let mut git_root = None;
     let mut probe = start.to_string();
-    while !probe.is_empty() && probe != "/" {
+    // Stop at the root by its fixpoint, not by spelling: `/` is its own parent
+    // on Unix and `C:/` is on Windows, where a `probe != "/"` test never ends.
+    while !probe.is_empty() {
         let dot_git = Path::new(&probe).join(".git");
         if dot_git.is_dir() || dot_git.is_file() {
             git_root = Some(probe);
             break;
         }
-        probe = parent(&probe);
+        let up = parent(&probe);
+        if up == probe {
+            break;
+        }
+        probe = up;
     }
     let mut current = start.to_string();
     let mut up = parent(&current);
@@ -679,6 +685,21 @@ mod tests {
         assert_eq!(paths().absolute(".claude/./rules/"), "/proj/.claude/rules");
         assert_eq!(paths().absolute("a/../../x"), "/x");
         assert_eq!(paths().absolute("/a//b/.."), "/a");
+    }
+
+    /// `find_parent_ai_src` walks up looking for a `.git`, and stops at the
+    /// root by its fixpoint. Windows has no `/` to compare against: a probe
+    /// that reaches `C:/` gets `C:/` back forever. The walk-up in a tree with
+    /// no repository anywhere is the case that spun (CI run 35457693442).
+    #[test]
+    fn walking_up_terminates_at_a_root_that_is_its_own_parent() {
+        for root in ["/", "C:/", "c:\\"] {
+            assert_eq!(parent(root), parent(&parent(root)), "{root} must be stable");
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let start = dir.path().join("a/b");
+        std::fs::create_dir_all(&start).unwrap();
+        assert_eq!(find_parent_ai_src(&start.disk_text()), None);
     }
 
     #[test]

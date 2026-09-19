@@ -4,7 +4,9 @@
 
 mod common;
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(unix)]
+use std::path::PathBuf;
 use std::process::Command as StdCommand;
 
 use assert_cmd::Command;

@@ -3,6 +3,7 @@
 
 mod common;
 
+#[cfg(unix)]
 use std::process::{Command as StdCommand, Output};
 
 use common::Project;
@@ -12,6 +13,7 @@ fn shell_init(project: &Project, args: &[&str]) -> assert_cmd::assert::Assert {
     project.agentsync().arg("shell-init").args(args).assert()
 }
 
+#[cfg(unix)]
 /// Run `script` in `shell` (`bash` or `zsh`) inside `project`'s directory,
 /// with `extra_env` added on top of the inherited environment.
 fn spawn(project: &Project, shell: &str, script: &str, extra_env: &[(&str, &str)]) -> Output {
@@ -23,6 +25,7 @@ fn spawn(project: &Project, shell: &str, script: &str, extra_env: &[(&str, &str)
     command.output().unwrap()
 }
 
+#[cfg(unix)]
 /// A `command -v agentsync` on PATH that prints `$AGENTSYNC_REPO_ROOT` to
 /// `$AGENTSYNC_TEST_LOG` instead of syncing anything.
 fn write_logging_stub(project: &Project, rel_dir: &str) {
@@ -41,6 +44,7 @@ fn write_logging_stub(project: &Project, rel_dir: &str) {
     }
 }
 
+#[cfg(unix)]
 fn path_with(project: &Project, rel_dir: &str) -> String {
     format!(
         "{}:{}",
@@ -49,6 +53,7 @@ fn path_with(project: &Project, rel_dir: &str) -> String {
     )
 }
 
+#[cfg(unix)]
 fn has_zsh() -> bool {
     StdCommand::new("which")
         .arg("zsh")

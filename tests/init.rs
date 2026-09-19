@@ -3,6 +3,7 @@
 mod common;
 
 use std::path::Path;
+#[cfg(unix)]
 use std::process::Command as StdCommand;
 
 use common::Project;

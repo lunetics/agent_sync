@@ -8,7 +8,9 @@
 
 mod common;
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(unix)]
+use std::path::PathBuf;
 
 use common::Project;
 use predicates::prelude::*;
@@ -67,6 +69,8 @@ enum Entry {
     Dir(u32),
     File(u32, String),
     Symlink(String),
+    // Only a #[cfg(unix)] case creates one.
+    #[cfg_attr(not(unix), allow(dead_code))]
     Fifo,
     Other,
 }

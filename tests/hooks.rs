@@ -5,7 +5,9 @@
 
 mod common;
 
+#[cfg(unix)]
 use std::path::Path;
+#[cfg(unix)]
 use std::process::{Command as StdCommand, Output};
 
 use common::Project;
@@ -28,10 +30,12 @@ fn init_mode(project: &Project, mode: &str) {
         .success();
 }
 
+#[cfg(unix)]
 fn absent_git_config() -> std::path::PathBuf {
     std::env::temp_dir().join("agentsync-tests-absent-gitconfig")
 }
 
+#[cfg(unix)]
 fn git(
     project: &Project,
     args: &[&str],
@@ -55,6 +59,7 @@ fn git(
     command.output().unwrap()
 }
 
+#[cfg(unix)]
 /// Put an `agentsync` on PATH that runs the working copy, so an installed
 /// hook can call it. Also keeps the developer's real install out of the test.
 fn shim_agentsync_on_path(project: &Project) -> std::path::PathBuf {

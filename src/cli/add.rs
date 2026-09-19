@@ -666,6 +666,7 @@ fn add_mcp(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use crate::paths::DiskText;
 
     #[test]

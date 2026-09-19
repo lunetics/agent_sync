@@ -15,8 +15,7 @@ use common::Project;
 const GUARD: &str = ".claude/hooks/agentsync-guard.sh";
 
 fn synced_project() -> Project {
-    let project = Project::seeded(&["--tools", "claude", "--yes"]);
-    project
+    Project::seeded(&["--tools", "claude", "--yes"])
 }
 
 /// Feed the hook a PreToolUse payload for `path`, as Claude Code would.

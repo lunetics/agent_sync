@@ -690,6 +690,34 @@ git commit -m "test(native): port check.bats"
 
 The plan is closed when every box is ticked, `cargo test` carries the 26 cases as the table maps them (22 ported, 4 retired with their covering tests), `tests/cli.bats`, `tests/list.bats`, and `tests/check.bats` no longer exist, CI is green on Linux, macOS, and the twelve Windows shards with `cargo test` in the first, and a `## Completion receipt` records the fresh verification. Plan 7b (the initialised-project files) follows.
 
+## Completion receipt
+
+Written 2026-09-19 on `feat/native-engine-phase-7`.
+
+Global Constraints:
+
+- `.ai/src/` the source of truth, `lib/` embedded — untouched by this plan.
+- Ported tests assert on the stream the binary writes to — `tests/cli.rs` asserts `Unknown command` on stderr (bats merged the streams), `tests/check.rs` asserts the report on stdout.
+- Every case accounted for — the table above: 22 ported, 4 retired with their covering test named in the commit body.
+- One bats file per commit — `350ff60` (cli), `3531c90` (list), `746fd36` (check); each deletes its `.bats`.
+- Windows required — `.github/workflows/ci.yaml`, `test-windows`: `cargo test` in shard 1.
+- Rust constraints — no dependency added; no test spawns a shell.
+- ShellCheck scope — unchanged (`install.sh`, `lib/templates/guard/claude.sh`).
+- Commits Conventional, no trailers.
+
+Fresh verification (2026-09-19):
+
+- `cargo fmt --all --check`: exit 0.
+- `cargo clippy --all-targets -- -D warnings`: `Finished`, no warnings.
+- `cargo test`: 335 unit, 10 check, 14 cli, 1 interrupt, 7 list, 0 doc; 0 failed.
+- `ls tests/*.bats | wc -l`: 38 (41 - 3).
+
+Skipped or deferred:
+
+- The two `chmod 000` cases are `#[cfg(unix)]` and return early as root, as their bats `skip` did. Windows never ran them.
+- `Please run: lib/sync.sh` in the `check` report is a Bash-era line the binary reproduces; no case asserts it, and it is left for an accepted deviation in a later slice.
+- `cargo test` on Windows runs for the first time with commit `350ff60`; a Unix assumption it surfaces is fixed as `fix(windows): …`.
+
 ## Run log
 
 ### 2026-09-19 — Phase 7a planned
@@ -697,4 +725,11 @@ The plan is closed when every box is ticked, `cargo test` carries the 26 cases a
 - Verified: the plan's four code blocks were drafted in the tree and run before being parked: `cargo fmt --all --check` exit 0, `cargo clippy --all-targets -- -D warnings` clean, `cargo test --test cli --test list --test check` 14/7/10 passed, 0 failed; the streams and exit codes came from the binary (`Unknown command` on stderr, `check` on stdout, `Please run: lib/sync.sh` still printed); the assembled blocks compare byte for byte with the draft (4 blocks). `cargo test` on Windows has never run in CI; Task 1 adds it to shard 1.
 - Plan amended: none (new plan). Phase 7 is sliced into plans 7a…; the phase's receipt comes with the last one.
 - Next: the reviewer approves; then Task 1 Step 1 (create `tests/common/mod.rs`).
+- Blocker: none.
+
+### 2026-09-19 — plan closed
+- Commits: 350ff60 test(native): port cli.bats; 3531c90 test(native): port list.bats; 746fd36 test(native): port check.bats; this commit, docs(native): close phase 7a.
+- Verified: `cargo fmt --all --check` exit 0; clippy clean; `cargo test` 335/10/14/1/7/0, 0 failed; `ci.yaml` parses; 38 bats files left.
+- Plan amended: none.
+- Next: plan 7b, the rest of the bats files in batches.
 - Blocker: none.

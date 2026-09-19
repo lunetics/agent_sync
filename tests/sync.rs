@@ -1,0 +1,507 @@
+//! `tests/sync.bats`: `agentsync sync` across every supported tool, driven
+//! from one fixture project (a path-scoped rule, an explicit-only command).
+
+mod common;
+
+use common::Project;
+use predicates::prelude::*;
+use std::path::Path;
+
+const ENABLED_TOOLS: &[&str] = &[
+    "claude",
+    "cursor",
+    "copilot",
+    "windsurf",
+    "gemini",
+    "codex",
+    "amazonq",
+    "zed",
+    "junie",
+    "antigravity",
+    "kimi",
+    "opencode",
+];
+
+const SCOPED_FIXTURE_RULE: &str =
+    "---\npaths:\n  - \"**/*.dart\"\n---\n\n# Scoped Fixture Rule\n\n- Body.\n";
+
+fn explicit_only_command(disable_model_invocation: bool) -> String {
+    if disable_model_invocation {
+        "---\ndescription: Explicit-only fixture command\ndisable-model-invocation: true\n---\n\nBody.\n".to_string()
+    } else {
+        "---\ndescription: Explicit-only fixture command\n---\n\nBody.\n".to_string()
+    }
+}
+
+/// `setup_file`: init, enable every tool the assertions cover, add the
+/// path-scoped rule and explicit-only command fixtures, then sync once.
+fn synced_project() -> Project {
+    let project = Project::seeded(&["--outputs", "local"]);
+    project.write(".gitignore", "node_modules/\n");
+    project.enable_tools(ENABLED_TOOLS);
+    project.write(".ai/src/rules/scoped-fixture.md", SCOPED_FIXTURE_RULE);
+    project.write(
+        ".ai/src/commands/explicit-only.md",
+        &explicit_only_command(true),
+    );
+    project.agentsync().arg("sync").assert().success();
+    project
+}
+
+/// Sorted files directly under `dir` (relative to the project root) whose
+/// extension matches — mirrors `ls dir/*.ext | head -1` for "first file"
+/// assertions.
+fn files_with_extension(project: &Project, dir: &str, ext: &str) -> Vec<std::path::PathBuf> {
+    let mut files: Vec<_> = std::fs::read_dir(project.join(dir))
+        .map(|entries| {
+            entries
+                .filter_map(|e| e.ok())
+                .map(|e| e.path())
+                .filter(|p| p.extension().and_then(|e| e.to_str()) == Some(ext))
+                .collect()
+        })
+        .unwrap_or_default();
+    files.sort();
+    files
+}
+
+fn first_file(project: &Project, dir: &str, ext: &str) -> std::path::PathBuf {
+    files_with_extension(project, dir, ext)
+        .into_iter()
+        .next()
+        .unwrap_or_else(|| panic!("no *.{ext} files in {dir}"))
+}
+
+fn contains(path: &Path, needle: &str) -> bool {
+    std::fs::read_to_string(path)
+        .map(|content| content.contains(needle))
+        .unwrap_or(false)
+}
+
+// ── Claude Code ──────────────────────────────────────────────────────────
+
+#[test]
+fn sync_claude_claude_md_exists() {
+    assert!(synced_project().exists("CLAUDE.md"));
+}
+
+#[test]
+fn sync_claude_rules_exist() {
+    let project = synced_project();
+    assert!(project.join(".claude/rules").is_dir());
+    assert!(!files_with_extension(&project, ".claude/rules", "md").is_empty());
+}
+
+#[test]
+fn sync_claude_skills_exist() {
+    assert!(synced_project().join(".claude/skills").is_dir());
+}
+
+#[test]
+fn sync_claude_commands_exist() {
+    assert!(synced_project().join(".claude/commands").is_dir());
+}
+
+#[test]
+fn sync_claude_agents_exist() {
+    assert!(synced_project().join(".claude/agents").is_dir());
+}
+
+#[test]
+fn sync_claude_claude_md_contains_agents_md_content() {
+    let project = synced_project();
+    let agents_md = project.read(".ai/src/AGENTS.md");
+    let first_heading = agents_md
+        .lines()
+        .find(|line| line.starts_with('#'))
+        .unwrap();
+    assert!(contains(&project.join("CLAUDE.md"), first_heading));
+}
+
+// ── Cursor ───────────────────────────────────────────────────────────────
+
+#[test]
+fn sync_cursor_agents_md_exists_at_root() {
+    assert!(synced_project().exists("AGENTS.md"));
+}
+
+#[test]
+fn sync_cursor_mdc_rules_exist() {
+    let project = synced_project();
+    assert!(!files_with_extension(&project, ".cursor/rules", "mdc").is_empty());
+}
+
+#[test]
+fn sync_cursor_rules_have_globs_frontmatter() {
+    let project = synced_project();
+    let first_mdc = first_file(&project, ".cursor/rules", "mdc");
+    assert!(contains(&first_mdc, "alwaysApply: true"));
+}
+
+// ── GitHub Copilot ───────────────────────────────────────────────────────
+
+#[test]
+fn sync_copilot_instructions_exist() {
+    assert!(synced_project().exists(".github/copilot-instructions.md"));
+}
+
+#[test]
+fn sync_copilot_instructions_md_rules_exist() {
+    let project = synced_project();
+    assert!(!files_with_extension(&project, ".github/instructions", "md").is_empty());
+}
+
+#[test]
+fn sync_copilot_rules_have_applyto_frontmatter() {
+    let project = synced_project();
+    let first = first_file(&project, ".github/instructions", "md");
+    assert!(contains(&first, "applyTo:"));
+}
+
+// ── Windsurf ─────────────────────────────────────────────────────────────
+
+#[test]
+fn sync_windsurf_agents_md_exists_at_root() {
+    assert!(synced_project().exists("AGENTS.md"));
+}
+
+#[test]
+fn sync_windsurf_rules_have_trigger_frontmatter() {
+    let project = synced_project();
+    let first = first_file(&project, ".windsurf/rules", "md");
+    assert!(contains(&first, "trigger: always_on"));
+}
+
+// ── Gemini ───────────────────────────────────────────────────────────────
+
+#[test]
+fn sync_gemini_gemini_md_exists_at_root() {
+    assert!(synced_project().exists("GEMINI.md"));
+}
+
+#[test]
+fn sync_gemini_inlines_rules_into_gemini_md() {
+    let project = synced_project();
+    assert!(contains(&project.join("GEMINI.md"), "Rules"));
+}
+
+// ── Codex ────────────────────────────────────────────────────────────────
+
+#[test]
+fn sync_codex_agents_md_at_root_exists() {
+    assert!(synced_project().exists("AGENTS.md"));
+}
+
+#[test]
+fn sync_codex_skills_directory_exists() {
+    assert!(synced_project().join(".agents/skills").is_dir());
+}
+
+#[test]
+fn sync_codex_commands_rendered_as_generated_skills_command() {
+    let project = synced_project();
+    assert!(project.join(".agents/skills/command-fix-issue").is_dir());
+    assert!(project.join(".agents/skills/command-review").is_dir());
+    assert!(project.exists(".agents/skills/command-fix-issue/SKILL.md"));
+}
+
+#[test]
+fn sync_codex_generated_skill_carries_command_prefixed_name_and_copies_description() {
+    let project = synced_project();
+    let skill = project.read(".agents/skills/command-fix-issue/SKILL.md");
+    assert!(skill.contains("name: \"command-fix-issue\""));
+    assert!(skill.contains("Investigate and fix a GitHub issue"));
+}
+
+#[test]
+fn sync_codex_generated_skill_strips_arguments_and_bang_slash_command_sugar() {
+    let project = synced_project();
+    let skill = project.read(".agents/skills/command-fix-issue/SKILL.md");
+    assert!(!skill.contains("$ARGUMENTS"));
+    assert!(!skill.contains("!`"));
+}
+
+#[test]
+fn sync_codex_generated_skills_do_not_collide_with_native_skills() {
+    let project = synced_project();
+    // Native skill 'review' coexists with generated 'command-review'.
+    assert!(project.join(".agents/skills/review").is_dir());
+    assert!(project.join(".agents/skills/command-review").is_dir());
+}
+
+#[test]
+fn sync_codex_generated_skill_opts_out_of_implicit_invocation_when_the_command_disables_model_invocation()
+ {
+    let project = synced_project();
+    let openai_yaml = project.read(".agents/skills/command-explicit-only/agents/openai.yaml");
+    assert!(openai_yaml.contains("  allow_implicit_invocation: false"));
+    assert!(!project.exists(".agents/skills/command-fix-issue/agents/openai.yaml"));
+}
+
+#[test]
+fn sync_codex_drops_the_openai_yaml_opt_out_once_the_command_allows_model_invocation_again() {
+    let project = synced_project();
+    project.write(
+        ".ai/src/commands/explicit-only.md",
+        &explicit_only_command(false),
+    );
+    project.agentsync().arg("sync").assert().success();
+    assert!(!project.exists(".agents/skills/command-explicit-only/agents/openai.yaml"));
+
+    project.write(
+        ".ai/src/commands/explicit-only.md",
+        &explicit_only_command(true),
+    );
+    project.agentsync().arg("sync").assert().success();
+    assert!(project.exists(".agents/skills/command-explicit-only/agents/openai.yaml"));
+}
+
+#[test]
+fn sync_codex_repeat_sync_is_idempotent_no_command_sweep() {
+    let project = synced_project();
+    project.agentsync().arg("sync").assert().success();
+    assert!(project.join(".agents/skills/command-fix-issue").is_dir());
+    assert!(project.join(".agents/skills/command-review").is_dir());
+}
+
+// ── Kimi Code ────────────────────────────────────────────────────────────
+
+#[test]
+fn sync_kimi_code_emits_native_skills_and_command_skills() {
+    let project = synced_project();
+    assert!(project.exists(".kimi-code/AGENTS.md"));
+    assert!(contains(&project.join(".kimi-code/AGENTS.md"), "## Rules"));
+    assert!(project.join(".kimi-code/skills").is_dir());
+    assert!(project.exists(".kimi-code/skills/command-review/SKILL.md"));
+}
+
+#[test]
+fn sync_kimi_code_emits_project_mcp_config() {
+    let project = synced_project();
+    assert!(project.exists(".kimi-code/mcp.json"));
+    assert!(contains(
+        &project.join(".kimi-code/mcp.json"),
+        "\"mcpServers\""
+    ));
+}
+
+// ── OpenCode ─────────────────────────────────────────────────────────────
+
+#[test]
+fn sync_opencode_emits_native_skills_and_commands() {
+    let project = synced_project();
+    assert!(project.join(".opencode/skills").is_dir());
+    assert!(project.exists(".opencode/commands/review.md"));
+}
+
+#[test]
+fn sync_opencode_converts_portable_subagents_safely() {
+    let project = synced_project();
+    let agent = project.read(".opencode/agents/code-reviewer.md");
+    assert!(agent.contains("mode: subagent"));
+    assert!(agent.contains("  \"*\": deny"));
+    assert!(agent.contains("  \"read\": allow"));
+}
+
+#[test]
+fn sync_opencode_emits_project_settings() {
+    let project = synced_project();
+    assert!(project.exists("opencode.json"));
+    assert!(contains(
+        &project.join("opencode.json"),
+        "https://opencode.ai/config.json"
+    ));
+}
+
+#[test]
+fn sync_opencode_emits_the_managed_native_plugin() {
+    let project = synced_project();
+    assert!(project.exists(".opencode/plugins/agentsync.ts"));
+    assert!(contains(
+        &project.join(".opencode/plugins/agentsync.ts"),
+        "AgentSyncHooks"
+    ));
+}
+
+// ── Hooks (per-tool) ─────────────────────────────────────────────────────
+
+#[test]
+fn sync_cursor_hooks_json_exists() {
+    assert!(synced_project().exists(".cursor/hooks.json"));
+}
+
+#[test]
+fn sync_codex_hooks_json_exists() {
+    assert!(synced_project().exists(".codex/hooks.json"));
+}
+
+#[test]
+fn sync_copilot_hooks_json_exists() {
+    assert!(synced_project().exists(".github/hooks/hooks.json"));
+}
+
+#[test]
+fn sync_windsurf_hooks_json_exists() {
+    assert!(synced_project().exists(".windsurf/hooks.json"));
+}
+
+// ── MCP / settings (per-tool) ────────────────────────────────────────────
+
+#[test]
+fn sync_claude_mcp_json_exists() {
+    assert!(synced_project().exists(".mcp.json"));
+}
+
+#[test]
+fn sync_cursor_mcp_json_exists() {
+    assert!(synced_project().exists(".cursor/mcp.json"));
+}
+
+#[test]
+fn sync_windsurf_mcp_config_json_exists() {
+    assert!(synced_project().exists(".windsurf/mcp_config.json"));
+}
+
+#[test]
+fn sync_amazon_q_mcp_json_exists() {
+    assert!(synced_project().exists(".amazonq/mcp.json"));
+}
+
+#[test]
+fn sync_amazon_q_agents_md_gets_commands_inline_section() {
+    let project = synced_project();
+    let content = project.read(".amazonq/rules/00-context.md");
+    assert!(content.contains("## Commands"));
+    assert!(content.contains("- `/fix-issue` —"));
+}
+
+#[test]
+fn sync_zed_rules_gets_commands_inline_section_merge_to_file_fallback() {
+    let project = synced_project();
+    let content = project.read(".rules");
+    assert!(content.contains("## Commands"));
+    assert!(content.contains("- `/fix-issue` —"));
+}
+
+#[test]
+fn sync_gemini_settings_json_exists() {
+    assert!(synced_project().exists(".gemini/settings.json"));
+}
+
+#[test]
+fn sync_zed_settings_json_exists() {
+    assert!(synced_project().exists(".zed/settings.json"));
+}
+
+// ── Tool-specific assertions for less-common tools ────────────────────────
+
+#[test]
+fn sync_junie_agents_md_exists_and_rules_are_inlined() {
+    let project = synced_project();
+    assert!(project.exists(".junie/AGENTS.md"));
+    // Rules were inlined — no unsupported .junie/rules/ subdirectory.
+    assert!(!project.join(".junie/rules").exists());
+}
+
+#[test]
+fn sync_inlined_rule_inventory_shows_heading_not_frontmatter_delimiter() {
+    // A path-scoped rule opens with a `---` frontmatter block; the shared
+    // inline-into-agents inventory must surface its heading, not the `---`
+    // delimiter. Asserted on .junie/AGENTS.md (uniquely owned — the root
+    // AGENTS.md is contended by several tools depending on sync order).
+    let project = synced_project();
+    let content = project.read(".junie/AGENTS.md");
+    assert!(content.contains("- `scoped-fixture.md` — Scoped Fixture Rule"));
+    assert!(!content.contains("`scoped-fixture.md` — ---"));
+}
+
+// ── Path-scoped rules: canonical `paths:` → each tool's native glob trigger ─
+
+#[test]
+fn sync_path_scoped_rule_keeps_native_paths_for_claude() {
+    let project = synced_project();
+    let content = project.read(".claude/rules/scoped-fixture.md");
+    assert!(content.lines().any(|line| line.starts_with("paths:")));
+    assert!(content.contains("\"**/*.dart\""));
+}
+
+#[test]
+fn sync_path_scoped_rule_becomes_cursor_auto_attached_glob() {
+    let project = synced_project();
+    let content = project.read(".cursor/rules/scoped-fixture.mdc");
+    assert!(content.contains("globs: '**/*.dart'"));
+    assert!(content.contains("alwaysApply: false"));
+}
+
+#[test]
+fn sync_path_scoped_rule_becomes_copilot_applyto_glob() {
+    let project = synced_project();
+    let content = project.read(".github/instructions/scoped-fixture.instructions.md");
+    assert!(content.contains("applyTo: '**/*.dart'"));
+}
+
+#[test]
+fn sync_path_scoped_rule_becomes_windsurf_glob_trigger() {
+    let project = synced_project();
+    let content = project.read(".windsurf/rules/scoped-fixture.md");
+    assert!(content.contains("trigger: glob"));
+    assert!(content.contains("globs: '**/*.dart'"));
+}
+
+#[test]
+fn sync_path_scoped_rule_becomes_antigravity_glob_trigger() {
+    let project = synced_project();
+    let content = project.read(".agents/rules/scoped-fixture.md");
+    assert!(content.contains("trigger: glob"));
+    assert!(content.contains("globs: '**/*.dart'"));
+}
+
+#[test]
+fn sync_rule_without_paths_stays_always_on_cursor() {
+    // core.md has no `paths:` — must keep the always-on default, not a glob.
+    let project = synced_project();
+    let content = project.read(".cursor/rules/core.mdc");
+    assert!(content.contains("alwaysApply: true"));
+}
+
+// ── Gitignore ──────────────────────────────────────────────────────────────
+
+#[test]
+fn sync_gitignore_has_sync_markers() {
+    let project = synced_project();
+    let content = project.read(".gitignore");
+    assert!(content.contains("AI SYNC GENERATED START"));
+    assert!(content.contains("AI SYNC GENERATED END"));
+}
+
+#[test]
+fn sync_gitignore_preserves_existing_content() {
+    let project = synced_project();
+    assert!(project.read(".gitignore").contains("node_modules/"));
+}
+
+#[test]
+fn sync_gitignore_has_exactly_one_marker_block() {
+    let project = synced_project();
+    let content = project.read(".gitignore");
+    assert_eq!(content.matches("AI SYNC GENERATED START").count(), 1);
+}
+
+// ── Re-sync stability (finding 5: shared-dest / nested-agents churn) ────────
+
+#[test]
+fn sync_re_sync_emits_no_churn_for_shared_dest_command_or_nested_agents() {
+    // A second sync must not warn "Kept" for Codex-generated
+    // .agents/skills/command-* (which Antigravity's skills step sweeps because
+    // both tools share .agents/skills), nor "Removed" the nested AGENTS file
+    // .amazonq/rules/00-context.md (written by the agents step, then swept by
+    // the rules step) only to re-copy it every run.
+    let project = synced_project();
+    project
+        .agentsync()
+        .arg("sync")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Kept .agents/skills/command-").not())
+        .stdout(predicate::str::contains("Removed: .amazonq/rules/00-context.md").not());
+}

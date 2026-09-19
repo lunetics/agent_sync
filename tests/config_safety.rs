@@ -19,7 +19,10 @@ fn an_invalid_explicit_config_path_fails_without_falling_back_or_mutating_output
 
     project
         .agentsync()
-        .env("AGENTSYNC_CONFIG_PATH", &missing_config)
+        .env(
+            "AGENTSYNC_CONFIG_PATH",
+            common::engine_path(&missing_config),
+        )
         .arg("sync")
         .assert()
         .failure()
@@ -131,7 +134,10 @@ fn check_rejects_an_invalid_explicit_config_path_instead_of_using_the_local_conf
 
     project
         .agentsync()
-        .env("AGENTSYNC_CONFIG_PATH", &missing_config)
+        .env(
+            "AGENTSYNC_CONFIG_PATH",
+            common::engine_path(&missing_config),
+        )
         .arg("check")
         .assert()
         .failure()
@@ -156,7 +162,10 @@ fn read_only_commands_reject_an_invalid_explicit_config_path_instead_of_using_th
 
     project
         .agentsync()
-        .env("AGENTSYNC_CONFIG_PATH", &missing_config)
+        .env(
+            "AGENTSYNC_CONFIG_PATH",
+            common::engine_path(&missing_config),
+        )
         .arg("list")
         .assert()
         .code(1)
@@ -164,7 +173,10 @@ fn read_only_commands_reject_an_invalid_explicit_config_path_instead_of_using_th
 
     project
         .agentsync()
-        .env("AGENTSYNC_CONFIG_PATH", &missing_config)
+        .env(
+            "AGENTSYNC_CONFIG_PATH",
+            common::engine_path(&missing_config),
+        )
         .args(["show", "claude"])
         .assert()
         .code(1)
@@ -172,7 +184,10 @@ fn read_only_commands_reject_an_invalid_explicit_config_path_instead_of_using_th
 
     project
         .agentsync()
-        .env("AGENTSYNC_CONFIG_PATH", &missing_config)
+        .env(
+            "AGENTSYNC_CONFIG_PATH",
+            common::engine_path(&missing_config),
+        )
         .arg("doctor")
         .assert()
         .code(2)

@@ -138,6 +138,22 @@ pub fn engine_path(path: &Path) -> String {
     path.disk_text()
 }
 
+/// A path the engine can compare against one it canonicalised itself: the
+/// symlinks resolved and, on Windows, the 8.3 short name of the runner's
+/// `TEMP` (`RUNNER~1`) spelled out in full. A trust root like
+/// `AGENTSYNC_EXTERNAL_SOURCE_ROOTS` goes through this, as the bats helper's
+/// `cygpath -ml` did.
+pub fn canonical_engine_path(path: &Path) -> String {
+    let canonical = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    engine_path(&canonical)
+}
+
+/// A list for a path-list variable, joined the way the engine splits it:
+/// `;` on Windows, where a `C:` would otherwise split at its colon.
+pub fn path_list(parts: &[&str]) -> String {
+    parts.join(if cfg!(windows) { ";" } else { ":" })
+}
+
 /// Whether the platform honours `chmod 000` for this user: not root, not
 /// Windows, where Git Bash ignores permission bits.
 pub fn unreadable_dirs_are_possible() -> bool {

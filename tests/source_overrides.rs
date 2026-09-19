@@ -410,7 +410,10 @@ fn source_containment_explicit_absolute_source_rules_outside_the_project_syncs_a
 
     project
         .agentsync()
-        .env("AGENTSYNC_EXTERNAL_SOURCE_ROOTS", &outside_rules)
+        .env(
+            "AGENTSYNC_EXTERNAL_SOURCE_ROOTS",
+            common::canonical_engine_path(&outside_rules),
+        )
         .arg("sync")
         .assert()
         .success();
@@ -419,7 +422,10 @@ fn source_containment_explicit_absolute_source_rules_outside_the_project_syncs_a
 
     project
         .agentsync()
-        .env("AGENTSYNC_EXTERNAL_SOURCE_ROOTS", &outside_rules)
+        .env(
+            "AGENTSYNC_EXTERNAL_SOURCE_ROOTS",
+            common::canonical_engine_path(&outside_rules),
+        )
         .arg("check")
         .assert()
         .success();
@@ -448,7 +454,10 @@ fn source_containment_an_outside_source_rules_not_listed_in_agentsync_external_s
         ));
     assert!(!project.exists(".claude"));
 
-    let roots = format!("relative/path:{}", other_root.path().to_str().unwrap());
+    let roots = common::path_list(&[
+        "relative/path",
+        &common::canonical_engine_path(other_root.path()),
+    ]);
     project
         .agentsync()
         .env("AGENTSYNC_EXTERNAL_SOURCE_ROOTS", roots)
@@ -466,10 +475,10 @@ fn source_containment_a_trusted_parent_directory_admits_every_source_below_it() 
     let outside_rules = outside.path().join("rules");
     write_rules_config(&project, Some(outside_rules.to_str().unwrap()));
 
-    let roots = format!(
-        "/nonexistent-agentsync-root:{}",
-        outside.path().to_str().unwrap()
-    );
+    let roots = common::path_list(&[
+        "/nonexistent-agentsync-root",
+        &common::canonical_engine_path(outside.path()),
+    ]);
     project
         .agentsync()
         .env("AGENTSYNC_EXTERNAL_SOURCE_ROOTS", roots)
@@ -507,7 +516,10 @@ fn source_containment_explicit_dot_dot_source_rules_resolves_from_the_project_ro
 
     project
         .agentsync()
-        .env("AGENTSYNC_EXTERNAL_SOURCE_ROOTS", outside.path())
+        .env(
+            "AGENTSYNC_EXTERNAL_SOURCE_ROOTS",
+            common::canonical_engine_path(outside.path()),
+        )
         .arg("sync")
         .assert()
         .success();
@@ -515,7 +527,10 @@ fn source_containment_explicit_dot_dot_source_rules_resolves_from_the_project_ro
 
     project
         .agentsync()
-        .env("AGENTSYNC_EXTERNAL_SOURCE_ROOTS", outside.path())
+        .env(
+            "AGENTSYNC_EXTERNAL_SOURCE_ROOTS",
+            common::canonical_engine_path(outside.path()),
+        )
         .arg("check")
         .assert()
         .success();
@@ -786,7 +801,10 @@ fn source_symlinks_a_trusted_outside_target_is_read() {
 
     project
         .agentsync()
-        .env("AGENTSYNC_EXTERNAL_SOURCE_ROOTS", outside.path())
+        .env(
+            "AGENTSYNC_EXTERNAL_SOURCE_ROOTS",
+            common::canonical_engine_path(outside.path()),
+        )
         .arg("sync")
         .assert()
         .success();

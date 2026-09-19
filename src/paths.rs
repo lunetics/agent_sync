@@ -198,7 +198,7 @@ pub fn logical_root(env_root: Option<&str>, cwd: &Path, pwd: Option<&str>) -> St
 pub fn ai_dir_enclosing_root(dir: &str) -> Option<String> {
     let mut shallowest = None;
     let mut current = dir.to_string();
-    while current != "/" && !current.is_empty() {
+    while !current.is_empty() {
         if leaf(&current) == ".ai" {
             shallowest = Some(current.clone());
         }

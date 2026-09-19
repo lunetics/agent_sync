@@ -435,11 +435,17 @@ fn delete_and_prune(file: &str, stop_at: &str) -> Result<(), Error> {
         _ => {}
     }
     let mut dir = paths::parent(file);
-    while dir != stop_at && dir != "/" {
+    // `dir != "/"` alone names a root Windows does not have; stop at whatever
+    // the platform's root is, which is the path that is its own parent.
+    while dir != stop_at {
         if std::fs::remove_dir(&dir).is_err() {
             break;
         }
-        dir = paths::parent(&dir);
+        let up = paths::parent(&dir);
+        if up == dir {
+            break;
+        }
+        dir = up;
     }
     Ok(())
 }

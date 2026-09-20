@@ -6,7 +6,7 @@ The Bash engine is gone. 0.37.0 shipped the Rust binary while the shell implemen
 
 ### Changed
 
-- **Everything is faster, and `check` is a different tool.** On the repository's benchmark fixture (389 source files, 13 tools, 3465 generated files), on one machine: `check` 73.6 s → 0.25 s, `sync` 67.5 s → 2.5 s, `sync --if-stale` 0.18 s → 0.01 s, `list` 0.57 s → under 0.01 s. Startup alone fell from 38 ms to 5 ms. A `check` that took over a minute could not sit in a pre-commit hook or a CI gate; at a quarter of a second it stops being a decision. The old engine spawned a process for every value it read from YAML, every path it resolved, and every hash it computed — that is the cost that disappeared. Method and the full table: [`docs/perf/2026-09-19-rust-result.md`](docs/perf/2026-09-19-rust-result.md), measured against the [baseline](docs/perf/2026-09-13-bash-baseline.md) recorded before the migration began.
+- **Everything is faster, and `check` is a different tool.** On the repository's benchmark fixture (389 source files, 13 tools, 3465 generated files), on one machine: `check` 73.6 s → 0.25 s, `sync` 67.5 s → 2.5 s, `sync --if-stale` 0.18 s → 0.01 s, `list` 0.57 s → under 0.01 s. Startup alone fell from 38 ms to 5 ms. A `check` that took over a minute could not sit in a pre-commit hook or a CI gate; at a quarter of a second it stops being a decision. The old engine spawned a process for every value it read from YAML, every path it resolved, and every hash it computed — that is the cost that disappeared. Method and the full table are in `docs/perf/2026-09-19-rust-result.md`, measured against the baseline in `docs/perf/2026-09-13-bash-baseline.md`, recorded before the migration began.
 - **No runtime dependencies.** The binary needs neither `bash` nor coreutils. The repository keeps 390 lines of shell where a binary cannot serve: `install.sh`, which runs before a binary exists, and the guard hook, which runs in a teammate's checkout where the CLI is not installed. It held 18,566 lines before.
 - **Windows is a first-class platform, not a compatibility layer.** The binary runs natively; Git Bash is no longer involved. Its CI went from twelve sharded jobs to one.
 
@@ -16,21 +16,9 @@ The Bash engine is gone. 0.37.0 shipped the Rust binary while the shell implemen
 - **The interactive prompts lost every second answer on Linux.** `init`'s wizard read a line through a buffer that swallowed whatever you typed next, so the answer to question two vanished and the wizard used the default. Answers are read a byte at a time now, as the shell did.
 - **A source install that was already up to date never moved to the binary.** `agentsync update` returned "Already up to date!" before reaching the step that replaces a git checkout with the downloaded binary, so an install from before 0.37.0 stayed on the old layout however often you ran it.
 
-- **`doctor` could report a file as clean while a live secret sat in it.** Two
-  faults, both inherited from the Bash scanner and both now fixed: a line was
-  discarded whole if it contained a `${VARIABLE}` anywhere, so a real token
-  beside an unrelated placeholder was never reported; and only the first
-  matching pattern's hits were shown, so an AWS key hid a Slack token on the
-  next line. The scanner now reads each line with the `${...}` spans removed
-  and reports every line that matches any pattern. Expect `doctor` to find
-  things in projects it previously passed.
-- **`agentsync update` showed the wrong changelog for a version whose number is
-  a prefix of another.** `## 9.9.90` opened the section for `9.9.9`, which then
-  ran to the end of the file. The heading now has to match the whole version.
-- **`agentsync resolve` is read-only without a terminal, as it says it is.** It
-  cleared `.ai/.pending-resolutions.yaml` before reaching the check that prints
-  "read-only — not a TTY", so a CI run threw away the queue it was told it
-  would only report on.
+- **`doctor` could report a file as clean while a live secret sat in it.** Two faults, both inherited from the Bash scanner and both now fixed: a line was discarded whole if it contained a `${VARIABLE}` anywhere, so a real token beside an unrelated placeholder was never reported; and only the first matching pattern's hits were shown, so an AWS key hid a Slack token on the next line. The scanner now reads each line with the `${...}` spans removed and reports every line that matches any pattern. Expect `doctor` to find things in projects it previously passed.
+- **`agentsync update` showed the wrong changelog for a version whose number is a prefix of another.** `## 9.9.90` opened the section for `9.9.9`, which then ran to the end of the file. The heading now has to match the whole version.
+- **`agentsync resolve` is read-only without a terminal, as it says it is.** It cleared `.ai/.pending-resolutions.yaml` before reaching the check that prints "read-only — not a TTY", so a CI run threw away the queue it was told it would only report on.
 - **`dedupe` and `doctor` could hang forever on Windows outside a git repository.** Both look for a parent `.ai/src/` by walking up from the project, and the walk stopped at `/` — a root Windows does not have. Reaching `C:\`, whose parent is itself, the walk never ended: the command sat there consuming a core until it was killed. It needed a project with no `.git` anywhere above it, which is why it survived every release: the test suite created its fixtures with `git init`, so the walk always hit a repository boundary first and turned back. The port of that suite to Rust built bare directories instead, and the first Windows run found it in a minute. The walk now stops at whatever the platform's root is.
 
 ### Internal

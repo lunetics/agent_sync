@@ -49,10 +49,19 @@ alternative for a bare glyph, the principle behind WCAG technique H86.
 
 - The level tag carries the level: `[INFO]`, `[WARNING]`, `[ERROR]`,
   `[SUCCESS]`, `[DONE]`. Colour decorates the tag; the words survive a pipe.
-- Report markers are the narrow set `✓`, `✗`, `!`, `·`. They are not emoji and
-  need no presentation selector.
+- Report markers are `✓`, `✗`, `!` and `·`. `→` separates a source from a
+  destination. `•` opens a hint. None is an emoji and none needs a
+  presentation selector.
 - Never let a glyph be the only carrier of meaning. `✓ passed`, not a bare `✓`.
-- `→` separates a source from a destination and is the one arrow in use.
+- `list` marks its table with `●`, `○` and `★`, and its legend spells each one
+  out. Those three sit in Unicode Annex #11's Ambiguous width class, the same
+  class this rule cites against emoji, so a terminal that renders them wide
+  misaligns the columns after them. They stay for now because the legend
+  carries the meaning in words and changing a command's main table is its own
+  change, not a style sweep. Do not add another Ambiguous-width glyph.
+- `═` and `─` rule off sections. Their width is fixed rather than measured
+  against the terminal, so they wrap in a narrow window. Also known, also
+  waiting for its own change.
 
 ## Messages
 

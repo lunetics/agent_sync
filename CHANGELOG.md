@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.38.1
+
+### Changed
+
+- **No emoji in what the tool prints.** The level tags say the level in words — `[INFO]`, `[WARNING]`, `[ERROR]`, `[SUCCESS]`, `[DONE]` — and keep their colour on a terminal; report markers are the narrow `✓`, `✗`, `!` and `·`. Two reasons beyond taste: the warning marker carried the emoji presentation selector, which Unicode Annex #11 makes Wide, so it shifted every column after it on terminals that honour that; and a bare glyph gives a screen reader nothing to read. The folder in front of every copied file is gone too — it was the one glyph that reached pipes and CI logs, since the rest only appeared when colour was on. A script matching the old glyphs needs updating, which is why the output of a command is not a contract: use the exit status.
+
+### Fixed
+
+- **`agentsync update` printed raw Markdown links in the release notes.** A link now shows its text, plus its target when the target says something the text does not. The renderer stripped bold and code spans but had never seen a link, because no release notes had used one until 0.38.0's.
+
 ## 0.38.0
 
 The Bash engine is gone. 0.37.0 shipped the Rust binary while the shell implementation stayed in the repository as the reference; this release deletes it, and the test suite that graded both engines against each other is now Rust too. Nothing about using AgentSync changes — the commands, the config, and the generated output are the same — but the tool is faster than it has ever been, and it no longer needs `bash` on your machine.

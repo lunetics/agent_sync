@@ -85,6 +85,34 @@ fn append(path: &Path, content: &str) {
 }
 
 /// Clone a: init in the given mode, sync, commit, push. Clone b: fresh clone.
+/// `git clone` of the bare origin, retried once on a clean destination.
+///
+/// A local clone copies or hardlinks the object files, and on a CI filesystem
+/// that occasionally fails partway — `failed to copy file to
+/// '…/.git/objects/…': No such file or directory` on a macOS runner (CI run
+/// 35495160944), where the same test passes on every other run and 25 times in
+/// a row locally. The clone is the fixture here, not the behaviour under test.
+fn git_clone(team_dir: &Path, origin: &Path, dest: &Path) {
+    for attempt in 0..2 {
+        let _ = std::fs::remove_dir_all(dest);
+        let mut cmd = StdCommand::new("git");
+        cmd.args(["clone", "--quiet"])
+            .arg(origin)
+            .arg(dest)
+            .current_dir(team_dir);
+        git_env(&mut cmd);
+        let output = cmd.output().unwrap();
+        if output.status.success() {
+            return;
+        }
+        assert!(
+            attempt == 0,
+            "git clone into {dest:?} failed twice\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
 fn seed_team(team_dir: &Path, mode: &str) -> (PathBuf, PathBuf) {
     let origin = team_dir.join("origin.git");
     git(
@@ -93,15 +121,7 @@ fn seed_team(team_dir: &Path, mode: &str) -> (PathBuf, PathBuf) {
     );
 
     let a = team_dir.join("a");
-    git(
-        team_dir,
-        &[
-            "clone",
-            "--quiet",
-            origin.to_str().unwrap(),
-            a.to_str().unwrap(),
-        ],
-    );
+    git_clone(team_dir, &origin, &a);
     agentsync_at(&a)
         .args(["init", "--tools", "claude", "--yes", "--outputs", mode])
         .assert()
@@ -112,15 +132,7 @@ fn seed_team(team_dir: &Path, mode: &str) -> (PathBuf, PathBuf) {
     git(&a, &["push", "--quiet", "-u", "origin", "HEAD"]);
 
     let b = team_dir.join("b");
-    git(
-        team_dir,
-        &[
-            "clone",
-            "--quiet",
-            origin.to_str().unwrap(),
-            b.to_str().unwrap(),
-        ],
-    );
+    git_clone(team_dir, &origin, &b);
     (a, b)
 }
 

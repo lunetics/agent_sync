@@ -12,6 +12,10 @@ The Bash engine is gone. 0.37.0 shipped the Rust binary while the shell implemen
 
 ### Fixed
 
+- **The Windows binary works.** 0.37.0 shipped one, but it failed on the first command it was given: the engine prepended `/` to a drive-rooted working directory, so every run ended in `Error: Directory not found: .`. Four more faults sat behind that one — `PathBuf` joins put backslashes into paths the engine builds as strings, a backup could not set a file's modification time because the handle was not open for writing (`Could not back up sync targets`), `shell-init` did not recognise `$SHELL` when it arrived as `C:\…\bash.exe`, `add mcp` had a backslash argument rewritten as a path, and `AGENTSYNC_EXTERNAL_SOURCE_ROOTS` split at a drive letter's colon. Windows now runs the same suite as Linux and macOS, unsharded, in CI.
+- **The interactive prompts lost every second answer on Linux.** `init`'s wizard read a line through a buffer that swallowed whatever you typed next, so the answer to question two vanished and the wizard used the default. Answers are read a byte at a time now, as the shell did.
+- **A source install that was already up to date never moved to the binary.** `agentsync update` returned "Already up to date!" before reaching the step that replaces a git checkout with the downloaded binary, so an install from before 0.37.0 stayed on the old layout however often you ran it.
+
 - **`doctor` could report a file as clean while a live secret sat in it.** Two
   faults, both inherited from the Bash scanner and both now fixed: a line was
   discarded whole if it contained a `${VARIABLE}` anywhere, so a real token

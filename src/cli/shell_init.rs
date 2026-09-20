@@ -198,7 +198,7 @@ mod tests {
         let (_, _, err) = run(&["fish"], None, true);
         assert_eq!(
             err,
-            "\x1b[0;31m❌ [ERROR]\x1b[0m Unsupported shell: fish (expected 'zsh' or 'bash')\n"
+            "\x1b[0;31m[ERROR]\x1b[0m Unsupported shell: fish (expected 'zsh' or 'bash')\n"
         );
     }
 }

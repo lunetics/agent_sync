@@ -49,7 +49,7 @@ pub fn check(root: &str, env: &Env) -> Result<Report, Error> {
         project_config::Selection::Found(path) => Some(path),
         project_config::Selection::None => None,
         project_config::Selection::Missing(path) => {
-            report.err(&format!("❌ {}", project_config::missing_message(&path)));
+            report.err(&format!("✗ {}", project_config::missing_message(&path)));
             report.status = 1;
             return Ok(report);
         }
@@ -68,7 +68,7 @@ pub fn check(root: &str, env: &Env) -> Result<Report, Error> {
     let ws = match seed_workspace(root, &manifest, config_path.as_deref(), config.as_deref()) {
         Ok(ws) => ws,
         Err(detail) => {
-            report.out("❌ Failed to prepare temporary workspace for check");
+            report.out("✗ Failed to prepare temporary workspace for check");
             report.err(&detail);
             report.status = 1;
             return Ok(report);
@@ -78,7 +78,7 @@ pub fn check(root: &str, env: &Env) -> Result<Report, Error> {
     let mut session = Session::new(ws, Paths::for_disk_root(root));
     merge_shared_parent(&mut session.ws, root, config.as_deref())?;
     if render::render(&mut session, env).is_err() {
-        report.out("❌ Sync script failed during check");
+        report.out("✗ Sync script failed during check");
         report.out("Sync output (last 40 lines):");
         for line in session.log.tail(40) {
             report.out(line);
@@ -113,11 +113,11 @@ pub fn check(root: &str, env: &Env) -> Result<Report, Error> {
     }
 
     if differences.is_empty() {
-        report.out("✅ AgentSync configurations are safe and synced.");
+        report.out("✓ AgentSync configurations are safe and synced.");
         return Ok(report);
     }
     report.out("");
-    report.out("⚠️  AgentSync configurations are out of sync with source.");
+    report.out("!  AgentSync configurations are out of sync with source.");
     report.out("Differences detected (showing up to 20):");
     for line in differences.iter().take(20) {
         report.out(line);
@@ -148,7 +148,7 @@ fn version_pin_mismatch(
         Err(value) => {
             let shown = path.strip_prefix(&format!("{root}/")).unwrap_or(path);
             return Some(vec![format!(
-                "❌ Unknown version_pin.mode '{value}' in {shown} — expected 'warn' or 'strict'"
+                "✗ Unknown version_pin.mode '{value}' in {shown} — expected 'warn' or 'strict'"
             )]);
         }
     };
@@ -167,7 +167,7 @@ fn version_pin_mismatch(
     }
     let [first, second] = version::hint(&pinned, engine);
     Some(vec![
-        format!("❌ {}", version::mismatch_error(&pinned, engine, committed)),
+        format!("✗ {}", version::mismatch_error(&pinned, engine, committed)),
         first,
         second,
     ])
@@ -315,7 +315,7 @@ mod tests {
         let (_dir, root) = project();
         let report = check(&root, &Env::default()).unwrap();
         assert_eq!(report.status, 1);
-        assert!(report.stdout.starts_with("Checking AgentSync configuration synchronization...\n\n⚠️  AgentSync configurations are out of sync with source.\nDifferences detected (showing up to 20):\n"));
+        assert!(report.stdout.starts_with("Checking AgentSync configuration synchronization...\n\n!  AgentSync configurations are out of sync with source.\nDifferences detected (showing up to 20):\n"));
         assert!(report.stdout.contains("Missing: CLAUDE.md\n"));
         assert!(report.stdout.ends_with("\nPlease run: agentsync sync\n"));
     }
@@ -363,7 +363,7 @@ mod tests {
         let clean = check(&root, &Env::default()).unwrap();
         assert_eq!(
             clean.stdout,
-            "Checking AgentSync configuration synchronization...\n✅ AgentSync configurations are safe and synced.\n"
+            "Checking AgentSync configuration synchronization...\n✓ AgentSync configurations are safe and synced.\n"
         );
         assert_eq!(clean.status, 0);
 
@@ -394,7 +394,7 @@ mod tests {
         assert!(
             report
                 .stderr
-                .starts_with("❌ This project pins agentsync 0.0.1 but you are running ")
+                .starts_with("✗ This project pins agentsync 0.0.1 but you are running ")
         );
     }
 
@@ -404,7 +404,7 @@ mod tests {
         std::fs::remove_file(Path::new(&root).join(".ai/src/AGENTS.md")).unwrap();
         let report = check(&root, &Env::default()).unwrap();
         assert_eq!(report.status, 1);
-        assert!(report.stdout.starts_with("Checking AgentSync configuration synchronization...\n❌ Sync script failed during check\nSync output (last 40 lines):\n[ERROR] Source agents file not found: "));
+        assert!(report.stdout.starts_with("Checking AgentSync configuration synchronization...\n✗ Sync script failed during check\nSync output (last 40 lines):\n[ERROR] Source agents file not found: "));
     }
 
     #[test]
@@ -415,7 +415,7 @@ mod tests {
         assert_eq!(
             report,
             Report {
-                stdout: "Checking AgentSync configuration synchronization...\n❌ Failed to prepare temporary workspace for check\n".into(),
+                stdout: "Checking AgentSync configuration synchronization...\n✗ Failed to prepare temporary workspace for check\n".into(),
                 stderr: "Incomplete copy — missing: .ai\n".into(),
                 status: 1,
             }
@@ -449,7 +449,7 @@ mod tests {
             Report {
                 stdout: String::new(),
                 stderr: format!(
-                    "❌ AGENTSYNC_CONFIG_PATH is set but file not found: {root}/missing.yaml\n"
+                    "✗ AGENTSYNC_CONFIG_PATH is set but file not found: {root}/missing.yaml\n"
                 ),
                 status: 1,
             }
@@ -484,7 +484,7 @@ mod tests {
         assert_eq!(
             report.stderr,
             format!(
-                "❌ This project pins agentsync 0.0.1 but you are running {engine} — version_pin.mode 'strict' requires local outputs to use the pinned version.\n  • Match the pin:  agentsync update 0.0.1\n  • Or move it:     agentsync upgrade-config   (re-pins to {engine}; re-sync and commit the outputs)\n"
+                "✗ This project pins agentsync 0.0.1 but you are running {engine} — version_pin.mode 'strict' requires local outputs to use the pinned version.\n  • Match the pin:  agentsync update 0.0.1\n  • Or move it:     agentsync upgrade-config   (re-pins to {engine}; re-sync and commit the outputs)\n"
             )
         );
 
@@ -496,7 +496,7 @@ mod tests {
         let report = check(&root, &Env::default()).unwrap();
         assert_eq!(
             report.stderr,
-            "❌ Unknown version_pin.mode 'refuse' in .ai/agent_sync.yaml — expected 'warn' or 'strict'\n"
+            "✗ Unknown version_pin.mode 'refuse' in .ai/agent_sync.yaml — expected 'warn' or 'strict'\n"
         );
         assert_eq!(report.status, 1);
     }
@@ -514,7 +514,7 @@ mod tests {
         assert!(
             report
                 .stderr
-                .starts_with("❌ This project pins agentsync 0.0.1 but you are running ")
+                .starts_with("✗ This project pins agentsync 0.0.1 but you are running ")
         );
         assert!(
             report

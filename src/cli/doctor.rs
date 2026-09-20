@@ -402,7 +402,7 @@ impl Doctor<'_> {
 
     fn warn(&mut self, text: &str) -> Result<(), Error> {
         self.warnings += 1;
-        let line = format!("    {} {text}\n", self.style.yellow("⚠"));
+        let line = format!("    {} {text}\n", self.style.yellow("!"));
         self.say(&line)
     }
 
@@ -419,7 +419,7 @@ impl Doctor<'_> {
 
     fn advise(&mut self, text: &str) -> Result<(), Error> {
         self.advisories += 1;
-        let line = format!("    {} {text}\n", self.style.yellow("⚠"));
+        let line = format!("    {} {text}\n", self.style.yellow("!"));
         self.say(&line)
     }
 
@@ -1453,7 +1453,7 @@ mod tests {
         assert_eq!(status, 1);
         assert_eq!(err, "");
         let expected = format!(
-            "\n  AgentSync Doctor\n  {root}\n\n  Project layout\n    ✓ .ai/ directory present\n    ✓ AGENTS.md source file found\n    ⚠ No agent_sync.yaml — using defaults only\n\n  Enabled tools\n    · No tools enabled — run agentsync enable <slug>\n\n  User overrides\n    · No customizations — all tools inherit fully from base\n\n  Source directories\n    ✓ .ai/src/AGENTS.md\n    · .ai/src/rules not present (optional)\n    · .ai/src/skills not present (optional)\n    · .ai/src/commands not present (optional)\n    · .ai/src/agents not present (optional)\n\n  Drift\n    · No .sync-manifest yet — run agentsync sync to create it\n\n  Security\n    · No overrides to scan, or all clean.\n\n  Skills\n    · No .ai/src/skills/ — nothing to scan.\n\n  Rules\n    · No .ai/src/rules/ — nothing to scan.\n\n  Tool outputs\n    ✓ No orphan tool-output directories\n\n  Cross-project\n    · No parent .ai/src/ found within git boundary.\n\n  {}\n  OK with 1 warning(s)\n\n",
+            "\n  AgentSync Doctor\n  {root}\n\n  Project layout\n    ✓ .ai/ directory present\n    ✓ AGENTS.md source file found\n    ! No agent_sync.yaml — using defaults only\n\n  Enabled tools\n    · No tools enabled — run agentsync enable <slug>\n\n  User overrides\n    · No customizations — all tools inherit fully from base\n\n  Source directories\n    ✓ .ai/src/AGENTS.md\n    · .ai/src/rules not present (optional)\n    · .ai/src/skills not present (optional)\n    · .ai/src/commands not present (optional)\n    · .ai/src/agents not present (optional)\n\n  Drift\n    · No .sync-manifest yet — run agentsync sync to create it\n\n  Security\n    · No overrides to scan, or all clean.\n\n  Skills\n    · No .ai/src/skills/ — nothing to scan.\n\n  Rules\n    · No .ai/src/rules/ — nothing to scan.\n\n  Tool outputs\n    ✓ No orphan tool-output directories\n\n  Cross-project\n    · No parent .ai/src/ found within git boundary.\n\n  {}\n  OK with 1 warning(s)\n\n",
             "─".repeat(60)
         );
         assert_eq!(out, expected);
@@ -1484,7 +1484,7 @@ mod tests {
         assert_eq!(status, 1);
         assert_eq!(err, "");
         let expected = format!(
-            "\n  AgentSync Doctor\n  {root}\n\n  Project layout\n    ✓ .ai/ directory present\n    ✓ AGENTS.md source file found\n    ✓ Project config: .ai/agent_sync.yaml\n    ⚠ CLI version v0.36.0 differs from pinned v0.0.1 — run agentsync upgrade-config to align\n    ⚠ Project format r1 is behind the engine r2 — run agentsync migrate to preview\n\n  Enabled tools\n    · No tools enabled — run agentsync enable <slug>\n\n  User overrides\n    · No customizations — all tools inherit fully from base\n\n  Source directories\n    ✓ .ai/src/AGENTS.md\n    ✓ .ai/src/rules\n    ✓ .ai/src/skills\n    · .ai/src/commands not present (optional)\n    · .ai/src/agents not present (optional)\n\n  Drift\n    ⚠ CLAUDE.md — missing (deleted manually)\n\n    Re-run agentsync sync to overwrite, or move edits into .ai/src/ first.\n\n  Security\n    · No overrides to scan, or all clean.\n\n  Skills\n    ⚠ skills/empty/ — missing SKILL.md (empty skill — populate or remove)\n    · Tip: agentsync simplify can prune empty skill dirs.\n\n  Rules\n    ✓ No always-on rules (every rule is paths:-scoped)\n\n  Tool outputs\n    ⚠ .claude/ — orphan (tool 'claude' not enabled; output left from prior run)\n\n  Cross-project\n    · No parent .ai/src/ found within git boundary.\n\n  {}\n  OK with 3 warning(s), 2 advisory(ies)\n\n",
+            "\n  AgentSync Doctor\n  {root}\n\n  Project layout\n    ✓ .ai/ directory present\n    ✓ AGENTS.md source file found\n    ✓ Project config: .ai/agent_sync.yaml\n    ! CLI version v0.36.0 differs from pinned v0.0.1 — run agentsync upgrade-config to align\n    ! Project format r1 is behind the engine r2 — run agentsync migrate to preview\n\n  Enabled tools\n    · No tools enabled — run agentsync enable <slug>\n\n  User overrides\n    · No customizations — all tools inherit fully from base\n\n  Source directories\n    ✓ .ai/src/AGENTS.md\n    ✓ .ai/src/rules\n    ✓ .ai/src/skills\n    · .ai/src/commands not present (optional)\n    · .ai/src/agents not present (optional)\n\n  Drift\n    ! CLAUDE.md — missing (deleted manually)\n\n    Re-run agentsync sync to overwrite, or move edits into .ai/src/ first.\n\n  Security\n    · No overrides to scan, or all clean.\n\n  Skills\n    ! skills/empty/ — missing SKILL.md (empty skill — populate or remove)\n    · Tip: agentsync simplify can prune empty skill dirs.\n\n  Rules\n    ✓ No always-on rules (every rule is paths:-scoped)\n\n  Tool outputs\n    ! .claude/ — orphan (tool 'claude' not enabled; output left from prior run)\n\n  Cross-project\n    · No parent .ai/src/ found within git boundary.\n\n  {}\n  OK with 3 warning(s), 2 advisory(ies)\n\n",
             "─".repeat(60)
         );
         assert_eq!(out, expected);

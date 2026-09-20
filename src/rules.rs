@@ -651,7 +651,7 @@ mod tests {
         assert!(s.ws.exists("/proj/.cursor/rules/notes.txt"));
         assert_eq!(
             s.log.tail(1),
-            ["   📁 .ai/src/rules/ → .cursor/rules/ (1 updates, 1 cleanups)"]
+            ["   .ai/src/rules/ → .cursor/rules/ (1 updates, 1 cleanups)"]
         );
     }
 
@@ -819,23 +819,23 @@ mod tests {
             lines,
             [
                 "[WARNING] Would keep .cursor/rules/mine.mdc (not from .ai/src/; --force to prune)",
-                "   📁 Would remove: .cursor/rules/old.mdc (obsolete)",
-                "   📁 .ai/src/rules/ → .cursor/rules/ (1 updates, 1 cleanups) (dry-run)",
-                "   📁 .ai/src/agents/rev.md → .codex/agents/rev.toml (agent md→toml) (dry-run)",
+                "   Would remove: .cursor/rules/old.mdc (obsolete)",
+                "   .ai/src/rules/ → .cursor/rules/ (1 updates, 1 cleanups) (dry-run)",
+                "   .ai/src/agents/rev.md → .codex/agents/rev.toml (agent md→toml) (dry-run)",
                 "[WARNING] Would keep .codex/agents/mine.toml (not from .ai/src/; --force to prune)",
-                "   📁 Would remove: .codex/agents/old.toml (obsolete)",
-                "   📁 .ai/src/agents/ → .codex/agents/ (1 agents, md→toml)",
-                "   📁 Would remove obsolete generated skill: command-gone",
-                "   📁 .ai/src/commands/*.md → .agents/skills/command-*/SKILL.md (1 generated) (dry-run)",
-                "   📁 .ai/src/rules/ → .rules (1 files merged +agents) (dry-run)",
-                "   📁 .ai/src/commands/review.md → .gemini/commands/review.toml (md→toml) (dry-run)",
-                "   📁 .ai/src/commands/ → .gemini/commands/ (1 commands, md→toml)",
+                "   Would remove: .codex/agents/old.toml (obsolete)",
+                "   .ai/src/agents/ → .codex/agents/ (1 agents, md→toml)",
+                "   Would remove obsolete generated skill: command-gone",
+                "   .ai/src/commands/*.md → .agents/skills/command-*/SKILL.md (1 generated) (dry-run)",
+                "   .ai/src/rules/ → .rules (1 files merged +agents) (dry-run)",
+                "   .ai/src/commands/review.md → .gemini/commands/review.toml (md→toml) (dry-run)",
+                "   .ai/src/commands/ → .gemini/commands/ (1 commands, md→toml)",
                 "[WARNING] Kept .cursor/rules/mine.mdc (not from .ai/src/; move it into .ai/src/, or re-run with --force to prune)",
-                "   📁 Removed: .cursor/rules/old.mdc",
-                "   📁 .ai/src/rules/ → .cursor/rules/ (1 updates, 1 cleanups)",
+                "   Removed: .cursor/rules/old.mdc",
+                "   .ai/src/rules/ → .cursor/rules/ (1 updates, 1 cleanups)",
                 "[WARNING] Kept .codex/agents/mine.toml (not from .ai/src/; move it into .ai/src/, or re-run with --force to prune)",
-                "   📁 Removed: .codex/agents/old.toml",
-                "   📁 .ai/src/agents/ → .codex/agents/ (1 agents, md→toml)",
+                "   Removed: .codex/agents/old.toml",
+                "   .ai/src/agents/ → .codex/agents/ (1 agents, md→toml)",
             ]
         );
     }
@@ -862,7 +862,7 @@ mod tests {
         assert!(s.ws.exists("/proj/.codex/agents/keep.json"));
         assert_eq!(
             s.log.tail(1),
-            ["   📁 .ai/src/agents/ → .codex/agents/ (1 agents, md→toml)"]
+            ["   .ai/src/agents/ → .codex/agents/ (1 agents, md→toml)"]
         );
     }
 
@@ -894,7 +894,7 @@ mod tests {
         assert_eq!(text_of(&s, "/proj/merged.md"), "# Agent\n\n---\n\n");
         assert_eq!(
             s.log.tail(1),
-            ["   📁 .ai/src/rules/ → merged.md (0 files merged)"]
+            ["   .ai/src/rules/ → merged.md (0 files merged)"]
         );
     }
 

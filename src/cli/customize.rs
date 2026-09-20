@@ -277,7 +277,7 @@ fn customize_payload(
             out,
             format!(
                 "\n{}\nHooks can run shell commands after sync. Review the base template\nbelow before copying it — anything you put here will run locally.\n\n{}\n\n",
-                style.yellow(&format!("⚠  You are about to override hooks for {}.", tool.display_name())),
+                style.yellow(&format!("!  You are about to override hooks for {}.", tool.display_name())),
                 style.dim(&format!("  Base: {}", base.shown()))
             )
             .as_bytes(),
@@ -390,7 +390,7 @@ mod tests {
         assert_eq!(hooks.status, 1);
         assert_eq!(
             hooks.out,
-            "\n⚠  You are about to override hooks for Cursor.\nHooks can run shell commands after sync. Review the base template\nbelow before copying it — anything you put here will run locally.\n\n  Base: /<agentsync>/lib/templates/hooks/cursor.json\n\n    {\n      \"version\": 1,\n      \"hooks\": {}\n    }\n\n"
+            "\n!  You are about to override hooks for Cursor.\nHooks can run shell commands after sync. Review the base template\nbelow before copying it — anything you put here will run locally.\n\n  Base: /<agentsync>/lib/templates/hooks/cursor.json\n\n    {\n      \"version\": 1,\n      \"hooks\": {}\n    }\n\n"
         );
         assert_eq!(
             hooks.err,

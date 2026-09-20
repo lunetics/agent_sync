@@ -46,9 +46,12 @@ impl Log {
         }
     }
 
-    fn tagged(&mut self, stream: Stream, color: &str, emoji: &str, tag: &str, msg: &str) {
+    /// A level tag, coloured on a terminal and plain otherwise. No glyph: the
+    /// tag names the level in words, so nothing depends on a font having the
+    /// character or on a terminal agreeing how wide it is.
+    fn tagged(&mut self, stream: Stream, color: &str, tag: &str, msg: &str) {
         let line = if self.colors {
-            format!("{color}{emoji} {tag}{RESET} {msg}")
+            format!("{color}{tag}{RESET} {msg}")
         } else {
             format!("{tag} {msg}")
         };
@@ -56,27 +59,27 @@ impl Log {
     }
 
     pub fn info(&mut self, msg: &str) {
-        self.tagged(Stream::Out, BLUE, "🔵", "[INFO]", msg);
+        self.tagged(Stream::Out, BLUE, "[INFO]", msg);
     }
 
     pub fn success(&mut self, msg: &str) {
-        self.tagged(Stream::Out, GREEN, "✅", "[SUCCESS]", msg);
+        self.tagged(Stream::Out, GREEN, "[SUCCESS]", msg);
     }
 
     pub fn warning(&mut self, msg: &str) {
-        self.tagged(Stream::Out, YELLOW, "⚠\u{fe0f} ", "[WARNING]", msg);
+        self.tagged(Stream::Out, YELLOW, "[WARNING]", msg);
     }
 
     pub fn error(&mut self, msg: &str) {
-        self.tagged(Stream::Err, RED, "❌", "[ERROR]", msg);
+        self.tagged(Stream::Err, RED, "[ERROR]", msg);
     }
 
     pub fn done(&mut self, msg: &str) {
-        self.tagged(Stream::Out, GREEN, "✅", "[DONE]", msg);
+        self.tagged(Stream::Out, GREEN, "[DONE]", msg);
     }
 
     pub fn step(&mut self, msg: &str) {
-        self.out(format!("   📁 {msg}"));
+        self.out(format!("   {msg}"));
     }
 
     pub fn separator(&mut self) {
@@ -135,7 +138,7 @@ mod tests {
                 "[INFO] a",
                 "[WARNING] b",
                 "[ERROR] c",
-                "   📁 d",
+                "   d",
                 "[SUCCESS] e",
                 "[DONE] f"
             ]
@@ -177,18 +180,15 @@ mod tests {
             [
                 (
                     Stream::Out,
-                    "\x1b[0;34m🔵 [INFO]\x1b[0m Syncing Claude Code...".to_string()
+                    "\x1b[0;34m[INFO]\x1b[0m Syncing Claude Code...".to_string()
                 ),
+                (Stream::Out, "\x1b[0;33m[WARNING]\x1b[0m w".to_string()),
+                (Stream::Err, "\x1b[0;31m[ERROR]\x1b[0m e".to_string()),
                 (
                     Stream::Out,
-                    "\x1b[0;33m⚠\u{fe0f}  [WARNING]\x1b[0m w".to_string()
+                    "\x1b[0;32m[DONE]\x1b[0m Synced 1/1 tools".to_string()
                 ),
-                (Stream::Err, "\x1b[0;31m❌ [ERROR]\x1b[0m e".to_string()),
-                (
-                    Stream::Out,
-                    "\x1b[0;32m✅ [DONE]\x1b[0m Synced 1/1 tools".to_string()
-                ),
-                (Stream::Out, "   📁 s".to_string()),
+                (Stream::Out, "   s".to_string()),
             ]
         );
     }

@@ -139,7 +139,7 @@ mod tests {
         copy_file(&mut s, "/proj/.ai/src/AGENTS.md", "/proj/CLAUDE.md").unwrap();
         assert_eq!(s.ws.read("/proj/CLAUDE.md").unwrap(), b"new");
         assert!(s.was_touched("/proj/CLAUDE.md"));
-        assert_eq!(s.log.tail(1), ["   📁 .ai/src/AGENTS.md → CLAUDE.md"]);
+        assert_eq!(s.log.tail(1), ["   .ai/src/AGENTS.md → CLAUDE.md"]);
     }
 
     #[test]
@@ -202,8 +202,8 @@ mod tests {
         assert_eq!(
             s.log.tail(2),
             [
-                "   📁 Removed: .claude/skills/stale",
-                "   📁 .ai/src/skills/ → .claude/skills/ (1 updates, 1 cleanups)"
+                "   Removed: .claude/skills/stale",
+                "   .ai/src/skills/ → .claude/skills/ (1 updates, 1 cleanups)"
             ]
         );
     }
@@ -242,10 +242,10 @@ mod tests {
         assert_eq!(
             s.log.tail(4),
             [
-                "   📁 .ai/src/AGENTS.md → CLAUDE.md (dry-run)",
-                "   📁 Would remove: .claude/skills/stale (extraneous)",
-                "   📁 .ai/src/skills/ → .claude/skills/ (1 updates, 1 cleanups) (dry-run)",
-                "   📁 Would remove: .cursor/rules (dry-run)"
+                "   .ai/src/AGENTS.md → CLAUDE.md (dry-run)",
+                "   Would remove: .claude/skills/stale (extraneous)",
+                "   .ai/src/skills/ → .claude/skills/ (1 updates, 1 cleanups) (dry-run)",
+                "   Would remove: .cursor/rules (dry-run)"
             ]
         );
     }
@@ -272,8 +272,8 @@ mod tests {
             s.log.tail(3),
             [
                 "[WARNING] Kept .claude/skills/mine (not from .ai/src/; move it into .ai/src/, or re-run with --force to prune)",
-                "   📁 Removed: .claude/skills/old",
-                "   📁 .ai/src/skills/ → .claude/skills/ (1 updates, 1 cleanups)"
+                "   Removed: .claude/skills/old",
+                "   .ai/src/skills/ → .claude/skills/ (1 updates, 1 cleanups)"
             ]
         );
     }

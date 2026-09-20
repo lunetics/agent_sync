@@ -132,7 +132,7 @@ impl Session {
         let root_prefix = format!("{}/", self.paths.root);
         let rel = abs.strip_prefix(&root_prefix).unwrap_or(abs).to_string();
         self.log
-            .err(format!("⚠  Legacy payload override layout detected: {rel}"));
+            .err(format!("!  Legacy payload override layout detected: {rel}"));
         self.log
             .err("   Move to .ai/src/tools/<tool>/<resource>.<ext> (canonical since 0.11).".into());
         self.log
@@ -166,7 +166,7 @@ mod tests {
         assert_eq!(s.log.lines().len(), 3);
         assert_eq!(
             s.log.tail(3)[0],
-            "⚠  Legacy payload override layout detected: .ai/src/mcp/claude.json"
+            "!  Legacy payload override layout detected: .ai/src/mcp/claude.json"
         );
     }
 

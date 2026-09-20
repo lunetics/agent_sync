@@ -474,10 +474,13 @@ back to Bash when no binary existed.
 Recorded so the parity work reproduces them knowingly and the post-cutover
 cleanup has a list.
 
-**Status, 2026-09-20:** the cutover is past and the binary still reproduces all
-of these except item 8, which was struck. The list is open debt with no owner
-and no plan; nothing here is a regression, and each item is a decision to make
-once rather than a bug to find twice.
+**Status, 2026-09-20:** the cutover is past.
+`docs/plans/2026-09-20-post-cutover-quirks.md` triages every item — 41 defects,
+3 compatibility decisions, 10 cosmetic — and records what each would cost to
+fix. Items 22, 24, 44, 45 and 55 are fixed in 0.38.0 and struck below; item 8
+was never a quirk. The rest stand, and 21 of them have no test pinning them,
+which the plan puts first. Nothing here is a regression: each item is a
+decision to make once rather than a bug to find twice.
 
 1. `parse_yaml_list` on an empty block key keeps scanning and returns the next
    dash list anywhere later in the file (`yaml.sh:180-197`).
@@ -522,11 +525,12 @@ once rather than a bug to find twice.
     `customize` and `show` validate first.
 21. `simplify`'s payload pass scans `.ai/src/tools` even when `source.tools`
     moves the tool override directory.
-22. `resolve` without a terminal ignores its tool filter and exits 0.
+22. *Fixed in 0.38.0.* `resolve` without a terminal ignored its tool filter
+    and exited 0, having already cleared the queue; it is read-only now.
 23. `yaml_remove_key` (`simplify --apply`, `resolve` adopt) drops the blank
     lines directly after the removed block.
-24. `resolve` in a project without overrides deletes
-    `.ai/.pending-resolutions.yaml`, terminal or not.
+24. *Fixed in 0.38.0.* `resolve` in a project without overrides deleted
+    `.ai/.pending-resolutions.yaml` whether or not it had a terminal.
 25. `simplify --apply` without a terminal deletes byte-identical payload copies
     but keeps an override file it emptied.
 26. `profile add --tools` keeps spaces around comma-separated names and accepts
@@ -571,11 +575,13 @@ once rather than a bug to find twice.
 43. `init` heals `.ai/.template-manifest` before it adopts existing outputs, so
     an adopted `AGENTS.md` carries the template's hash and `refresh` treats it
     as a silently kept edit.
-44. `doctor`'s secret scan lists only the lines of the first pattern with a
-    hit, in pattern order, so a file with an AWS key on line 1 and an OpenAI
-    key on line 2 reports only line 2.
-45. `doctor` never reports a line holding `${…}` anywhere, or `<…>` without
-    `sk-`, however real the key beside the placeholder.
+44. *Fixed in 0.38.0.* `doctor`'s secret scan listed only the lines of the
+    first pattern with a hit, so an AWS key on line 1 hid an OpenAI key on
+    line 2.
+45. *Fixed in 0.38.0 for `${…}`.* A line holding `${…}` anywhere was never
+    reported, however real the key beside the placeholder; the scan now reads
+    the line with those spans removed. The `<…>` rule stands: an angle-bracket
+    placeholder still suppresses the line unless it holds `sk-`.
 46. `add mcp` re-emits only the `mcpServers` member of `.ai/src/mcp.json`,
     dropping every other top-level member, and replaces a file without a
     `"mcpServers"` substring with a fresh object holding the one server.
@@ -596,9 +602,9 @@ once rather than a bug to find twice.
     one, so `--bogus --help` prints the unknown-option error, not the help.
 54. `release` exits 1 with nothing after its `Continue? [Y/n]:` prompt when
     stdin ends there: `read -r confirm` fails and errexit ends the run.
-55. `update`'s changelog renderer matches a `## <version>` heading by prefix,
-    so `## 9.9.90` renders under `9.9.9`, and a later heading that matches
-    again appends its section instead of ending the first.
+55. *Fixed in 0.38.0.* `update`'s changelog renderer matched a
+    `## <version>` heading by prefix, so `## 9.9.90` rendered under `9.9.9`
+    and ran on to the end of the file.
 
 ## Accepted deviations
 

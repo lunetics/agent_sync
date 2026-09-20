@@ -131,8 +131,27 @@ impl Secret {
     }
 }
 
-/// `_doctor_scan_file`: the `grep -n` lines of the first pattern with a hit
-/// that is not a placeholder; empty for a clean or binary file.
+/// Every `${...}` span removed, so a pattern reads what is left. A name in
+/// braces is a placeholder; a secret standing next to one is still a secret.
+fn without_placeholders(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(start) = rest.find("${") {
+        out.push_str(&rest[..start]);
+        match rest[start..].find('}') {
+            Some(end) => rest = &rest[start + end + 1..],
+            None => {
+                rest = "";
+                break;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+/// `_doctor_scan_file`: the `grep -n` lines that hold a secret, one entry per
+/// line whatever matched it; empty for a clean or binary file.
 fn scan_secrets(bytes: &[u8]) -> Vec<String> {
     if bytes.contains(&0) {
         return Vec::new();
@@ -141,29 +160,24 @@ fn scan_secrets(bytes: &[u8]) -> Vec<String> {
     if lines.last() == Some(&&b""[..]) {
         lines.pop();
     }
-    for pattern in &SECRET_PATTERNS {
-        let mut hits = Vec::new();
-        for (index, line) in lines.iter().enumerate() {
-            if !pattern.found_in(line) {
-                continue;
-            }
-            let text = String::from_utf8_lossy(line);
-            if text.contains("${") && text[text.find("${").unwrap_or(0)..].contains('}') {
-                continue;
-            }
-            if text.contains('<')
-                && text[text.find('<').unwrap_or(0)..].contains('>')
-                && !text.contains("sk-")
-            {
-                continue;
-            }
+    let mut hits = Vec::new();
+    for (index, line) in lines.iter().enumerate() {
+        let text = String::from_utf8_lossy(line);
+        if text.contains('<')
+            && text[text.find('<').unwrap_or(0)..].contains('>')
+            && !text.contains("sk-")
+        {
+            continue;
+        }
+        let readable = without_placeholders(&text);
+        if SECRET_PATTERNS
+            .iter()
+            .any(|pattern| pattern.found_in(readable.as_bytes()))
+        {
             hits.push(format!("{}:{text}", index + 1));
         }
-        if !hits.is_empty() {
-            return hits;
-        }
     }
-    Vec::new()
+    hits
 }
 
 /// `_doctor_validate_json` as `python3 -c 'json.load(...)'` answers it: RFC
@@ -1299,26 +1313,40 @@ mod tests {
         );
         let many = br#"{"aws":{"key":"AKIAIOSFODNN7EXAMPLE"},"slack":"xoxb-1234567890-abc","g":"AIzaSyA1234567890abcdefghijklmnopqrstuv","jwt":"eyJabcdefghijk.eyJabcdefghijk.abcdefghijklmn","pat":"github_pat_abcdefghijklmnopqrstuvwxyz0123456789"}"#;
         assert_eq!(scan_secrets(many).len(), 1);
+        // Every match is reported, whichever pattern found it: Bash returned
+        // the first pattern's hits and hid the rest.
         assert_eq!(
             scan_secrets(b"AKIAIOSFODNN7EXAMPLE\nsk-abcdefghijklmnopqrstuvwxyz\n"),
-            vec!["2:sk-abcdefghijklmnopqrstuvwxyz".to_string()]
+            vec![
+                "1:AKIAIOSFODNN7EXAMPLE".to_string(),
+                "2:sk-abcdefghijklmnopqrstuvwxyz".to_string()
+            ]
         );
         assert_eq!(
             scan_secrets(
                 b"first xoxp-abcdefghij-k\nsecond eyJabcdefghijk.eyJabcdefghijk.abcdefghijklmn\n"
             ),
-            vec!["1:first xoxp-abcdefghij-k".to_string()]
+            vec![
+                "1:first xoxp-abcdefghij-k".to_string(),
+                "2:second eyJabcdefghijk.eyJabcdefghijk.abcdefghijklmn".to_string()
+            ]
         );
+        // A `${VAR}` beside a real token no longer hides it.
         assert_eq!(
             scan_secrets(
                 b"a ${X} ghp_abcdefghijklmnopqrstuvwxyz012345678901\nb AKIAIOSFODNN7EXAMPLE\n"
             ),
-            vec!["2:b AKIAIOSFODNN7EXAMPLE".to_string()]
+            vec![
+                "1:a ${X} ghp_abcdefghijklmnopqrstuvwxyz012345678901".to_string(),
+                "2:b AKIAIOSFODNN7EXAMPLE".to_string()
+            ]
         );
-        assert!(
-            scan_secrets(b"token: ${GITHUB_TOKEN} ghp_abcdefghijklmnopqrstuvwxyz012345678901\n")
-                .is_empty()
+        assert_eq!(
+            scan_secrets(b"token: ${GITHUB_TOKEN} ghp_abcdefghijklmnopqrstuvwxyz012345678901\n"),
+            vec!["1:token: ${GITHUB_TOKEN} ghp_abcdefghijklmnopqrstuvwxyz012345678901".to_string()]
         );
+        // A name in braces on its own is still a placeholder.
+        assert!(scan_secrets(b"token: ${GITHUB_TOKEN}\n").is_empty());
         assert!(scan_secrets(b"<ghp_abcdefghijklmnopqrstuvwxyz012345678901>\n").is_empty());
         assert_eq!(
             scan_secrets(b"<sk-abcdefghijklmnopqrstuvwxyz>\n"),

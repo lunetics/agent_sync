@@ -34,7 +34,8 @@ pub fn resolve(
             )
             .as_bytes(),
         )?;
-        if !pending.is_empty() {
+        // Read-only without a terminal, as the branch below promises.
+        if interactive && !pending.is_empty() {
             snapshot::clear_pending(&project.root);
         }
         return Ok(0);
@@ -220,7 +221,7 @@ mod tests {
     }
 
     #[test]
-    fn resolve_without_overrides_clears_the_queue_and_without_a_terminal_only_reports() {
+    fn resolve_without_a_terminal_reports_and_leaves_the_queue_alone() {
         let (_dir, root) = project();
         let pending = format!("{root}/.ai/.pending-resolutions.yaml");
         std::fs::write(
@@ -236,7 +237,9 @@ mod tests {
                 String::new()
             )
         );
-        assert!(!std::path::Path::new(&pending).exists());
+        // Was known quirk 24: the queue was cleared before the terminal
+        // check one branch below promised the run would change nothing.
+        assert!(std::path::Path::new(&pending).exists());
 
         std::fs::write(format!("{root}/.ai/src/tools/cursor.yaml"), "name: Mine\n").unwrap();
         assert_eq!(

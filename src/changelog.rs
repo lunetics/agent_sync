@@ -145,7 +145,8 @@ pub fn sections(changelog: &str, versions: &[String], width: usize, style: &Styl
         let mut in_section = false;
         let mut started = false;
         for line in complete_lines(changelog) {
-            if line.starts_with(&heading) {
+            // A prefix test would open `## 9.9.90` for version `9.9.9`.
+            if line == heading || line.strip_prefix(&heading) == Some(" ") {
                 in_section = true;
                 continue;
             }
@@ -271,18 +272,16 @@ mod tests {
     }
 
     #[test]
-    fn a_heading_matches_by_prefix_like_bash_does() {
-        // Known quirk 55.
+    fn a_heading_matches_the_whole_version_not_a_prefix_of_it() {
+        // Was known quirk 55: `## 9.9.90` opened the section of `9.9.9`, which
+        // then ran to the end of the file.
         let out = sections(
             "## 9.9.90\n\n- Ninety.\n\n## 9.9.9\n\n- Nine.\n",
             &["9.9.9".to_string()],
             80,
             &Style::plain(),
         );
-        assert_eq!(
-            out,
-            "\n  What's new in v9.9.9:\n\n    • Ninety.\n    • Nine.\n"
-        );
+        assert_eq!(out, "\n  What's new in v9.9.9:\n\n    • Nine.\n");
     }
 
     #[test]

@@ -12,6 +12,21 @@ The Bash engine is gone. 0.37.0 shipped the Rust binary while the shell implemen
 
 ### Fixed
 
+- **`doctor` could report a file as clean while a live secret sat in it.** Two
+  faults, both inherited from the Bash scanner and both now fixed: a line was
+  discarded whole if it contained a `${VARIABLE}` anywhere, so a real token
+  beside an unrelated placeholder was never reported; and only the first
+  matching pattern's hits were shown, so an AWS key hid a Slack token on the
+  next line. The scanner now reads each line with the `${...}` spans removed
+  and reports every line that matches any pattern. Expect `doctor` to find
+  things in projects it previously passed.
+- **`agentsync update` showed the wrong changelog for a version whose number is
+  a prefix of another.** `## 9.9.90` opened the section for `9.9.9`, which then
+  ran to the end of the file. The heading now has to match the whole version.
+- **`agentsync resolve` is read-only without a terminal, as it says it is.** It
+  cleared `.ai/.pending-resolutions.yaml` before reaching the check that prints
+  "read-only — not a TTY", so a CI run threw away the queue it was told it
+  would only report on.
 - **`dedupe` and `doctor` could hang forever on Windows outside a git repository.** Both look for a parent `.ai/src/` by walking up from the project, and the walk stopped at `/` — a root Windows does not have. Reaching `C:\`, whose parent is itself, the walk never ended: the command sat there consuming a core until it was killed. It needed a project with no `.git` anywhere above it, which is why it survived every release: the test suite created its fixtures with `git init`, so the walk always hit a repository boundary first and turned back. The port of that suite to Rust built bare directories instead, and the first Windows run found it in a minute. The walk now stops at whatever the platform's root is.
 
 ### Internal

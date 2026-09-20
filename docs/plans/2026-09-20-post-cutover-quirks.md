@@ -130,3 +130,19 @@ Do not schedule these; attach them to a major when one is cut for another reason
 - **Item 38 — `refresh` healing outside `--only`.** Deliberately documented at `src/template_manifest.rs:70-87` and pinned at `src/cli/refresh.rs:1420`. Restricting it would rewrite `.ai/.template-manifest` — a committed file in the team workflow — on the next scoped `refresh` for every project that runs one. The healing is what keeps the manifest honest; scoping it buys nothing.
 - **Item 5 — the unread `defaults:` keys.** Wiring them up changes which tools sync for anyone who set the inert keys, and the shipped `lib/config.yaml:11-13` itself carries `enabled: false`. The right fix is the opposite direction: delete the dead block from `lib/config.yaml` and the dead key from the documentation so nothing looks configurable that is not. That is the only version of this change with no blast radius.
 - **Item 48** — reachable only through JSON that is already invalid under RFC 8259 (a non-string object key). Fix it only alongside 46 and 47, never on its own.
+
+## Found after the triage
+
+- **A target switched off keeps its last file, and `check` stays green.**
+  Disabling `targets.<name>.enabled` stops the pass, so nothing prunes what the
+  pass wrote, and `manifest::write` keeps an entry it did not touch. The file
+  therefore stays on disk, stays claimed by the manifest, and never changes
+  again while `agentsync check` reports the project as synced. Found on
+  2026-09-20 while documenting the `AGENTS.md` setup for Claude Code, where a
+  leftover `CLAUDE.md` silently wins over the `AGENTS.md` the user switched to.
+  Deleting the file resolves it: `check` passes immediately and the next `sync`
+  drops the entry.
+  *Classification:* defect. *Blast radius:* a fix that prunes the file changes
+  behaviour for anyone who disabled a target in order to freeze its output, so
+  it needs the same major-versus-minor judgement as the rest of this list. The
+  README documents the deletion step in the meantime.

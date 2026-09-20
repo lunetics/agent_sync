@@ -109,6 +109,7 @@ recorded before the migration started.
   - [Drift detection](#drift-detection)
   - [`agentsync adopt` — promote an IDE edit back into source](#agentsync-adopt--promote-an-ide-edit-back-into-source)
   - [Disabling sync for tools or categories](#disabling-sync-for-tools-or-categories)
+  - [Letting a tool read `AGENTS.md` instead of its own file](#letting-a-tool-read-agentsmd-instead-of-its-own-file)
 - [Workspaces — nested AgentSync projects](#workspaces--nested-agentsync-projects)
 - [Profiles — multiple config homes per tool](#profiles--multiple-config-homes-per-tool)
 - [Development](#development)
@@ -971,6 +972,35 @@ targets:
 
 This works for every entry under `targets:` and is useful when a `base:`
 variant inherits a destination that another config should own.
+
+### Letting a tool read `AGENTS.md` instead of its own file
+
+Claude Code reads `AGENTS.md` when a folder has no `CLAUDE.md` (version 2.1.277
+and later, switchable in its `/config`). Nine of the thirteen tools already read
+the generated `AGENTS.md` — Codex, Gemini, Junie, Kimi Code, OpenCode, Zed,
+Cline, Amazon Q, and now Claude Code — so a project that would rather ship one
+instructions file than two can turn the second one off:
+
+```yaml
+# .ai/src/tools/claude.yaml
+targets:
+  agents:
+    enabled: false
+```
+
+```bash
+rm CLAUDE.md          # only if a previous sync already wrote it
+agentsync sync
+```
+
+Everything else Claude Code gets stays: `.claude/rules/`, skills, commands,
+subagents, settings, hooks, and MCP are separate targets and are untouched.
+
+Delete the file as well as disabling the target. A `CLAUDE.md` left from an
+earlier sync keeps being read by Claude Code, and because nothing regenerates
+it, it quietly ages while `agentsync check` still reports the project as
+synced. Once it is gone, the next sync drops it from the manifest and `check`
+stays green.
 
 ## Workspaces — nested AgentSync projects
 

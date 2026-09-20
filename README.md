@@ -975,11 +975,10 @@ variant inherits a destination that another config should own.
 
 ### Letting a tool read `AGENTS.md` instead of its own file
 
-Claude Code reads `AGENTS.md` when a folder has no `CLAUDE.md` (version 2.1.277
-and later, switchable in its `/config`). Nine of the thirteen tools already read
-the generated `AGENTS.md` — Codex, Gemini, Junie, Kimi Code, OpenCode, Zed,
-Cline, Amazon Q, and now Claude Code — so a project that would rather ship one
-instructions file than two can turn the second one off:
+AgentSync already writes the root `AGENTS.md` as the instructions file for four
+tools: Codex, Cursor, OpenCode, and Windsurf. Claude Code can join them, because
+it reads `AGENTS.md` in a folder that has no `CLAUDE.md`. A project that would
+rather ship one instructions file than two turns the second one off:
 
 ```yaml
 # .ai/src/tools/claude.yaml

@@ -1,5 +1,8 @@
 # Kimi Code and OpenCode Complete Support Implementation Plan
 
+> Written for the Bash engine, retired in 0.38.0, and before completion
+> receipts were the convention: every box is ticked and no receipt follows.
+
 > Execute with `subagent-driven-development` only when the user explicitly authorizes subagents/delegation; otherwise execute inline. Steps use `- [ ]` for tracking.
 
 **Goal:** Complete safe project-level AgentSync coverage for Kimi Code and OpenCode by adding atomic OpenCode MCP composition, native OpenCode hooks, explicit ownership diagnostics, and accurate capability documentation.

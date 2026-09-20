@@ -10,18 +10,10 @@ description: Review the current branch diff for issues before merging
 
 !`git diff main...HEAD`
 
-Review the above changes to AgentSync for:
+## What to do
 
-1. **Portability** — the binary on macOS, Linux, and Windows; no GNU-specific flags in the remaining shell.
-2. **Correctness** — logic errors, unquoted variables, missing edge cases
-3. **Idempotency** — will `agentsync sync` still produce identical output on repeated runs?
-4. **Error handling** — proper exit codes, `Error` variants, and `src/log.rs` / `src/style.rs` usage
-5. **Transactional safety** — backup, restore, manifest, and cleanup behavior for mutating flows
-6. **Security** — no `eval`, unsafe paths, leaked secrets, or unquoted user-controlled YAML values
-7. **Test coverage** — are new behaviors and failure paths covered by `cargo test`, as a unit test in the owning module or an integration test in `tests/`?
+Review the diff above by following the `review` skill — it owns the priority
+order, the AgentSync-specific checks, the output format, and the gotchas.
 
-Run `shellcheck -x -S warning -e SC1091` on any changed `.sh` files.
-
-Report every issue found, including uncertain or low-severity findings. For each
-finding, give the exact file and line, severity, confidence, impact, and a
-concrete fix. If the code is solid, say so plainly.
+Report every finding, uncertain and low-severity ones included, with the exact
+file and line, severity, and a concrete fix. If the code is solid, say so plainly.

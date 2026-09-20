@@ -1,5 +1,8 @@
 # Kimi Code and OpenCode Complete Agent-Layer Support
 
+> Written for the Bash engine, retired in 0.38.0. Kept as the record of
+> the decisions; the code it describes lives at tag `0.37.0`.
+
 Date: 2026-07-20
 Status: Implemented in 0.32.0
 

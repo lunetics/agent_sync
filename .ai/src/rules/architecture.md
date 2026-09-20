@@ -29,8 +29,13 @@ src/rules.rs / convert.rs / opencode_json.rs → rule headers and merges, target
 src/paths.rs / filters.rs      → containment, drive-aware `/`-separated paths, include/exclude matching.
 src/backup.rs / witness.rs / manifest.rs → transactions, post-operation witnesses, ownership, and drift.
 src/overlay.rs / profiles.rs / workspace.rs → source overlays, config-home variants, the virtual file tree.
+src/project.rs / project_config.rs / version.rs → the project root, which `agent_sync.yaml` it uses, the `version_pin` policy.
+src/snapshot.rs / template_manifest.rs / format_rev.rs → update diffs and the conflict queue, template content hashes, the project format revision.
+src/gitignore.rs / edit_paths.rs / changelog.rs → the managed `.gitignore` block, where payload overrides are edited, changelog rendering.
+src/interrupt.rs / text.rs     → signal traps a transaction arms; byte-level line and whitespace handling.
 src/log.rs / style.rs / prompts.rs → engine log voice, command colours, terminal prompts.
 src/error.rs                   → the single error type; `main` maps variants to messages and exit codes.
+src/lib.rs                     → the library root: the module list and the test that pins the crate version to `VERSION`.
 lib/templates/                 → shipped tool/payload bases and init/refresh content, embedded at build time.
 ```
 
@@ -38,7 +43,7 @@ Business logic lives in the library modules. `main.rs` stays a router, and a `sr
 
 ## Hard Constraints
 
-- **Path safety**: `Paths::resolve_dest` rejects paths outside the canonical root. Resolve through `normalize` + `canonicalize_with_existing_ancestor` — these exist so the engine never needs `realpath` semantics on a partly missing path. `Paths::is_safe_source` allows the project root, the embedded engine root, and (when active) the overlay tree that `overlay::setup_shared` builds for `shared:` and tears down at the end of the pass. Engine paths are `/`-separated strings; disk paths enter through `paths::from_disk`.
+- **Path safety**: `Paths::resolve_dest` rejects paths outside the canonical root. Resolve through `normalize` + `canonicalize_with_existing_ancestor` — these exist so the engine never needs `realpath` semantics on a partly missing path. `Paths::is_safe_source` allows the canonical project root, the virtual engine and overlay roots (`/<agentsync>`, `/<agentsync-overlay>` — the latter is what `overlay::setup_shared` builds for `shared:` and tears down at the end of the pass), and the explicit roots `render::prepare` registers through `register_explicit_roots`: a `source.*` directory outside the project, admitted only when `classify_explicit_source` finds it inside a directory `AGENTSYNC_EXTERNAL_SOURCE_ROOTS` trusts (`trust_external_roots`) — an untrusted one stops the run, as does one naming the filesystem root, the home directory, or a project ancestor. `escaping_source_link` holds source symlinks to the same two sets. Engine paths are `/`-separated strings; disk paths enter through `paths::from_disk`.
 - **Zero external deps**: the standard library plus the crates in `Cargo.toml`. The binary reaches its goals without `yq`, `jq`, `python`, `node`, `perl`, or `eval` — reads YAML through `yaml_subset`.
 - **YAML parser scope**: scalar keys, dot-notation nesting, and the explicitly supported list forms. New YAML shapes need a concrete engine requirement and parser tests.
 - **Idempotency**: `agentsync sync` produces identical output on repeated runs. No timestamps, no ordering changes, no platform-dependent sorting. `agentsync check` verifies this.

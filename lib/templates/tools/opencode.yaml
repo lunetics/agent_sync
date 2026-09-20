@@ -24,7 +24,6 @@ targets:
 
   mcp:
     dest: "opencode.json"
-    extension: json
     format: opencode_json
 
   hooks:

@@ -78,8 +78,10 @@ recorded before the migration started.
 
 - [The problem](#the-problem)
 - [The solution](#the-solution)
+- [Speed](#speed)
 - [Why not just...?](#why-not-just)
 - [Installation](#installation)
+- [Team Setup](#team-setup)
 - [Quick Start](#quick-start)
 - [Project Structure](#project-structure)
 - [What Each Part Does](#what-each-part-does)
@@ -99,6 +101,7 @@ recorded before the migration started.
 - [Customization workflow](#customization-workflow)
 - [How Resources Resolve](#how-resources-resolve)
 - [Migrating from the 0.10 flat layout](#migrating-from-the-010-flat-layout)
+- [Migrating an outdated AgentSync project](#migrating-an-outdated-agentsync-project)
 - [Path Overrides](#path-overrides)
 - [Migrating Existing Configurations](#migrating-existing-configurations)
   - [Step-by-step](#step-by-step)
@@ -109,6 +112,7 @@ recorded before the migration started.
 - [Workspaces — nested AgentSync projects](#workspaces--nested-agentsync-projects)
 - [Profiles — multiple config homes per tool](#profiles--multiple-config-homes-per-tool)
 - [Development](#development)
+- [License](#license)
 - [Uninstall](#uninstall)
 
 </details>
@@ -342,6 +346,7 @@ targets:
     # source: ".ai/src/my-rules"
     # extension: ".mdc"
     # header: "---\nkey: value\n---"
+    # scoped_header: "---\nglobs: '{globs}'\nalwaysApply: false\n---"
     # include: "flutter-*.md"
     # exclude: "secret-*.md"
     # append_imports: true
@@ -377,8 +382,19 @@ targets:
     source: ".ai/src/hooks/tool.json"
     dest: ".tool/hooks.json"
 
-# post_sync: "npx prettier --write .tool/**/*.mdc"
+  guard:
+    dest: ".tool/hooks/agentsync-guard.sh"
+    # profile_scoped: false
+
+# post_sync: "npx prettier --write .tool/**/*.mdc"   # off unless AGENTSYNC_ALLOW_POST_SYNC=true
 ```
+
+`post_sync` runs arbitrary shell, so the engine skips it with a warning unless
+`AGENTSYNC_ALLOW_POST_SYNC=true` is set in the environment — the in-repo
+`agent_sync.yaml` cannot grant that, so cloning and syncing an untrusted
+repository never runs its hook. `AGENTSYNC_SKIP_POST_SYNC=true` or
+`post_sync.skip: true` in `agent_sync.yaml` disables it again, and `check`
+always skips it.
 
 ### Key Fields
 
@@ -386,6 +402,7 @@ targets:
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | `extension`                     | Rename file extension (`.mdc`, `.instructions.md`, `.agent.md`, `.prompt.md`)                                          |
 | `header`                        | Prepend text to each file (YAML frontmatter for Cursor, Windsurf, Copilot)                                             |
+| `scoped_header` (rules)         | Header used instead of `header` for a rule with `paths:` frontmatter; `{globs}` becomes its comma-joined globs (Cursor, Copilot, Windsurf, Antigravity) |
 | `append_imports`                | Append `@rules/*` import lines to AGENTS file (Claude)                                                                 |
 | `merge_to_file`                 | Merge all rules into a single file (Zed)                                                                               |
 | `inline_into_agents` (rules)    | Append lightweight rule REFERENCES (name + title) into AGENTS file (Codex, Gemini, Junie, Kimi Code, OpenCode)       |
@@ -398,6 +415,11 @@ targets:
 | `format: "opencode_md"`         | Convert portable subagent frontmatter to safe OpenCode Markdown (OpenCode subagents)                                  |
 | `format: "opencode_json"`       | Compose canonical `mcpServers` into OpenCode's top-level `mcp` settings map                                            |
 | `source` (settings/mcp/hooks)   | Optional declared source; canonical `.ai/src/tools/<tool>/<resource>.<ext>` overrides it automatically                 |
+| `guard` (target)                | Copy the tool's write-guard script to `dest` and mark it executable; override the base at `.ai/src/tools/<tool>/guard.sh` and register it from the tool's settings (Claude) |
+| `profile_scoped: false`         | On any target: `agentsync profile add` keeps the base `dest` instead of rewriting it into the profile's config home     |
+
+[`lib/templates/tools/_TEMPLATE.yaml`](lib/templates/tools/_TEMPLATE.yaml)
+documents every option, including the ones this table leaves out.
 
 ## Supported Tools
 
@@ -561,7 +583,7 @@ version_pin: strict # or warn
    - Syncs commands. Four modes pick the first that fits: native `dest` → `format: toml` → `as_skills` (writes `<skills.dest>/command-*/SKILL.md`) → `inline_into_agents` (appends `## Commands` index to AGENTS file)
    - Syncs subagents (with optional extension rename or MD→TOML)
    - Resolves settings / MCP / hooks per the base + override rules below
-   - Runs optional `post_sync` command
+   - Runs the optional `post_sync` command, but only when `AGENTSYNC_ALLOW_POST_SYNC=true` comes from the environment rather than the repository
 4. Updates `.gitignore`
 5. Disabled tools get their generated files cleaned up automatically.
 

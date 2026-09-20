@@ -137,13 +137,13 @@ fn without_placeholders(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
     while let Some(start) = rest.find("${") {
-        out.push_str(&rest[..start]);
         match rest[start..].find('}') {
-            Some(end) => rest = &rest[start + end + 1..],
-            None => {
-                rest = "";
-                break;
+            Some(end) => {
+                out.push_str(&rest[..start]);
+                rest = &rest[start + end + 1..];
             }
+            // An unclosed `${` opens nothing: the text after it stays readable.
+            None => break,
         }
     }
     out.push_str(rest);
@@ -1304,7 +1304,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn secrets_are_listed_by_the_first_pattern_that_hits_like_doctor_scan_file() {
+    fn every_line_holding_a_secret_is_listed_whichever_pattern_found_it() {
         let mcp = br#"{"mcpServers":{"gh":{"env":{"TOKEN":"ghp_abcdefghijklmnopqrstuvwxyz012345678901"}}}}"#;
         let expected = format!("1:{}", String::from_utf8_lossy(mcp));
         assert_eq!(
@@ -1347,6 +1347,11 @@ mod tests {
         );
         // A name in braces on its own is still a placeholder.
         assert!(scan_secrets(b"token: ${GITHUB_TOKEN}\n").is_empty());
+        // An unclosed `${` opens no placeholder and hides nothing after it.
+        assert_eq!(
+            scan_secrets(b"${oops sk-abcdefghijklmnopqrstuvwxyz\n"),
+            vec!["1:${oops sk-abcdefghijklmnopqrstuvwxyz".to_string()]
+        );
         assert!(scan_secrets(b"<ghp_abcdefghijklmnopqrstuvwxyz012345678901>\n").is_empty());
         assert_eq!(
             scan_secrets(b"<sk-abcdefghijklmnopqrstuvwxyz>\n"),

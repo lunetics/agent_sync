@@ -145,8 +145,13 @@ pub fn sections(changelog: &str, versions: &[String], width: usize, style: &Styl
         let mut in_section = false;
         let mut started = false;
         for line in complete_lines(changelog) {
-            // A prefix test would open `## 9.9.90` for version `9.9.9`.
-            if line == heading || line.strip_prefix(&heading) == Some(" ") {
+            // The whole version, not a prefix of it: `## 9.9.90` is not the
+            // section of `9.9.9`. A suffix that cannot continue a version is
+            // part of the heading, as in `## 0.35.2 (hotfix)`.
+            if line
+                .strip_prefix(&heading)
+                .is_some_and(|rest| !rest.starts_with(|c: char| c.is_ascii_digit() || c == '.'))
+            {
                 in_section = true;
                 continue;
             }
@@ -282,6 +287,17 @@ mod tests {
             &Style::plain(),
         );
         assert_eq!(out, "\n  What's new in v9.9.9:\n\n    • Nine.\n");
+        // A suffix that cannot continue a version belongs to the heading:
+        // `versions_in_range` reads `0.35.2` off exactly this shape.
+        assert_eq!(
+            sections(
+                "## 0.35.2 (hotfix)\n\n- Patched.\n",
+                &["0.35.2".to_string()],
+                80,
+                &Style::plain(),
+            ),
+            "\n  What's new in v0.35.2:\n\n    • Patched.\n"
+        );
     }
 
     #[test]

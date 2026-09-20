@@ -6,9 +6,35 @@ use std::cmp::Ordering;
 
 use crate::style::Style;
 
-/// `_md_plain`: `**` and backticks removed.
+/// `_md_plain`: `**` and backticks removed, and `[text](url)` reduced to what
+/// it says — a terminal has nothing to click, and Bash printed the syntax raw.
 pub fn md_plain(text: &str) -> String {
-    text.replace("**", "").replace('`', "")
+    plain_links(&text.replace("**", "").replace('`', ""))
+}
+
+/// `[text](url)` becomes `text`, or `text (url)` when the url adds something.
+fn plain_links(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(open) = rest.find('[') {
+        let Some(close) = rest[open..].find("](") else {
+            break;
+        };
+        let after = open + close + 2;
+        let Some(end) = rest[after..].find(')') else {
+            break;
+        };
+        let label = &rest[open + 1..open + close];
+        let url = &rest[after..after + end];
+        out.push_str(&rest[..open]);
+        out.push_str(label);
+        if !url.is_empty() && url != label {
+            out.push_str(&format!(" ({url})"));
+        }
+        rest = &rest[after + end + 1..];
+    }
+    out.push_str(rest);
+    out
 }
 
 /// `sort -V` on two versions: digit runs compare as numbers, other runs as
@@ -208,6 +234,20 @@ mod tests {
         assert_eq!(
             md_plain("run `agentsync sync` now"),
             "run agentsync sync now"
+        );
+        // A terminal has nothing to click: the label carries the meaning, and
+        // the target is added only when it says something the label does not.
+        assert_eq!(
+            md_plain("see [`docs/perf/x.md`](docs/perf/x.md) for the method"),
+            "see docs/perf/x.md for the method"
+        );
+        assert_eq!(
+            md_plain("see [the baseline](docs/perf/y.md)"),
+            "see the baseline (docs/perf/y.md)"
+        );
+        assert_eq!(
+            md_plain("an [unclosed link and a [pair]"),
+            "an [unclosed link and a [pair]"
         );
         assert_eq!(
             md_plain("plain text — with an em dash"),

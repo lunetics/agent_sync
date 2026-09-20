@@ -1,5 +1,8 @@
 <div align="center">
-  <img src="https://github.com/yelmuratoff/agent/blob/main/assets/agent_sync.png?raw=true" width="400">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/yelmuratoff/agent_sync/main/assets/agent_sync.svg">
+    <img src="https://raw.githubusercontent.com/yelmuratoff/agent_sync/main/assets/agent_sync_light.svg" alt="AgentSync" width="400">
+  </picture>
 
   <h3>One source → 13 AI tools. Stop copy-pasting rules.</h3>
 

@@ -228,8 +228,9 @@ pub fn enable(
             ),
         )?;
     }
+    let status = if unknown.is_empty() { 0 } else { 1 };
     if added.is_empty() {
-        return Ok(0);
+        return Ok(status);
     }
     for slug in &added {
         let tool = Tool::load(&project, slug)?;
@@ -257,7 +258,7 @@ pub fn enable(
         out,
         &format!("\nRun {} to apply.\n\n", style.cyan("agentsync sync")),
     )?;
-    Ok(0)
+    Ok(status)
 }
 
 pub fn disable(
@@ -387,7 +388,7 @@ mod tests {
     fn enable_appends_scaffolds_and_reports_like_cmd_enable() {
         let (_dir, root) = project();
         let run = call(&root, "enable", &["claude", "cursor", "nope"]);
-        assert_eq!(run.status, 0);
+        assert_eq!(run.status, 1);
         assert_eq!(run.err, "");
         assert_eq!(
             run.out,

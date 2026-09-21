@@ -64,7 +64,7 @@ fn enable_unknown_tool_shows_warning() {
         .agentsync()
         .args(["enable", "bogus_tool_xyz"])
         .assert()
-        .success()
+        .code(1)
         .stdout(predicate::str::contains("Unknown tool"));
 }
 

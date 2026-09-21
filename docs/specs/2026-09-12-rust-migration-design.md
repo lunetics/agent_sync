@@ -754,6 +754,12 @@ Appended one line at a time as they are found, with the phase:
   `check`, and `version` ignore extra arguments again as Bash did, and a
   leading `--` reaches the command's own parser (`sync -- --dry-run` is
   `Unknown option: --`, as `sync.sh` answered) where clap had swallowed it.
+- After Phase 7: `enable` exits 1 when any named tool is unknown, after
+  enabling the ones it knows; Bash exited 0 and only printed the list. A
+  script that enables a misspelt slug now learns of it. Every command answers
+  `--help` with its own usage in one shape (`output::help`), including
+  `check`, `list`, `disable`, `resolve`, and `doctor`, which had answered with
+  the top-level usage, and `upgrade-config`, which had run instead.
 
 ## Risks
 

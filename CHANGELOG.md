@@ -6,7 +6,9 @@
 
 - **Every command hint is coloured the same way.** The sync log's version-pin hints (`agentsync update <pinned>`, `agentsync upgrade-config`), its drift and first-sync advice, the legacy-layout warning, and the `run agentsync init` / `agentsync sync` errors of `profile`, `adopt`, and `doctor` print the command in cyan on a terminal, as `doctor` and `list` already did, and drop the quotes around it. Piped output is unchanged apart from those quotes.
 - **`sync --help` names the command.** The usage opens with `Usage: agentsync sync [OPTIONS]` instead of the `sync.sh` header the Bash engine printed.
-- **`show --help` and `diff --help` print their own usage** instead of the top-level command list.
+- **Every command's `--help` has one shape.** A bold `agentsync <command> — <what it does>` line, then USAGE, DESCRIPTION, OPTIONS, and EXAMPLES in green with the option column aligned, the way `agentsync help` already read. `check`, `list`, `disable`, `resolve`, and `doctor` gained a help of their own where they had answered with the top-level command list; `show` and `diff` print theirs instead of that list; `add mcp --help` moved from stderr to stdout. A refusal for a missing argument names what is missing (`Error: missing <name> for rule`) before the usage.
+- **`doctor` ends with a blank line, not a rule.** The `────` line before the summary is gone; the CLI output rules forbid rules between sections.
+- **`enable` exits 1 when a tool is unknown**, after enabling the ones it knows, so a misspelt slug fails a script instead of passing silently.
 - **`refresh` names the templates by release.** The header reads `Templates: shipped with agentsync v0.39.0` where it printed the engine-internal `/<agentsync>/lib/templates`.
 
 ### Fixed

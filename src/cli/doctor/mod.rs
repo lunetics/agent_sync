@@ -477,11 +477,10 @@ pub fn doctor(
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
 
-    #[cfg(unix)]
     fn project(files: &[(&str, &str)], dirs: &[&str]) -> (tempfile::TempDir, String) {
         let dir = tempfile::tempdir().unwrap();
         let root = std::fs::canonicalize(dir.path()).unwrap().disk_text();
@@ -496,7 +495,6 @@ mod tests {
         (dir, root)
     }
 
-    #[cfg(unix)]
     fn run(root: &str) -> (u8, String, String) {
         let env = Env {
             version: "0.36.0",
@@ -518,7 +516,6 @@ mod tests {
         )
     }
 
-    #[cfg(unix)]
     #[test]
     fn a_project_without_a_config_reports_like_cmd_doctor() {
         let (_dir, root) = project(&[(".ai/src/AGENTS.md", "# Agents\n")], &[".git"]);
@@ -532,7 +529,6 @@ mod tests {
         assert_eq!(out, expected);
     }
 
-    #[cfg(unix)]
     #[test]
     fn a_pinned_config_stale_manifest_and_orphan_output_report_like_cmd_doctor() {
         let (_dir, root) = project(
@@ -563,7 +559,6 @@ mod tests {
         assert_eq!(out, expected);
     }
 
-    #[cfg(unix)]
     #[test]
     fn a_missing_ai_directory_exits_2_like_cmd_doctor() {
         let (_dir, root) = project(&[], &[".git"]);

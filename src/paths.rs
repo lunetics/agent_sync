@@ -521,10 +521,19 @@ impl Paths {
     /// `display_path_r`: root-relative, else `~/`-folded, else unchanged. A
     /// virtual path is named by what it holds, never by its engine root: an
     /// overlay entry by its category (`rules/`, `AGENTS.md`), a shipped file
-    /// by its template path (`templates/guard/claude.sh`).
+    /// by its template path (`templates/guard/claude.sh`). 
     pub fn display(&self, path: &str) -> String {
         if let Some(rel) = self.to_repo_relative(path) {
             return rel;
+        }
+        if path == self.root_canonical {
+            return ".".to_string();
+        }
+        if let Some(rest) = path
+            .strip_prefix(&self.root_canonical)
+            .and_then(|rest| rest.strip_prefix('/'))
+        {
+            return rest.to_string();
         }
         if let Some(rest) = path.strip_prefix(&format!("{OVERLAY_ROOT}/")) {
             let after_name = rest.split_once('/').map_or("", |(_, tail)| tail);
@@ -776,6 +785,18 @@ mod tests {
         assert_eq!(p.display("/proj"), ".");
         assert_eq!(p.display("/home/me/x"), "~/x");
         assert_eq!(p.to_repo_relative("/elsewhere"), None);
+    }
+
+    #[test]
+    fn display_strips_the_canonical_root_when_the_spelled_root_differs() {
+        let p = paths();
+        assert_eq!(
+            p.display("/private/proj/.ai/backups/20260921T130000Z-sync-1"),
+            ".ai/backups/20260921T130000Z-sync-1"
+        );
+        assert_eq!(p.display("/private/proj"), ".");
+        assert_eq!(p.display("/private/project/x"), "/private/project/x");
+        assert_eq!(p.to_repo_relative("/private/proj/x"), None);
     }
 
     #[test]

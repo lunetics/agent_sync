@@ -1,0 +1,343 @@
+//! The three-way classification of each template against the manifest, the
+//! project file, and the `agent_sync.yaml` overrides.
+
+use std::path::Path;
+
+use crate::manifest::sha256_hex;
+use crate::template_manifest::{self, TemplateManifest};
+use crate::yaml_subset;
+
+/// One `<rel>|<template>|<hash>` entry of the `*_FILES` arrays.
+pub(super) struct Candidate {
+    pub(super) rel: String,
+    pub(super) bytes: &'static [u8],
+    pub(super) hash: String,
+}
+
+#[derive(Default)]
+pub(super) struct Changes {
+    pub(super) new: Vec<Candidate>,
+    pub(super) conflicts: Vec<Candidate>,
+    pub(super) auto: Vec<Candidate>,
+    pub(super) deleted: Vec<Candidate>,
+    pub(super) unchanged: usize,
+    pub(super) silently_kept: usize,
+}
+
+struct Classifier<'a> {
+    user_base: &'a Path,
+    manifest: &'a TemplateManifest,
+    declined: &'a [String],
+    pinned: &'a [String],
+    review: bool,
+    changes: Changes,
+}
+
+impl Classifier<'_> {
+    /// `_refresh_classify`.
+    fn classify(&mut self, rel: &str, bytes: &'static [u8]) {
+        if self.declined.iter().any(|item| item == rel) {
+            return;
+        }
+        let t_new = sha256_hex(bytes);
+        let t_old = self.manifest.lookup(rel);
+        let candidate = || Candidate {
+            rel: rel.to_string(),
+            bytes,
+            hash: t_new.clone(),
+        };
+        let dest = self.user_base.join(rel);
+        if !dest.is_file() {
+            if t_old.is_some() {
+                self.changes.deleted.push(candidate());
+            } else {
+                self.changes.new.push(candidate());
+            }
+            return;
+        }
+        let Some(u_cur) = template_manifest::hash(&dest) else {
+            return;
+        };
+        if u_cur == t_new {
+            self.changes.unchanged += 1;
+            return;
+        }
+        if self.pinned.iter().any(|item| item == rel) {
+            return;
+        }
+        let Some(t_old) = t_old else {
+            self.changes.conflicts.push(candidate());
+            return;
+        };
+        if u_cur == t_old {
+            self.changes.auto.push(candidate());
+            return;
+        }
+        if t_old == t_new {
+            self.changes.silently_kept += 1;
+            if self.review {
+                self.changes.conflicts.push(candidate());
+            }
+            return;
+        }
+        self.changes.conflicts.push(candidate());
+    }
+}
+
+/// `_refresh_load_overrides`: `template_overrides.declined` and `.pinned` from
+/// `.ai/agent_sync.yaml`, else a root `agent_sync.yaml`.
+pub(super) fn load_overrides(root: &str) -> (Vec<String>, Vec<String>) {
+    let text = [
+        format!("{root}/.ai/agent_sync.yaml"),
+        format!("{root}/agent_sync.yaml"),
+    ]
+    .into_iter()
+    .find(|path| Path::new(path).is_file())
+    .and_then(|path| std::fs::read(path).ok())
+    .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+    .unwrap_or_default();
+    let list = |key: &str| -> Vec<String> {
+        yaml_subset::list(&text, key)
+            .into_iter()
+            .filter(|item| !item.is_empty())
+            .collect()
+    };
+    (
+        list("template_overrides.declined"),
+        list("template_overrides.pinned"),
+    )
+}
+
+/// `_refresh_collect_changes`: `AGENTS.md` when asked, then the `*.md` files of
+/// `rules`, `commands`, and `agents`, then every file below `skills`.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn collect(
+    templates: &[(String, &'static [u8])],
+    user_base: &Path,
+    categories: &[String],
+    include_agents_md: bool,
+    manifest: &TemplateManifest,
+    declined: &[String],
+    pinned: &[String],
+    review: bool,
+) -> Changes {
+    let mut classifier = Classifier {
+        user_base,
+        manifest,
+        declined,
+        pinned,
+        review,
+        changes: Changes::default(),
+    };
+    let in_scope = |category: &str| categories.iter().any(|c| c == category);
+    if include_agents_md {
+        for (rel, bytes) in templates.iter().filter(|(rel, _)| rel == "AGENTS.md") {
+            classifier.classify(rel, bytes);
+        }
+    }
+    for category in ["rules", "commands", "agents"] {
+        if !in_scope(category) {
+            continue;
+        }
+        for (rel, bytes) in templates
+            .iter()
+            .filter(|(rel, _)| rel.rsplit_once('/').is_some_and(|(dir, _)| dir == category))
+        {
+            classifier.classify(rel, bytes);
+        }
+    }
+    if in_scope("skills") {
+        for (rel, bytes) in templates
+            .iter()
+            .filter(|(rel, _)| rel.starts_with("skills/"))
+        {
+            classifier.classify(rel, bytes);
+        }
+    }
+    classifier.changes
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use std::path::Path;
+
+    use crate::catalog;
+    use crate::cli::refresh::tests::{
+        NOT_A_TTY, append, call, drop_entry, header, seeded, set_entry,
+    };
+    use crate::manifest::sha256_hex;
+    use crate::template_manifest::{self, TemplateManifest};
+
+    #[test]
+    fn new_deleted_auto_update_and_conflict_files_classify_and_apply_like_bash() {
+        let (_dir, root) = seeded();
+        let base = Path::new(&root).join(".ai/src");
+        std::fs::remove_file(base.join("rules/comments.md")).unwrap();
+        drop_entry(&root, "rules/comments.md");
+        append(&root, "rules/core.md", "USER LOCAL EDIT\n");
+        set_entry(
+            &root,
+            "rules/core.md",
+            &template_manifest::hash(&base.join("rules/core.md")).unwrap(),
+        );
+        append(&root, "rules/git.md", "EDIT\n");
+        drop_entry(&root, "rules/git.md");
+        std::fs::remove_file(base.join("commands/review.md")).unwrap();
+
+        let plan = "  Summary:\n    + 1 new template(s)\n    ↑ 1 auto-update(s) — you hadn't touched them locally\n    ~ 1 conflict(s) — your version differs from the template\n    ? 1 previously declined — pass --include-deleted to revisit\n    · 14 unchanged\n\n  New:\n    + rules/comments.md\n\n  Auto-update: (your version matches the previous template; safe to update)\n    ↑ rules/core.md\n\n  Conflicts: (both your version and the template diverged from the recorded baseline)\n    ~ rules/git.md\n\n  Previously declined:\n    ? commands/review.md\n\n";
+        let head = header(&root, "rules,skills,commands,agents");
+
+        let dry = call(&root, &["--dry-run", "--include-deleted"], false, &[]);
+        assert_eq!(
+            (dry.status, dry.out),
+            (0, format!("{head}{plan}  Dry run — no files written.\n\n"))
+        );
+        assert!(!base.join("rules/comments.md").exists());
+
+        let blocked = call(&root, &["--include-deleted"], false, &[]);
+        assert_eq!(
+            (blocked.status, blocked.out, blocked.err.as_str()),
+            (1, format!("{head}{plan}"), NOT_A_TTY)
+        );
+
+        assert_eq!(
+            call(&root, &["--status"], false, &[]).out,
+            "\n  Declined templates\n  Local       (.template-manifest — deleted from disk; --include-deleted to restore):\n    · commands/review.md\n\n"
+        );
+
+        let applied = call(
+            &root,
+            &["--yes", "--include-deleted", "--review"],
+            false,
+            &[],
+        );
+        assert_eq!(
+            (applied.status, applied.out),
+            (
+                0,
+                format!(
+                    "{head}{plan}  ↑ rules/core.md  (auto-updated; you hadn't touched it)\n  ? commands/review.md (previously declined — skipped under --yes; run interactively)\n  + rules/comments.md\n  ~ rules/git.md (conflict — skipped; run interactively to review)\n\n  Done. Added: 1 · Auto-updated: 1 · Updated: 0 · Skipped: 2 · Unchanged: 14\n\n  Next: agentsync sync to distribute the updates to enabled tools.\n\n"
+                )
+            )
+        );
+        let template = |rel: &str| {
+            catalog::template_files()
+                .into_iter()
+                .find(|(path, _)| path == rel)
+                .map(|(_, bytes)| bytes.to_vec())
+                .unwrap()
+        };
+        assert_eq!(
+            std::fs::read(base.join("rules/comments.md")).unwrap(),
+            template("rules/comments.md")
+        );
+        assert_eq!(
+            std::fs::read(base.join("rules/core.md")).unwrap(),
+            template("rules/core.md")
+        );
+        assert!(
+            std::fs::read_to_string(base.join("rules/git.md"))
+                .unwrap()
+                .ends_with("EDIT\n")
+        );
+        assert!(!base.join("commands/review.md").exists());
+        let manifest = TemplateManifest::load(Path::new(&root)).unwrap();
+        assert_eq!(
+            manifest.lookup("rules/comments.md"),
+            Some(sha256_hex(&template("rules/comments.md")).as_str())
+        );
+        assert_eq!(
+            manifest.lookup("rules/core.md"),
+            Some(sha256_hex(&template("rules/core.md")).as_str())
+        );
+        assert_eq!(manifest.lookup("rules/git.md"), None);
+        assert!(manifest.lookup("commands/review.md").is_some());
+
+        let again = call(&root, &["--yes"], false, &[]);
+        assert_eq!(
+            again.out,
+            format!(
+                "{head}  Summary:\n    ~ 1 conflict(s) — your version differs from the template\n    · 16 unchanged\n\n  Conflicts: (both your version and the template diverged from the recorded baseline)\n    ~ rules/git.md\n\n  ~ rules/git.md (conflict — skipped; run interactively to review)\n\n  Done. Added: 0 · Auto-updated: 0 · Updated: 0 · Skipped: 1 · Unchanged: 16\n\n"
+            )
+        );
+    }
+
+    #[test]
+    fn silently_kept_edits_and_deleted_files_show_in_the_up_to_date_summary() {
+        let (_dir, root) = seeded();
+        append(&root, "rules/core.md", "USER LOCAL EDIT\n");
+        std::fs::remove_file(Path::new(&root).join(".ai/src/commands/review.md")).unwrap();
+        let head = header(&root, "rules,skills,commands,agents");
+        assert_eq!(
+            call(&root, &["--yes"], false, &[]).out,
+            format!(
+                "{head}  Already up to date! 16 file(s) match the current templates.\n  Locally declined (.template-manifest):    1 file(s); --include-deleted to revisit.\n  Pass --status for the full list.\n  1 file(s) differ from the shipped template (local edits or earlier skips); pass --review to revisit.\n\n"
+            )
+        );
+        let review = call(&root, &["--review", "--dry-run"], false, &[]);
+        assert_eq!(
+            review.out,
+            format!(
+                "{head}  Summary:\n    ~ 1 conflict(s) — your version differs from the template\n    · 16 unchanged\n\n  Conflicts: (both your version and the template diverged from the recorded baseline)\n    ~ rules/core.md\n\n  Dry run — no files written.\n\n"
+            )
+        );
+        let review = call(&root, &["--review"], false, &[]);
+        assert_eq!((review.status, review.err.as_str()), (1, NOT_A_TTY));
+        assert!(
+            std::fs::read_to_string(Path::new(&root).join(".ai/src/rules/core.md"))
+                .unwrap()
+                .ends_with("USER LOCAL EDIT\n")
+        );
+
+        append(&root, "AGENTS.md", "USER LOCAL EDIT\n");
+        drop_entry(&root, "AGENTS.md");
+        let agents = call(&root, &["--yes", "--include-agents-md"], false, &[]);
+        assert_eq!(
+            agents.out,
+            format!(
+                "{}  Summary:\n    ~ 1 conflict(s) — your version differs from the template\n    · 1 silently kept (local edits or earlier skips) — pass --review to revisit\n    · 16 unchanged\n\n  Conflicts: (both your version and the template diverged from the recorded baseline)\n    ~ AGENTS.md\n\n  ~ AGENTS.md (conflict — skipped; run interactively to review)\n\n  Done. Added: 0 · Auto-updated: 0 · Updated: 0 · Skipped: 1 · Unchanged: 16\n\n",
+                header(&root, "rules,skills,commands,agents,AGENTS.md")
+            )
+        );
+    }
+
+    #[test]
+    fn declined_and_pinned_overrides_silence_templates_and_status_lists_them() {
+        let (_dir, root) = seeded();
+        let config = Path::new(&root).join(".ai/agent_sync.yaml");
+        std::fs::write(
+            &config,
+            "tools:\n  enabled: []\n\ntemplate_overrides:\n  declined:\n    - rules/comments.md\n    - rules/git.md\n  pinned:\n    - rules/core.md\n",
+        )
+        .unwrap();
+        std::fs::remove_file(Path::new(&root).join(".ai/src/rules/comments.md")).unwrap();
+        drop_entry(&root, "rules/comments.md");
+        append(&root, "rules/core.md", "USER LOCAL EDIT\n");
+        drop_entry(&root, "rules/core.md");
+        assert_eq!(
+            call(&root, &["--status"], false, &[]).out,
+            "\n  Declined templates\n  Persistent  (template_overrides.declined in agent_sync.yaml — never offered):\n    · rules/comments.md\n    · rules/git.md\n\n"
+        );
+        assert_eq!(
+            call(&root, &["--yes"], false, &[]).out,
+            format!(
+                "{}  Already up to date! 15 file(s) match the current templates.\n  Persistently declined (agent_sync.yaml): 2 file(s).\n  Pass --status for the full list.\n\n",
+                header(&root, "rules,skills,commands,agents")
+            )
+        );
+        assert!(!Path::new(&root).join(".ai/src/rules/comments.md").exists());
+        assert_eq!(
+            TemplateManifest::load(Path::new(&root))
+                .unwrap()
+                .lookup("rules/core.md"),
+            None
+        );
+        // A declined template that was recorded and then removed is not a local decline.
+        std::fs::remove_file(Path::new(&root).join(".ai/src/rules/git.md")).unwrap();
+        assert!(
+            !call(&root, &["--yes"], false, &[])
+                .out
+                .contains("Locally declined")
+        );
+    }
+}

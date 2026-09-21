@@ -21,8 +21,10 @@ use session::Run;
 pub(crate) use session::write_template;
 
 /// Printed where Bash printed `$AGENTSYNC_HOME/lib/templates`; the binary
-/// reads the embedded copy.
-const TEMPLATES_DISPLAY: &str = "/<agentsync>/lib/templates";
+/// reads the embedded copy, so the line names the release it came from.
+fn templates_display() -> String {
+    format!("shipped with agentsync v{}", crate::engine_version())
+}
 
 /// What `refresh` takes from the terminal.
 pub struct Env<'a> {
@@ -103,9 +105,10 @@ pub fn refresh(
         scope_label.push_str(",AGENTS.md");
     }
     let mut header = format!(
-        "\n{}\n\n  {} {TEMPLATES_DISPLAY}\n  {}   {user_base_shown}\n  {}     {scope_label}\n",
+        "\n{}\n\n  {} {}\n  {}   {user_base_shown}\n  {}     {scope_label}\n",
         style.bold("  AgentSync Refresh"),
         style.dim("Templates:"),
+        templates_display(),
         style.dim("Project:"),
         style.dim("Scope:")
     );
@@ -474,7 +477,8 @@ mod tests {
 
     pub(super) fn header(root: &str, scope: &str) -> String {
         format!(
-            "\n  AgentSync Refresh\n\n  Templates: /<agentsync>/lib/templates\n  Project:   {root}/.ai/src\n  Scope:     {scope}\n\n"
+            "\n  AgentSync Refresh\n\n  Templates: {}\n  Project:   {root}/.ai/src\n  Scope:     {scope}\n\n",
+            templates_display()
         )
     }
 

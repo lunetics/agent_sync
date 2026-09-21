@@ -4,25 +4,28 @@
 
 ### Breaking
 
-- **The sync log moved to stderr; stdout is empty unless you ask for `--json`.** Every line `sync` and `sync --workspace` print for a person — `[INFO]`, the per-file steps, `[WARNING]`, `[ERROR]`, the closing `[DONE]`, the workspace banner — now goes to stderr, where POSIX puts diagnostics and where cargo, git, and npm put their progress. Stdout is reserved for what a program reads: `--help`, and the `--json` summary below. A script that read `agentsync sync` from stdout reads nothing now; give it `--json`, or `2>&1` if it wants the human log. The human log is not a contract and may change again; the JSON object is, and a field is only ever added to it short of a major version. This ships as a minor version.
+- **The sync log goes to stderr.** `sync` and `sync --workspace` print their `[INFO]`, `[WARNING]`, `[ERROR]`, and `[DONE]` lines on stderr, where cargo and git put theirs. Stdout stays empty unless you pass `--json`. A script that read the log from stdout gets nothing now: give it `--json`, or `2>&1` if it wants the human log. The JSON object is the contract, and a field is only ever added to it short of a major version. The human log may change again.
 
 ### Added
 
-- **`sync --json`.** After a successful run, one object on stdout: `{"dry_run":false,"synced":2,"total":13,"skipped":["Cursor",…],"written":[".claude/rules/core.md",…],"preserved":0,"backup":".ai/backups/<id>"}`. `written` lists root-relative paths this run wrote, `preserved` counts user files the sync left in place, and `backup` is `null` on a dry run. A fresh `--if-stale` run reports `total` 0. On failure there is no object: the exit status and stderr say what went wrong.
-- **`sync --quiet` (`-q`).** Prints only warnings, errors, and the closing `[DONE]` line, for hooks and CI steps that want one line per run. `--workspace` forwards `-q` and `--json` to every project.
+- **`sync --json`.** After a successful run, one line on stdout: `{"dry_run":false,"synced":2,"total":13,"skipped":["Cursor",…],"written":[".claude/rules/core.md",…],"preserved":0,"backup":".ai/backups/<id>"}`. `written` holds the root-relative paths this run wrote, `preserved` counts the user files it left in place, and `backup` is `null` on a dry run. A fresh `--if-stale` run reports `total` 0. A failed run prints no object; the exit status and stderr say what went wrong.
+- **`sync --quiet` (`-q`).** Only warnings, errors, and the closing `[DONE]` line, for hooks and CI steps that want one line per run. `--workspace` passes `-q` and `--json` on to every project.
 
 ### Changed
 
-- **A hint follows its error on stderr.** Running `sync` from inside `.ai/` printed the error on stderr and the two hint lines on stdout; an unknown option printed the error on stderr and the usage on stdout. Both now keep the error and its help together, as rustc keeps `error:` and `help:`. `--help` alone prints usage on stdout.
-- **The list of skipped tools is dry-run detail.** A real run ends with `[DONE] Synced 2/13 tools (11 skipped)` and no longer prints the eleven names above it; `sync --dry-run` and `sync --json` still list them.
-- **The sync log is shorter and reads the same in a pipe.** The `═══` rules and the `Starting AgentSync Config Sync...` banner are gone; a blank line ends each tool's block, and only a dry run announces itself (`Dry run: nothing will be written`). `[SUCCESS] <tool> complete` no longer follows every block, since the closing `[DONE] Synced N/M tools` already says which ran. Headings drop their trailing `...`. Counts read `(8 updated)`, `(8 updated, 1 removed)`, `(1 agent, md→toml)`, `(1 file merged)`: singular for one, and no `0 cleanups`. A note that belongs to a tool's block, such as Codex having no native commands surface, is indented under it instead of standing as its own `[INFO]` line, and the MCP source is a suffix on the copy line — `.ai/src/mcp.json → .mcp.json (shared)` — rather than a separate `mcp source: shared` line.
-- **The sync log never prints an engine-internal path.** A source from the merged overlay is named by its category — `rules/ → .claude/rules/`, `AGENTS.md → CLAUDE.md` — and a shipped file by its template path, `templates/guard/claude.sh`, where the log used to print `/<agentsync-overlay>/base-src/src/rules/` and `/<agentsync>/lib/templates/guard/claude.sh`.
-- **`list`, `check`, and `version` ignore extra arguments again, as the Bash engine did.** Since 0.37.0 the binary refused them with `error: unexpected argument` and exit status 2; that came from the argument parser the port used, not from anything AgentSync meant. A leading `--` now reaches the command's own option parser too, so `sync -- --dry-run` answers `Unknown option: --` as `sync.sh` did, where the port had silently dropped the `--` and run a dry run.
+- **A shorter sync log.** The `═══` rules, the start banner, and the `[SUCCESS] <tool> complete` line after every block are gone; the closing `[DONE] Synced 2/13 tools (11 skipped)` already says what ran. A real run no longer lists the skipped tools by name; `--dry-run` and `--json` still do. Counts read `(8 updated, 1 removed)`, singular for one, with no `0 cleanups`.
+- **No engine-internal paths in the log.** A merged source is named by what it is, `rules/ → .claude/rules/`, and a shipped file by its template path, `templates/guard/claude.sh`, where the log used to print `/<agentsync-overlay>/…` and `/<agentsync>/lib/…`.
+- **An error and its hint stay together on stderr.** Running `sync` from inside `.ai/` and passing an unknown option both printed the error on stderr and the help on stdout. `--help` alone still prints usage on stdout.
+- **`list`, `check`, and `version` ignore extra arguments again.** Since 0.37.0 they refused them with exit status 2; that came from the argument parser the port used, not from AgentSync. `sync -- --dry-run` answers `Unknown option: --` as the shell version did, instead of silently running a dry run.
+
+### Fixed
+
+- **The backup path was absolute on Windows.** When the working directory is spelled with an 8.3 short name (`RUNNER~1`) or reached through a symlink, the backup snapshot lives under the canonical root, and both the rollback hint after a failed sync and the `backup` field of `sync --json` printed it in full. Both read `.ai/backups/<id>` now.
 
 ### Internal
 
-- The argument parser crate is gone. Every command reads its own options as its Bash `cmd_*` did, so the parser only ever matched the command word, and it could not pass a leading `--` through. `cli::Command` is now one exhaustive enum of the thirty command words, `main` matches it once, and the binary carries fourteen fewer crates.
-- The library is grouped by role: `config/` for what a project and the engine declare, `engine/` for the render passes, `transaction/` for what makes a run restorable, `output/` for the two voices and the prompts. `error`, `paths`, `text`, `project`, and `cli` stay at the root. The four files that had passed 1500 lines — `init`, `refresh`, `doctor`, and `render` — are directory modules split along the seams they already had. Public paths, tests, and function bodies are unchanged; `.claude/rules/architecture.md` carries the new map.
+- The argument parser crate is gone. Each command reads its own options as its Bash `cmd_*` did, and `cli::Command` is one exhaustive enum over the command words.
+- The library is grouped by role: `config/`, `engine/`, `transaction/`, and `output/`, with `error`, `paths`, `text`, `project`, and `cli` at the root. `init`, `refresh`, `doctor`, and `render` are directory modules now. Public paths and tests are unchanged; `.claude/rules/architecture.md` has the map.
 
 ## 0.38.1
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **`list`, `check`, and `version` ignore extra arguments again, as the Bash engine did.** Since 0.37.0 the binary refused them with `error: unexpected argument` and exit status 2; that came from the argument parser the port used, not from anything AgentSync meant. A leading `--` now reaches the command's own option parser too, so `sync -- --dry-run` answers `Unknown option: --` as `sync.sh` did, where the port had silently dropped the `--` and run a dry run.
+
+### Internal
+
+- The argument parser crate is gone. Every command reads its own options as its Bash `cmd_*` did, so the parser only ever matched the command word, and it could not pass a leading `--` through. `cli::Command` is now one exhaustive enum of the thirty command words, `main` matches it once, and the binary carries fourteen fewer crates.
+- The library is grouped by role: `config/` for what a project and the engine declare, `engine/` for the render passes, `transaction/` for what makes a run restorable, `output/` for the two voices and the prompts. `error`, `paths`, `text`, `project`, and `cli` stay at the root. The four files that had passed 1500 lines — `init`, `refresh`, `doctor`, and `render` — are directory modules split along the seams they already had. Public paths, tests, and function bodies are unchanged; `.claude/rules/architecture.md` carries the new map.
+
 ## 0.38.1
 
 ### Changed

@@ -9,18 +9,36 @@ use super::customize::{VALID_RESOURCES, put, unknown_resource};
 use super::show::{base_tool_shown, read_text};
 use crate::config::payload;
 use crate::config::tool::Tool;
+use crate::output::help::{Help, Section};
 use crate::output::style::Style;
 use crate::project::Project;
 use crate::{Error, config::catalog, config::yaml_subset, text};
 
-const USAGE: &str = "Usage: agentsync diff [<slug>] [<resource>]
-
-  Show fields where your user override diverges from the shipped base
-  template. With no <slug>, walks every customized tool.
-
-  <resource>   Optional payload resource: tool, hooks, mcp, settings.
-               Default: tool (the YAML config).
-";
+pub const HELP: Help = Help {
+    command: "diff",
+    tagline: "show where an override diverges from base",
+    synopsis: &["diff [<slug>] [<resource>]"],
+    description: &[
+        "Show fields where your user override diverges from the shipped base\ntemplate. With no <slug>, walks every customized tool.",
+    ],
+    sections: &[
+        Section {
+            title: "ARGUMENTS",
+            entries: &[
+                ("<slug>", "Tool to diff (default: every customized tool)"),
+                (
+                    "<resource>",
+                    "Payload resource: tool, hooks, mcp, settings\n(default: tool, the YAML config)",
+                ),
+            ],
+        },
+        Section {
+            title: "OPTIONS",
+            entries: &[("-h, --help", "Show this help")],
+        },
+    ],
+    examples: &["diff", "diff cursor", "diff cursor hooks"],
+};
 
 pub(crate) const KEYS: [&str; 26] = [
     "name",
@@ -62,7 +80,7 @@ pub fn diff(
     for arg in args {
         match arg.as_str() {
             "--help" | "-h" => {
-                put(out, USAGE.as_bytes())?;
+                put(out, HELP.render(style).as_bytes())?;
                 return Ok(0);
             }
             flag if flag.starts_with('-') => {
@@ -348,6 +366,14 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let root = std::fs::canonicalize(dir.path()).unwrap().disk_text();
         std::fs::create_dir_all(format!("{root}/.ai/src/tools/cursor")).unwrap();
+        assert_eq!(
+            call(&root, &["-h"]),
+            (
+                0,
+                "\n  agentsync diff — show where an override diverges from base\n\n  USAGE\n    agentsync diff [<slug>] [<resource>]\n\n  DESCRIPTION\n    Show fields where your user override diverges from the shipped base\n    template. With no <slug>, walks every customized tool.\n\n  ARGUMENTS\n    <slug>       Tool to diff (default: every customized tool)\n    <resource>   Payload resource: tool, hooks, mcp, settings\n                 (default: tool, the YAML config)\n\n  OPTIONS\n    -h, --help   Show this help\n\n  EXAMPLES\n    agentsync diff\n    agentsync diff cursor\n    agentsync diff cursor hooks\n\n".to_string(),
+                String::new()
+            )
+        );
         assert_eq!(
             call(&root, &[]).1,
             "\n  No user overrides — all tools inherit fully from base.\n\n"

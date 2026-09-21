@@ -8,9 +8,62 @@ use std::process::{Command, Stdio};
 
 use super::customize::put;
 use crate::config::template_manifest::{self, TemplateManifest};
+use crate::output::help::{Help, Section};
 use crate::output::style::Style;
 use crate::project::Project;
 use crate::{Error, config::catalog, config::format_rev, config::yaml_edit, config::yaml_subset};
+
+pub const HELP: Help = Help {
+    command: "migrate",
+    tagline: "upgrade a project to the current format",
+    synopsis: &["migrate", "migrate --legacy [--apply] [--yes]"],
+    description: &[
+        "Prints an AI prompt for safely upgrading an existing AgentSync project to\nthe latest documented format and copies it to the system clipboard.",
+        "With --legacy, moves legacy flat-layout overrides to the canonical\nper-tool layout. When every legacy MCP file is byte-identical, migrate\noffers to consolidate them into the shared .ai/src/mcp.json. Dry-run by\ndefault: re-run with --apply to move files.",
+    ],
+    sections: &[
+        Section {
+            title: "LEGACY MOVES",
+            entries: &[
+                (
+                    ".ai/src/hooks/<tool>.<ext>",
+                    "→ .ai/src/tools/<tool>/hooks.<ext>",
+                ),
+                (
+                    ".ai/src/mcp/<tool>.<ext>",
+                    "→ .ai/src/tools/<tool>/mcp.<ext>",
+                ),
+                (
+                    ".ai/src/settings/<tool>.<ext>",
+                    "→ .ai/src/tools/<tool>/settings.<ext>",
+                ),
+            ],
+        },
+        Section {
+            title: "OPTIONS",
+            entries: &[
+                (
+                    "--legacy",
+                    "Preview old flat-layout file moves without changing files",
+                ),
+                (
+                    "--apply",
+                    "Apply those moves (backwards-compatible historical behavior)",
+                ),
+                (
+                    "-y, --yes",
+                    "Accept safe legacy consolidation without prompting",
+                ),
+                ("-h, --help", "Show this help"),
+            ],
+        },
+    ],
+    examples: &[
+        "migrate",
+        "migrate --legacy",
+        "migrate --legacy --apply --yes",
+    ],
+};
 
 type Discover<'a> = &'a dyn Fn() -> Result<Project, Error>;
 
@@ -52,10 +105,7 @@ fn prompt(
 ) -> Result<u8, Error> {
     match args.first().map(String::as_str) {
         Some("--help" | "-h") => {
-            put(
-                out,
-                b"Usage: agentsync migrate\n       agentsync migrate --legacy [--apply] [--yes]\n\n  Prints an AI prompt for safely upgrading an existing AgentSync project to\n  the latest documented format and copies it to the system clipboard.\n\n  Legacy layout maintenance:\n    --legacy   Preview old flat-layout file moves without changing files\n    --apply    Apply those moves (backwards-compatible historical behavior)\n    --yes, -y  Accept safe legacy consolidation without prompting\n",
-            )?;
+            put(out, HELP.render(style).as_bytes())?;
             return Ok(0);
         }
         Some(flag) => {
@@ -381,10 +431,7 @@ fn legacy(
             "--apply" => apply = true,
             "--yes" | "-y" => yes = true,
             "--help" | "-h" => {
-                put(
-                    out,
-                    "Usage: agentsync migrate --legacy [--apply] [--yes]\n\n  Moves legacy flat-layout overrides to the canonical per-tool layout:\n    .ai/src/hooks/<tool>.<ext>    → .ai/src/tools/<tool>/hooks.<ext>\n    .ai/src/mcp/<tool>.<ext>      → .ai/src/tools/<tool>/mcp.<ext>\n    .ai/src/settings/<tool>.<ext> → .ai/src/tools/<tool>/settings.<ext>\n\n  When every legacy MCP file is byte-identical, migrate offers to consolidate\n  them into the shared .ai/src/mcp.json. Pass --yes to accept without prompt.\n\n  Dry-run by default — re-run with --apply to move files.\n".as_bytes(),
-                )?;
+                put(out, HELP.render(style).as_bytes())?;
                 return Ok(0);
             }
             flag => {
@@ -870,17 +917,15 @@ mod tests {
                 "Error: Unknown flag: --bogus\nUsage: agentsync migrate --legacy [--apply] [--yes]\n"
             )
         );
-        assert!(
-            call(&root, &["-h"], false, false, None)
-                .out
-                .starts_with("Usage: agentsync migrate\n")
+        let help = call(&root, &["-h"], false, false, None);
+        assert_eq!((help.status, help.err.as_str()), (0, ""));
+        assert_eq!(
+            help.out,
+            "\n  agentsync migrate — upgrade a project to the current format\n\n  USAGE\n    agentsync migrate\n    agentsync migrate --legacy [--apply] [--yes]\n\n  DESCRIPTION\n    Prints an AI prompt for safely upgrading an existing AgentSync project to\n    the latest documented format and copies it to the system clipboard.\n\n    With --legacy, moves legacy flat-layout overrides to the canonical\n    per-tool layout. When every legacy MCP file is byte-identical, migrate\n    offers to consolidate them into the shared .ai/src/mcp.json. Dry-run by\n    default: re-run with --apply to move files.\n\n  LEGACY MOVES\n    .ai/src/hooks/<tool>.<ext>      → .ai/src/tools/<tool>/hooks.<ext>\n    .ai/src/mcp/<tool>.<ext>        → .ai/src/tools/<tool>/mcp.<ext>\n    .ai/src/settings/<tool>.<ext>   → .ai/src/tools/<tool>/settings.<ext>\n\n  OPTIONS\n    --legacy     Preview old flat-layout file moves without changing files\n    --apply      Apply those moves (backwards-compatible historical behavior)\n    -y, --yes    Accept safe legacy consolidation without prompting\n    -h, --help   Show this help\n\n  EXAMPLES\n    agentsync migrate\n    agentsync migrate --legacy\n    agentsync migrate --legacy --apply --yes\n\n"
         );
-        assert!(
-            call(&root, &["--legacy", "--help"], false, false, None)
-                .out
-                .starts_with(
-                    "Usage: agentsync migrate --legacy [--apply] [--yes]\n\n  Moves legacy"
-                )
+        assert_eq!(
+            call(&root, &["--legacy", "--help"], false, false, None).out,
+            help.out
         );
         assert_eq!(
             call(&root, &["--apply"], false, false, None).out,

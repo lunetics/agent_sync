@@ -4,15 +4,65 @@
 use std::collections::BTreeSet;
 use std::io::Write;
 
+use crate::output::help::{Help, Section};
 use crate::output::style::{Style, pad_right};
 use crate::{Error, config::catalog, config::payload, config::tool::Tool, project::Project};
 
 const RESOURCES: [(&str, &str); 3] = [("hooks", "H"), ("mcp", "M"), ("settings", "S")];
 
-pub fn run(project: &Project, style: &Style, out: &mut impl Write) -> Result<(), Error> {
-    let report = render(project, style)?;
+pub const HELP: Help = Help {
+    command: "list",
+    tagline: "show available tools and their status",
+    synopsis: &["list", "ls"],
+    description: &[
+        "Prints one row per tool in the shipped catalog, plus any tool that\nexists only as a project override: its display name, the slug to use\nin commands, whether it is enabled here, and which payloads it\ncarries. Other arguments are ignored.",
+    ],
+    sections: &[
+        Section {
+            title: "LEGEND",
+            entries: &[
+                ("●", "Enabled in this project"),
+                ("○", "Available, not enabled"),
+                ("★", "Tool override in .ai/src/tools/<slug>.yaml"),
+                (
+                    "H M S",
+                    "Hooks, MCP, and settings payloads: a bare letter is the\nshipped base, * a project override, ~ a legacy-layout\noverride, and · no payload of that kind",
+                ),
+            ],
+        },
+        Section {
+            title: "OPTIONS",
+            entries: &[("-h, --help", "Show this help")],
+        },
+        Section {
+            title: "SEE ALSO",
+            entries: &[
+                ("agentsync enable <slug>", "Opt in to a tool"),
+                (
+                    "agentsync customize <slug>",
+                    "Create a per-field override for a tool",
+                ),
+            ],
+        },
+    ],
+    examples: &["list", "ls"],
+};
+
+pub fn run(
+    args: &[String],
+    discover: &dyn Fn() -> Result<Project, Error>,
+    style: &Style,
+    out: &mut impl Write,
+) -> Result<u8, Error> {
+    if matches!(args.first().map(String::as_str), Some("--help" | "-h")) {
+        out.write_all(HELP.render(style).as_bytes())
+            .map_err(|e| Error::io("<stdout>", e))?;
+        return Ok(0);
+    }
+    let report = render(&discover()?, style)?;
     out.write_all(report.as_bytes())
-        .map_err(|e| Error::io("<stdout>", e))
+        .map_err(|e| Error::io("<stdout>", e))?;
+    Ok(0)
 }
 
 pub fn render(project: &Project, style: &Style) -> Result<String, Error> {
@@ -151,6 +201,44 @@ mod tests {
         let path = root.join(rel);
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, text).unwrap();
+    }
+
+    #[test]
+    fn help_is_answered_on_stdout_before_the_project_is_discovered() {
+        let mut out = Vec::new();
+        let status = run(
+            &["--help".to_string()],
+            &|| panic!("--help must not discover the project"),
+            &Style::plain(),
+            &mut out,
+        )
+        .unwrap();
+        assert_eq!(status, 0);
+        let out = String::from_utf8(out).unwrap();
+        assert_eq!(out, HELP.render(&Style::plain()));
+        assert!(out.starts_with(
+            "\n  agentsync list — show available tools and their status\n\n  USAGE\n    agentsync list\n    agentsync ls\n"
+        ));
+        assert!(out.contains("\n  LEGEND\n    ●       Enabled in this project\n"));
+    }
+
+    #[test]
+    fn an_unknown_argument_is_ignored_like_bash() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut out = Vec::new();
+        let status = run(
+            &["--bogus".to_string()],
+            &|| Project::at(dir.path()),
+            &Style::plain(),
+            &mut out,
+        )
+        .unwrap();
+        assert_eq!(status, 0);
+        assert!(
+            String::from_utf8(out)
+                .unwrap()
+                .starts_with("\n  AgentSync Tools\n")
+        );
     }
 
     #[test]

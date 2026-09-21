@@ -7,6 +7,7 @@ use std::path::Path;
 use std::process::Command;
 
 use super::customize::put;
+use crate::output::help::{Help, Section};
 use crate::output::style::Style;
 use crate::{
     Error, config::catalog, config::template_manifest, config::yaml_edit, engine::overlay, paths,
@@ -49,7 +50,7 @@ pub fn dedupe<'a>(
             "--workspace" => workspace = true,
             "--yes" | "-y" => assume_yes = true,
             "--help" | "-h" => {
-                put(out, usage(style).as_bytes())?;
+                put(out, HELP.render(style).as_bytes())?;
                 return Ok(0);
             }
             flag if flag.starts_with("--against=") => {
@@ -61,7 +62,7 @@ pub fn dedupe<'a>(
                     format!(
                         "{}: Unknown option: {flag}\n{}",
                         style.red("Error"),
-                        usage(style)
+                        HELP.render(style)
                     )
                     .as_bytes(),
                 )?;
@@ -73,7 +74,7 @@ pub fn dedupe<'a>(
                     format!(
                         "{}: Unexpected argument: {value}\n{}",
                         style.red("Error"),
-                        usage(style)
+                        HELP.render(style)
                     )
                     .as_bytes(),
                 )?;
@@ -596,50 +597,64 @@ fn show_diff(run: &mut Run, child_file: &str, parent_file: &str) -> Result<(), E
     put(run.err, b"\n")
 }
 
-/// `_dedupe_usage`.
-fn usage(style: &Style) -> String {
-    format!(
-        "\n  {} — remove source files that duplicate a parent .ai/src/
+pub const HELP: Help = Help {
+    command: "dedupe",
+    tagline: "remove source files that duplicate a parent .ai/src/",
+    synopsis: &["dedupe [OPTIONS]"],
+    description: &[
+        "For each path that exists in both your .ai/src/ and the parent, the\nfile's hash decides what is offered (see BEHAVIOR).",
+        "Identical-hash deletions also prune empty parent directories so empty\nskill folders don't linger after their SKILL.md is removed.",
+    ],
+    sections: &[
+        Section {
+            title: "OPTIONS",
+            entries: &[
+                (
+                    "--against <path>",
+                    "Compare against an explicit .ai/src/ (or a project\nroot containing one). Default: nearest parent\n.ai/src/ walking up from cwd, bounded by the git\nrepository boundary.",
+                ),
+                (
+                    "--workspace",
+                    "Run dedupe in every .ai/ below cwd, bottom-up\nalphabetical; each child is deduped against its\nown nearest parent.",
+                ),
+                (
+                    "-y, --yes",
+                    "Non-interactive: delete every identical-hash file\n(and add to template_overrides.declined when the\nfile is template-derived). Divergent files are\nalways left alone — pass --yes does not auto-pick\na side. Required when stdin is not a TTY.",
+                ),
+                ("-h, --help", "Show this help"),
+            ],
+        },
+        Section {
+            title: "BEHAVIOR",
+            entries: &[
+                (
+                    "identical hash, template-derived",
+                    "offer delete + declined entry",
+                ),
+                ("identical hash, manual file", "offer delete only"),
+                ("different hash", "show diff, skip by default"),
+            ],
+        },
+    ],
+    examples: &[
+        "dedupe",
+        "dedupe --against ../",
+        "dedupe --workspace",
+        "dedupe --yes",
+    ],
+};
 
-  {}
-    agentsync dedupe [options]
+#[cfg(test)]
+mod help_tests {
+    use super::*;
 
-  {}
-    --against <path>   Compare against an explicit .ai/src/ (or a project
-                       root containing one). Default: nearest parent
-                       .ai/src/ walking up from cwd, bounded by the git
-                       repository boundary.
-    --workspace        Run dedupe in every .ai/ below cwd, bottom-up
-                       alphabetical; each child is deduped against its
-                       own nearest parent.
-    -y, --yes          Non-interactive: delete every identical-hash file
-                       (and add to template_overrides.declined when the
-                       file is template-derived). Divergent files are
-                       always left alone — pass --yes does not auto-pick
-                       a side. Required when stdin is not a TTY.
-    -h, --help         Show this help.
-
-  {}
-    For each path that exists in both your .ai/src/ and the parent:
-      * identical hash, template-derived → offer delete + declined entry
-      * identical hash, manual file      → offer delete only
-      * different hash                   → show diff, skip by default
-
-    Identical-hash deletions also prune empty parent directories so empty
-    skill folders don't linger after their SKILL.md is removed.
-
-  {}
-    agentsync dedupe
-    agentsync dedupe --against ../
-    agentsync dedupe --workspace
-    agentsync dedupe --yes
-",
-        style.bold("agentsync dedupe"),
-        style.green("USAGE"),
-        style.green("OPTIONS"),
-        style.green("BEHAVIOR"),
-        style.green("EXAMPLES")
-    )
+    #[test]
+    fn help_has_the_shared_shape() {
+        assert_eq!(
+            HELP.render(&Style::plain()),
+            "\n  agentsync dedupe — remove source files that duplicate a parent .ai/src/\n\n  USAGE\n    agentsync dedupe [OPTIONS]\n\n  DESCRIPTION\n    For each path that exists in both your .ai/src/ and the parent, the\n    file's hash decides what is offered (see BEHAVIOR).\n\n    Identical-hash deletions also prune empty parent directories so empty\n    skill folders don't linger after their SKILL.md is removed.\n\n  OPTIONS\n    --against <path>   Compare against an explicit .ai/src/ (or a project\n                       root containing one). Default: nearest parent\n                       .ai/src/ walking up from cwd, bounded by the git\n                       repository boundary.\n    --workspace        Run dedupe in every .ai/ below cwd, bottom-up\n                       alphabetical; each child is deduped against its\n                       own nearest parent.\n    -y, --yes          Non-interactive: delete every identical-hash file\n                       (and add to template_overrides.declined when the\n                       file is template-derived). Divergent files are\n                       always left alone — pass --yes does not auto-pick\n                       a side. Required when stdin is not a TTY.\n    -h, --help         Show this help\n\n  BEHAVIOR\n    identical hash, template-derived   offer delete + declined entry\n    identical hash, manual file        offer delete only\n    different hash                     show diff, skip by default\n\n  EXAMPLES\n    agentsync dedupe\n    agentsync dedupe --against ../\n    agentsync dedupe --workspace\n    agentsync dedupe --yes\n\n"
+        );
+    }
 }
 
 #[cfg(all(test, unix))]
@@ -781,8 +796,13 @@ mod tests {
         let fx = fixture(&[]);
         let (status, out, err) = call(&fx, &["--bogus"], None);
         assert_eq!((status, out.as_str()), (1, ""));
-        assert!(err.starts_with("Error: Unknown option: --bogus\n\n  agentsync dedupe — remove"));
-        assert!(err.ends_with("    agentsync dedupe --yes\n"));
+        assert_eq!(
+            err,
+            format!(
+                "Error: Unknown option: --bogus\n{}",
+                HELP.render(&Style::plain())
+            )
+        );
         assert_eq!(
             call(&fx, &["--against"], None),
             (

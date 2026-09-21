@@ -20,6 +20,11 @@ impl Style {
         Self { enabled: false }
     }
 
+    /// A style decided elsewhere, as the sync log decides `colors` for stderr.
+    pub const fn new(enabled: bool) -> Self {
+        Self { enabled }
+    }
+
     #[cfg(test)]
     pub(crate) const fn colored() -> Self {
         Self { enabled: true }

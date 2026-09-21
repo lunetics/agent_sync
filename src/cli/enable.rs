@@ -6,26 +6,55 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use crate::config::tool::Tool;
+use crate::output::help::{Help, Section};
 use crate::output::style::Style;
 use crate::paths;
 use crate::project::Project;
 use crate::{Error, config::catalog, config::edit_paths, config::payload, config::yaml_edit};
 
-const ENABLE_USAGE: &str =
-    "Usage: agentsync enable <slug> [<slug>...] [--no-scaffold|--scaffold] [--yes]
+pub const ENABLE_HELP: Help = Help {
+    command: "enable",
+    tagline: "add tools to tools.enabled in agent_sync.yaml",
+    synopsis: &["enable <slug> [<slug>...] [--no-scaffold|--scaffold] [--yes]"],
+    description: &[
+        "Add one or more tools to the tools.enabled list in agent_sync.yaml.\nAfter enabling, run agentsync sync to write that tool's outputs.",
+        "Run agentsync list to see available tool slugs.",
+    ],
+    sections: &[Section {
+        title: "OPTIONS",
+        entries: &[
+            (
+                "--scaffold",
+                "Always scaffold payload files (settings/hooks/mcp)",
+            ),
+            ("--no-scaffold", "Never scaffold; skip the payload prompt"),
+            (
+                "-y, --yes",
+                "Accept any prompts (e.g. project-config creation)",
+            ),
+            ("-h, --help", "Show this help"),
+        ],
+    }],
+    examples: &[
+        "enable claude",
+        "enable claude cursor --no-scaffold",
+        "enable codex --scaffold --yes",
+    ],
+};
 
-  Add one or more tools to the `tools.enabled` list in agent_sync.yaml.
-  After enabling, run `agentsync sync` to write that tool's outputs.
-
-  --scaffold       Always scaffold payload files (settings/hooks/mcp).
-  --no-scaffold    Never scaffold; skip the payload prompt.
-  --yes, -y        Accept any prompts (e.g. project-config creation).
-
-  Run `agentsync list` to see available tool slugs.
-";
-
-const ENABLE_SYNOPSIS: &str =
-    "agentsync enable <slug> [<slug>...] [--no-scaffold|--scaffold] [--yes]";
+pub const DISABLE_HELP: Help = Help {
+    command: "disable",
+    tagline: "remove tools from tools.enabled in agent_sync.yaml",
+    synopsis: &["disable <slug> [<slug>...]"],
+    description: &[
+        "Remove one or more tools from the tools.enabled list in agent_sync.yaml.\nA per-tool override with enabled: true is set to false as well. After\ndisabling, run agentsync sync to clean up that tool's outputs.",
+    ],
+    sections: &[Section {
+        title: "OPTIONS",
+        entries: &[("-h, --help", "Show this help")],
+    }],
+    examples: &["disable cursor", "disable claude cursor"],
+};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Scaffold {
@@ -104,7 +133,7 @@ pub fn enable(
             "--no-scaffold" => scaffold = Scaffold::Never,
             "--yes" | "-y" => yes = true,
             "--help" | "-h" => {
-                put(out, ENABLE_USAGE)?;
+                put(out, &ENABLE_HELP.render(style))?;
                 return Ok(0);
             }
             "--" => tools.extend(rest.by_ref().cloned()),
@@ -112,8 +141,9 @@ pub fn enable(
                 put(
                     err,
                     &format!(
-                        "{}: Unknown flag: {flag}\nUsage: {ENABLE_SYNOPSIS}\n",
-                        style.red("Error")
+                        "{}: Unknown flag: {flag}\nUsage: {}\n",
+                        style.red("Error"),
+                        ENABLE_HELP.synopsis_line()
                     ),
                 )?;
                 return Ok(1);
@@ -125,8 +155,9 @@ pub fn enable(
         put(
             err,
             &format!(
-                "{}: {ENABLE_SYNOPSIS}\n\nRun {} to see available tools.\n",
+                "{}: {}\n\nRun {} to see available tools.\n",
                 style.red("Error"),
+                ENABLE_HELP.synopsis_line(),
                 style.cyan("agentsync list")
             ),
         )?;
@@ -154,12 +185,11 @@ pub fn enable(
         }
     }
 
-    put(out, "\n")?;
     if !added.is_empty() {
         put(
             out,
             &format!(
-                "{}\n",
+                "\n{}\n",
                 style.green(&format!("Enabled {} tool(s)", added.len()))
             ),
         )?;
@@ -237,13 +267,14 @@ pub fn disable(
     out: &mut dyn Write,
     err: &mut dyn Write,
 ) -> Result<u8, Error> {
+    if args.iter().any(|arg| arg == "--help" || arg == "-h") {
+        put(out, &DISABLE_HELP.render(style))?;
+        return Ok(0);
+    }
     if args.is_empty() {
         put(
             err,
-            &format!(
-                "{}: agentsync disable <slug> [<slug>...]\n",
-                style.red("Error")
-            ),
+            &format!("{}: {}\n", style.red("Error"), DISABLE_HELP.synopsis_line()),
         )?;
         return Ok(1);
     }
@@ -404,6 +435,28 @@ mod tests {
         assert_eq!(
             call(&root, "disable", &[]).err,
             "Error: agentsync disable <slug> [<slug>...]\n"
+        );
+    }
+
+    #[test]
+    fn enable_and_disable_help_render_in_the_shared_shape() {
+        let (_dir, root) = project();
+        let enable = call(&root, "enable", &["--help"]);
+        assert_eq!((enable.status, enable.err.as_str()), (0, ""));
+        assert_eq!(
+            enable.out,
+            "\n  agentsync enable — add tools to tools.enabled in agent_sync.yaml\n\n  USAGE\n    agentsync enable <slug> [<slug>...] [--no-scaffold|--scaffold] [--yes]\n\n  DESCRIPTION\n    Add one or more tools to the tools.enabled list in agent_sync.yaml.\n    After enabling, run agentsync sync to write that tool's outputs.\n\n    Run agentsync list to see available tool slugs.\n\n  OPTIONS\n    --scaffold      Always scaffold payload files (settings/hooks/mcp)\n    --no-scaffold   Never scaffold; skip the payload prompt\n    -y, --yes       Accept any prompts (e.g. project-config creation)\n    -h, --help      Show this help\n\n  EXAMPLES\n    agentsync enable claude\n    agentsync enable claude cursor --no-scaffold\n    agentsync enable codex --scaffold --yes\n\n"
+        );
+
+        let disable = call(&root, "disable", &["cursor", "-h"]);
+        assert_eq!((disable.status, disable.err.as_str()), (0, ""));
+        assert_eq!(
+            disable.out,
+            "\n  agentsync disable — remove tools from tools.enabled in agent_sync.yaml\n\n  USAGE\n    agentsync disable <slug> [<slug>...]\n\n  DESCRIPTION\n    Remove one or more tools from the tools.enabled list in agent_sync.yaml.\n    A per-tool override with enabled: true is set to false as well. After\n    disabling, run agentsync sync to clean up that tool's outputs.\n\n  OPTIONS\n    -h, --help   Show this help\n\n  EXAMPLES\n    agentsync disable cursor\n    agentsync disable claude cursor\n\n"
+        );
+        assert_eq!(
+            std::fs::read_to_string(root.join(".ai/agent_sync.yaml")).unwrap(),
+            "tools:\n  enabled:\n    - cursor\n"
         );
     }
 }

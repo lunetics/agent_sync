@@ -2,6 +2,7 @@
 //! and the changelog renderer `update` prints.
 
 pub mod changelog;
+pub mod help;
 pub mod log;
 pub mod prompts;
 pub mod style;

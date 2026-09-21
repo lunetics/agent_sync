@@ -6,24 +6,30 @@ use std::io::Write;
 
 use super::customize::put;
 use crate::Error;
+use crate::output::help::{Help, Section};
 use crate::output::style::Style;
 
 /// `lib/prompts/generate.md`, embedded.
 pub const PROMPT: &str = include_str!("../../lib/prompts/generate.md");
 
-const USAGE: &str = "Usage: agentsync generate [<project description>...]
-
-  Print an AI prompt that generates project-specific rules, skills, commands,
-  and agents for .ai/src/, and copy it to the clipboard when one is available.
-
-  Words after the command become the project description at the top of the
-  prompt. In a terminal with no description, a short menu asks for one.
-
-Examples:
-  agentsync generate
-  agentsync generate React + TypeScript + Next.js project with Prisma ORM
-  agentsync generate > prompt.md
-";
+pub const HELP: Help = Help {
+    command: "generate",
+    tagline: "print an AI prompt that generates project-specific config",
+    synopsis: &["generate [<project description>...]"],
+    description: &[
+        "Prints an AI prompt that generates project-specific rules, skills,\ncommands, and agents for .ai/src/, and copies it to the clipboard when\none is available.",
+        "Words after the command become the project description at the top of the\nprompt. In a terminal with no description, a short menu asks for one.",
+    ],
+    sections: &[Section {
+        title: "OPTIONS",
+        entries: &[("-h, --help", "Show this help")],
+    }],
+    examples: &[
+        "generate",
+        "generate React + TypeScript + Next.js project with Prisma ORM",
+        "generate > prompt.md",
+    ],
+};
 
 /// What `generate` takes from the process.
 pub struct Env<'a> {
@@ -99,7 +105,7 @@ pub fn generate(
     err: &mut dyn Write,
 ) -> Result<u8, Error> {
     if matches!(args.first().map(String::as_str), Some("--help" | "-h")) {
-        put(out, USAGE.as_bytes())?;
+        put(out, HELP.render(style).as_bytes())?;
         return Ok(0);
     }
     let context = args.join(" ");
@@ -225,6 +231,16 @@ mod tests {
                 "## My Project\n\nFlutter app with BLoC\n\n---\n\n{}",
                 prompt()
             )
+        );
+    }
+
+    #[test]
+    fn help_renders_the_shared_shape() {
+        let (status, out, err) = run(&["--help"], true, true, Some("pbcopy"), &[]);
+        assert_eq!((status, err.as_str()), (0, ""));
+        assert_eq!(
+            out,
+            "\n  agentsync generate — print an AI prompt that generates project-specific config\n\n  USAGE\n    agentsync generate [<project description>...]\n\n  DESCRIPTION\n    Prints an AI prompt that generates project-specific rules, skills,\n    commands, and agents for .ai/src/, and copies it to the clipboard when\n    one is available.\n\n    Words after the command become the project description at the top of the\n    prompt. In a terminal with no description, a short menu asks for one.\n\n  OPTIONS\n    -h, --help   Show this help\n\n  EXAMPLES\n    agentsync generate\n    agentsync generate React + TypeScript + Next.js project with Prisma ORM\n    agentsync generate > prompt.md\n\n"
         );
     }
 

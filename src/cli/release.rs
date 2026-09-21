@@ -9,9 +9,39 @@ use std::process::{Command, ExitStatus, Stdio};
 
 use super::customize::put;
 use crate::Error;
+use crate::output::help::{Help, Section};
 use crate::output::style::Style;
 
-const USAGE: &str = "  Usage: agentsync release [major|minor|patch] [--no-push]";
+pub const HELP: Help = Help {
+    command: "release",
+    tagline: "bump the version, commit, tag, and push",
+    synopsis: &["release [major|minor|patch] [--no-push]"],
+    description: &[
+        "Bumps VERSION, Cargo.toml, and Cargo.lock together, commits, tags with\nthe changelog section of the new version, and pushes main and the tag.\nRuns from the AgentSync repository checkout, or from AGENTSYNC_HOME when\nthat holds one.",
+    ],
+    sections: &[
+        Section {
+            title: "ARGUMENTS",
+            entries: &[
+                ("major", "Bump the major version (x+1.0.0)"),
+                ("minor", "Bump the minor version (x.y+1.0)"),
+                ("patch", "Bump the patch version (x.y.z+1); the default"),
+            ],
+        },
+        Section {
+            title: "OPTIONS",
+            entries: &[
+                (
+                    "--no-push",
+                    "Commit and tag locally without pushing to origin",
+                ),
+                ("-h, --help", "Show this help"),
+            ],
+        },
+    ],
+    examples: &["release", "release minor", "release major --no-push"],
+};
+
 const CRATE_FILES: [&str; 2] = ["Cargo.toml", "Cargo.lock"];
 const NAME_LINE: &str = "name = \"agentsync\"";
 
@@ -221,13 +251,20 @@ pub fn release(
     for arg in args {
         match (arg.as_str(), Bump::parse(arg)) {
             ("--help" | "-h", _) => {
-                put(out, format!("{}\n", USAGE.trim_start()).as_bytes())?;
+                put(out, HELP.render(style).as_bytes())?;
                 return Ok(0);
             }
             ("--no-push", _) => skip_push = true,
             (_, Some(named)) => bump = named,
             (other, None) => {
-                return refuse(err, style, &format!("Unknown bump type: {other}\n{USAGE}"));
+                return refuse(
+                    err,
+                    style,
+                    &format!(
+                        "Unknown bump type: {other}\nUsage: {}",
+                        HELP.synopsis_line()
+                    ),
+                );
             }
         }
     }
@@ -580,12 +617,18 @@ mod checkout_tests {
         assert_eq!((status, out.as_str()), (1, ""));
         assert_eq!(
             err,
-            "Error: Unknown bump type: banana\n  Usage: agentsync release [major|minor|patch] [--no-push]\n"
+            "Error: Unknown bump type: banana\nUsage: agentsync release [major|minor|patch] [--no-push]\n"
         );
         let (_, _, err) = run(&["patch", "extra"], &root, None, Some("y"));
         assert_eq!(
             err,
-            "Error: Unknown bump type: extra\n  Usage: agentsync release [major|minor|patch] [--no-push]\n"
+            "Error: Unknown bump type: extra\nUsage: agentsync release [major|minor|patch] [--no-push]\n"
+        );
+        let (status, out, err) = run(&["--help"], &root, None, Some("y"));
+        assert_eq!((status, err.as_str()), (0, ""));
+        assert_eq!(
+            out,
+            "\n  agentsync release — bump the version, commit, tag, and push\n\n  USAGE\n    agentsync release [major|minor|patch] [--no-push]\n\n  DESCRIPTION\n    Bumps VERSION, Cargo.toml, and Cargo.lock together, commits, tags with\n    the changelog section of the new version, and pushes main and the tag.\n    Runs from the AgentSync repository checkout, or from AGENTSYNC_HOME when\n    that holds one.\n\n  ARGUMENTS\n    major   Bump the major version (x+1.0.0)\n    minor   Bump the minor version (x.y+1.0)\n    patch   Bump the patch version (x.y.z+1); the default\n\n  OPTIONS\n    --no-push    Commit and tag locally without pushing to origin\n    -h, --help   Show this help\n\n  EXAMPLES\n    agentsync release\n    agentsync release minor\n    agentsync release major --no-push\n\n"
         );
         std::fs::write(root.join("dirty.txt"), "x\n").unwrap();
         let (status, out, err) = run(&["patch", "--no-push"], &root, None, Some("y"));

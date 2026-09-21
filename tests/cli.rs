@@ -128,7 +128,7 @@ fn sync_options_are_checked_before_anything_runs() {
         .code(1)
         .stdout("")
         .stderr(predicate::str::starts_with(
-            "[ERROR] Unknown option: --bogus\nUsage: agentsync sync [OPTIONS]\n\nSync .ai/src/ to every enabled tool.\n",
+            "[ERROR] Unknown option: --bogus\n\n  agentsync sync — sync .ai/src/ to every enabled tool\n\n  USAGE\n    agentsync sync [OPTIONS]\n",
         ));
     sync_in(&dir)
         .args(["--", "--dry-run"])
@@ -141,7 +141,7 @@ fn sync_options_are_checked_before_anything_runs() {
         .success()
         .stderr("")
         .stdout(predicate::str::contains(
-            "  --help            Show this help message\n",
+            "\n  OPTIONS\n    --only <tools>     Sync only these tools (comma-separated)\n",
         ));
     assert!(!dir.path().join("CLAUDE.md").exists());
 }
@@ -354,12 +354,33 @@ fn every_command_with_its_own_usage_answers_help_without_running() {
         .replace(engine_version(), "0.0.1");
     project.write(".ai/agent_sync.yaml", &stale);
     for command in [
+        "init",
         "sync",
+        "rollback",
+        "check",
+        "list",
+        "enable",
+        "disable",
+        "add",
+        "customize",
+        "simplify",
+        "migrate",
         "show",
         "diff",
+        "resolve",
+        "doctor",
+        "dedupe",
+        "adopt",
+        "profile",
         "generate",
-        "release",
+        "setup-hooks",
+        "shell-init",
+        "export",
+        "import",
+        "refresh",
+        "update",
         "upgrade-config",
+        "release",
     ] {
         project
             .agentsync()
@@ -367,7 +388,7 @@ fn every_command_with_its_own_usage_answers_help_without_running() {
             .assert()
             .success()
             .stdout(predicate::str::starts_with(format!(
-                "Usage: agentsync {command}"
+                "\n  agentsync {command} — "
             )))
             .stderr("");
     }

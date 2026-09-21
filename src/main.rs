@@ -162,6 +162,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
             cli::setup_hooks::setup_hooks(
                 rest,
                 &root,
+                &style,
                 &mut std::io::stdout(),
                 &mut std::io::stderr(),
             )
@@ -244,6 +245,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
                 external_roots: external_roots_var(),
             };
             cli::doctor::doctor(
+                rest,
                 &Project::discover,
                 &style,
                 &env,
@@ -403,9 +405,8 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
             &mut std::io::stderr(),
         ),
         Command::List => {
-            let project = Project::discover()?;
             let mut out = std::io::stdout().lock();
-            cli::list::run(&project, &style, &mut out).map(|()| 0)
+            cli::list::run(rest, &Project::discover, &style, &mut out)
         }
         Command::Check => {
             let root = project_root()?;
@@ -418,7 +419,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
             };
             let mut out = std::io::stdout().lock();
             let mut err = std::io::stderr().lock();
-            cli::check::run(&root, &env, &mut out, &mut err)
+            cli::check::run(rest, &root, &env, &style, &mut out, &mut err)
         }
         Command::Sync if rest.iter().any(|a| a == "--workspace") => {
             let forwarded: Vec<String> = rest
@@ -466,6 +467,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
                 &supplied_root,
                 rest,
                 &env,
+                &style,
                 &mut confirm,
                 &mut std::io::stdout(),
                 &mut std::io::stderr(),

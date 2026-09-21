@@ -98,6 +98,33 @@ fn with_curl_stub(command: &mut Command, stub_dir: &Path, github_dir: &Path) {
 }
 
 #[test]
+fn export_help_prints_usage() {
+    Project::seeded(&[])
+        .agentsync()
+        .args(["export", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::starts_with(
+            "\n  agentsync export — bundle source files into a shareable archive\n\n  USAGE\n    agentsync export [OPTIONS]\n\n  OPTIONS\n    -o, --output <path>   ",
+        ))
+        .stdout(predicate::str::contains("\n    -h, --help            Show this help\n"));
+}
+
+#[test]
+fn import_help_prints_usage() {
+    Project::seeded(&[])
+        .agentsync()
+        .args(["import", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::starts_with(
+            "\n  agentsync import — import config from GitHub, archive, or directory\n\n  USAGE\n    agentsync import <source> [OPTIONS]\n\n  SOURCES\n    GitHub URL        https://github.com/user/repo\n",
+        ))
+        .stdout(predicate::str::contains("\n  OPTIONS\n    -b, --branch <name>   "))
+        .stdout(predicate::str::contains("\n    -h, --help            Show this help\n"));
+}
+
+#[test]
 fn export_writes_the_bundle_and_lists_its_contents() {
     let project = Project::seeded(&[]);
     project

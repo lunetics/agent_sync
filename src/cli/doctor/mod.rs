@@ -13,10 +13,46 @@ use std::path::{Path, PathBuf};
 use super::customize::put;
 use crate::config::payload::{self, Source};
 use crate::config::tool::Tool;
+use crate::output::help::{Help, Section};
 use crate::output::style::Style;
 use crate::paths::{DiskText, ExplicitSource, Paths};
 use crate::project::Project;
 use crate::{Error, config::catalog, config::edit_paths, config::format_rev, config::yaml_subset};
+
+pub const HELP: Help = Help {
+    command: "doctor",
+    tagline: "validate setup and surface warnings",
+    synopsis: &["doctor"],
+    description: &[
+        "Checks the project section by section and prints one line per\nfinding: project layout, enabled tools, edit paths, user overrides,\nsource directories, drift, security, skills, rules, tool outputs, and\ncross-project duplicates. The report goes to stdout; the summary line\nnames every command to run next.",
+        "Honours AGENTSYNC_CONFIG_PATH for the project config and\nAGENTSYNC_EXTERNAL_SOURCE_ROOTS for source directories that live\noutside the project.",
+    ],
+    sections: &[
+        Section {
+            title: "OPTIONS",
+            entries: &[("-h, --help", "Show this help")],
+        },
+        Section {
+            title: "EXIT STATUS",
+            entries: &[
+                ("0", "Every check passed, or only advisories were raised"),
+                ("1", "Warnings: setup problems worth fixing"),
+                ("2", "Errors, or no .ai/ directory to check"),
+            ],
+        },
+        Section {
+            title: "SEE ALSO",
+            entries: &[
+                (
+                    "agentsync check",
+                    "Compare generated outputs with the source",
+                ),
+                ("agentsync init", "Create the .ai/ directory doctor checks"),
+            ],
+        },
+    ],
+    examples: &["doctor"],
+};
 
 /// What `doctor` takes from the process.
 pub struct Env<'a> {
@@ -176,12 +212,17 @@ fn files_below(dir: &Path, found: &mut Vec<PathBuf>) {
 
 /// `cmd_doctor`: the report on `out`, the tri-state status as the result.
 pub fn doctor(
+    args: &[String],
     discover: &dyn Fn() -> Result<Project, Error>,
     style: &Style,
     env: &Env,
     out: &mut dyn Write,
     err: &mut dyn Write,
 ) -> Result<u8, Error> {
+    if matches!(args.first().map(String::as_str), Some("--help" | "-h")) {
+        put(out, HELP.render(style).as_bytes())?;
+        return Ok(0);
+    }
     let project = match discover() {
         Ok(project) => project,
         Err(Error::ConfigPathNotFound(path)) => {
@@ -444,7 +485,6 @@ pub fn doctor(
     d.check_cross_project()?;
     d.say("\n")?;
 
-    d.say(&format!("  {}\n", "─".repeat(60)))?;
     let advisory_label = if d.advisories > 0 {
         format!(
             ", {}",
@@ -505,6 +545,7 @@ mod tests {
         };
         let (mut out, mut err) = (Vec::new(), Vec::new());
         let status = doctor(
+            &[],
             &|| Project::at(root),
             &Style::plain(),
             &env,
@@ -520,14 +561,38 @@ mod tests {
     }
 
     #[test]
+    fn help_is_answered_on_stdout_before_the_project_is_discovered() {
+        let env = Env {
+            version: "0.36.0",
+            external_roots: None,
+        };
+        let (mut out, mut err) = (Vec::new(), Vec::new());
+        let status = doctor(
+            &["--help".to_string()],
+            &|| panic!("--help must not discover the project"),
+            &Style::plain(),
+            &env,
+            &mut out,
+            &mut err,
+        )
+        .unwrap();
+        assert_eq!(status, 0);
+        assert_eq!(err, b"");
+        let out = String::from_utf8(out).unwrap();
+        assert_eq!(out, HELP.render(&Style::plain()));
+        assert!(out.starts_with(
+            "\n  agentsync doctor — validate setup and surface warnings\n\n  USAGE\n    agentsync doctor\n"
+        ));
+    }
+
+    #[test]
     fn a_project_without_a_config_reports_like_cmd_doctor() {
         let (_dir, root) = project(&[(".ai/src/AGENTS.md", "# Agents\n")], &[".git"]);
         let (status, out, err) = run(&root);
         assert_eq!(status, 1);
         assert_eq!(err, "");
         let expected = format!(
-            "\n  AgentSync Doctor\n  {root}\n\n  Project layout\n    ✓ .ai/ directory present\n    ✓ AGENTS.md source file found\n    ! No agent_sync.yaml — using defaults only\n\n  Enabled tools\n    · No tools enabled — run agentsync enable <slug>\n\n  User overrides\n    · No customizations — all tools inherit fully from base\n\n  Source directories\n    ✓ .ai/src/AGENTS.md\n    · .ai/src/rules not present (optional)\n    · .ai/src/skills not present (optional)\n    · .ai/src/commands not present (optional)\n    · .ai/src/agents not present (optional)\n\n  Drift\n    · No .sync-manifest yet — run agentsync sync to create it\n\n  Security\n    · No overrides to scan, or all clean.\n\n  Skills\n    · No .ai/src/skills/ — nothing to scan.\n\n  Rules\n    · No .ai/src/rules/ — nothing to scan.\n\n  Tool outputs\n    ✓ No orphan tool-output directories\n\n  Cross-project\n    · No parent .ai/src/ found within git boundary.\n\n  {}\n  OK with 1 warning(s)\n\n",
-            "─".repeat(60)
+            "\n  AgentSync Doctor\n  {root}\n\n  Project layout\n    ✓ .ai/ directory present\n    ✓ AGENTS.md source file found\n    ! No agent_sync.yaml — using defaults only\n\n  Enabled tools\n    · No tools enabled — run agentsync enable <slug>\n\n  User overrides\n    · No customizations — all tools inherit fully from base\n\n  Source directories\n    ✓ .ai/src/AGENTS.md\n    · .ai/src/rules not present (optional)\n    · .ai/src/skills not present (optional)\n    · .ai/src/commands not present (optional)\n    · .ai/src/agents not present (optional)\n\n  Drift\n    · No .sync-manifest yet — run agentsync sync to create it\n\n  Security\n    · No overrides to scan, or all clean.\n\n  Skills\n    · No .ai/src/skills/ — nothing to scan.\n\n  Rules\n    · No .ai/src/rules/ — nothing to scan.\n\n  Tool outputs\n    ✓ No orphan tool-output directories\n\n  Cross-project\n    · No parent .ai/src/ found within git boundary.\n\n  OK with 1 warning(s)\n\n"
         );
         assert_eq!(out, expected);
     }
@@ -556,8 +621,7 @@ mod tests {
         assert_eq!(status, 1);
         assert_eq!(err, "");
         let expected = format!(
-            "\n  AgentSync Doctor\n  {root}\n\n  Project layout\n    ✓ .ai/ directory present\n    ✓ AGENTS.md source file found\n    ✓ Project config: .ai/agent_sync.yaml\n    ! CLI version v0.36.0 differs from pinned v0.0.1 — run agentsync upgrade-config to align\n    ! Project format r1 is behind the engine r2 — run agentsync migrate to preview\n\n  Enabled tools\n    · No tools enabled — run agentsync enable <slug>\n\n  User overrides\n    · No customizations — all tools inherit fully from base\n\n  Source directories\n    ✓ .ai/src/AGENTS.md\n    ✓ .ai/src/rules\n    ✓ .ai/src/skills\n    · .ai/src/commands not present (optional)\n    · .ai/src/agents not present (optional)\n\n  Drift\n    ! CLAUDE.md — missing (deleted manually)\n\n    Re-run agentsync sync to overwrite, or move edits into .ai/src/ first.\n\n  Security\n    · No overrides to scan, or all clean.\n\n  Skills\n    ! skills/empty/ — missing SKILL.md (empty skill — populate or remove)\n    · Tip: agentsync simplify can prune empty skill dirs.\n\n  Rules\n    ✓ No always-on rules (every rule is paths:-scoped)\n\n  Tool outputs\n    ! .claude/ — orphan (tool 'claude' not enabled; output left from prior run)\n\n  Cross-project\n    · No parent .ai/src/ found within git boundary.\n\n  {}\n  OK with 3 warning(s), 2 advisory(ies)\n\n",
-            "─".repeat(60)
+            "\n  AgentSync Doctor\n  {root}\n\n  Project layout\n    ✓ .ai/ directory present\n    ✓ AGENTS.md source file found\n    ✓ Project config: .ai/agent_sync.yaml\n    ! CLI version v0.36.0 differs from pinned v0.0.1 — run agentsync upgrade-config to align\n    ! Project format r1 is behind the engine r2 — run agentsync migrate to preview\n\n  Enabled tools\n    · No tools enabled — run agentsync enable <slug>\n\n  User overrides\n    · No customizations — all tools inherit fully from base\n\n  Source directories\n    ✓ .ai/src/AGENTS.md\n    ✓ .ai/src/rules\n    ✓ .ai/src/skills\n    · .ai/src/commands not present (optional)\n    · .ai/src/agents not present (optional)\n\n  Drift\n    ! CLAUDE.md — missing (deleted manually)\n\n    Re-run agentsync sync to overwrite, or move edits into .ai/src/ first.\n\n  Security\n    · No overrides to scan, or all clean.\n\n  Skills\n    ! skills/empty/ — missing SKILL.md (empty skill — populate or remove)\n    · Tip: agentsync simplify can prune empty skill dirs.\n\n  Rules\n    ✓ No always-on rules (every rule is paths:-scoped)\n\n  Tool outputs\n    ! .claude/ — orphan (tool 'claude' not enabled; output left from prior run)\n\n  Cross-project\n    · No parent .ai/src/ found within git boundary.\n\n  OK with 3 warning(s), 2 advisory(ies)\n\n"
         );
         assert_eq!(out, expected);
     }

@@ -9,6 +9,7 @@ use std::process::Command;
 use super::customize::put;
 use crate::config::payload::{self, Source};
 use crate::config::tool::Tool;
+use crate::output::help::{Help, Section};
 use crate::output::log::Log;
 use crate::output::style::Style;
 use crate::paths::{self, Paths};
@@ -19,7 +20,29 @@ use crate::{Error, config::catalog, config::template_manifest, config::yaml_subs
 type Discover<'a> = &'a dyn Fn() -> Result<Project, Error>;
 type Confirm<'a> = &'a mut dyn FnMut(&str) -> bool;
 
-const USAGE: &str = "Usage: agentsync adopt [--dry-run] [--yes] <dest-file>\n       agentsync adopt --all [--dry-run] [--yes]\n";
+pub const HELP: Help = Help {
+    command: "adopt",
+    tagline: "promote a manual edit back into .ai/src/",
+    synopsis: &["adopt <dest-file> [OPTIONS]", "adopt --all [OPTIONS]"],
+    description: &[
+        "Promote a manual edit in a destination file back into .ai/src/ as the\nnew canonical content. Refuses transformed targets (merged rules,\ninlined skills, format-converted commands/subagents).",
+        "With --all, adopt every drifted (manually-edited) tracked output at\nonce, skipping refused targets and same-source conflicts.",
+    ],
+    sections: &[Section {
+        title: "OPTIONS",
+        entries: &[
+            ("-a, --all", "Adopt every drifted output (no <dest-file>)"),
+            ("--dry-run", "Show the plan without writing"),
+            ("-y, --yes", "Skip confirmation (required outside a TTY)"),
+            ("-h, --help", "Show this help"),
+        ],
+    }],
+    examples: &[
+        "adopt CLAUDE.md",
+        "adopt .claude/rules/core.md --dry-run",
+        "adopt --all --yes",
+    ],
+};
 
 /// `SOURCE_*` as `_adopt_discover_sources` sets them.
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -424,10 +447,7 @@ pub fn adopt(
             "--yes" | "-y" => assume_yes = true,
             "--all" | "-a" => all = true,
             "--help" | "-h" => {
-                put(
-                    out,
-                    format!("{USAGE}\nPromote a manual edit in a destination file back into .ai/src/ as the new\ncanonical content. Refuses transformed targets (merged rules, inlined skills,\nformat-converted commands/subagents).\n\nWith --all, adopt every drifted (manually-edited) tracked output at once,\nskipping refused targets and same-source conflicts.\n\nOptions:\n  --all,-a     Adopt every drifted output (no <dest-file>)\n  --dry-run    Show the plan without writing\n  --yes,-y     Skip confirmation (required outside a TTY)\n").as_bytes(),
-                )?;
+                put(out, HELP.render(style).as_bytes())?;
                 return Ok(0);
             }
             flag if flag.starts_with('-') => {
@@ -461,7 +481,12 @@ pub fn adopt(
     if !all && dest.is_empty() {
         put(
             err,
-            format!("{}: missing <dest-file>\n{USAGE}", style.red("Error")).as_bytes(),
+            format!(
+                "{}: missing <dest-file>\n{}",
+                style.red("Error"),
+                HELP.render(style)
+            )
+            .as_bytes(),
         )?;
         return Ok(2);
     }
@@ -1113,6 +1138,19 @@ mod tests {
     }
 
     #[test]
+    fn help_renders_in_the_shared_shape() {
+        let (_dir, root) = project(&SOURCES);
+        assert_eq!(
+            call(&root, &["--help"], false, false),
+            (
+                0,
+                "\n  agentsync adopt — promote a manual edit back into .ai/src/\n\n  USAGE\n    agentsync adopt <dest-file> [OPTIONS]\n    agentsync adopt --all [OPTIONS]\n\n  DESCRIPTION\n    Promote a manual edit in a destination file back into .ai/src/ as the\n    new canonical content. Refuses transformed targets (merged rules,\n    inlined skills, format-converted commands/subagents).\n\n    With --all, adopt every drifted (manually-edited) tracked output at\n    once, skipping refused targets and same-source conflicts.\n\n  OPTIONS\n    -a, --all    Adopt every drifted output (no <dest-file>)\n    --dry-run    Show the plan without writing\n    -y, --yes    Skip confirmation (required outside a TTY)\n    -h, --help   Show this help\n\n  EXAMPLES\n    agentsync adopt CLAUDE.md\n    agentsync adopt .claude/rules/core.md --dry-run\n    agentsync adopt --all --yes\n\n".to_string(),
+                String::new()
+            )
+        );
+    }
+
+    #[test]
     fn arguments_are_refused_with_the_bash_statuses() {
         let (_dir, root) = project(&SOURCES);
         let refused = |args: &[&str]| {
@@ -1121,7 +1159,13 @@ mod tests {
         };
         assert_eq!(
             refused(&[]),
-            (2, format!("Error: missing <dest-file>\n{USAGE}"))
+            (
+                2,
+                format!(
+                    "Error: missing <dest-file>\n{}",
+                    HELP.render(&Style::plain())
+                )
+            )
         );
         assert_eq!(
             refused(&["--bogus"]),

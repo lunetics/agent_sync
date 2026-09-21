@@ -343,9 +343,13 @@ fn dedupe_help_prints_usage() {
         .args(["dedupe", "--help"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("agentsync dedupe"))
-        .stdout(predicate::str::contains("--against"))
-        .stdout(predicate::str::contains("--workspace"));
+        .stdout(predicate::str::starts_with(
+            "\n  agentsync dedupe — remove source files that duplicate a parent .ai/src/\n\n  USAGE\n    agentsync dedupe [OPTIONS]\n",
+        ))
+        .stdout(predicate::str::contains("\n  OPTIONS\n    --against <path>   "))
+        .stdout(predicate::str::contains("\n    --workspace        "))
+        .stdout(predicate::str::contains("\n  BEHAVIOR\n"))
+        .stdout(predicate::str::contains("\n    -h, --help         Show this help\n"));
 }
 
 #[test]

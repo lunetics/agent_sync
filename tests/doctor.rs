@@ -582,10 +582,23 @@ fn doctor_does_not_count_paths_scoped_rules_toward_always_on_bloat() {
 }
 
 #[test]
-fn doctor_the_summary_rule_is_indented_and_sixty_characters_wide() {
-    let project = Project::seeded(&[]);
-    let rule = "─".repeat(60);
-    doctor(&project)
+fn doctor_the_summary_follows_a_blank_line_with_no_rule() {
+    doctor(&Project::seeded(&[]))
         .success()
-        .stdout(predicate::str::contains(format!("\n  {rule}\n")));
+        .stdout(predicate::str::ends_with("\n\n  All checks passed.\n\n"))
+        .stdout(predicate::str::contains("─").not());
+}
+
+#[test]
+fn doctor_help_is_answered_on_stdout_without_a_project() {
+    Project::empty()
+        .agentsync()
+        .args(["doctor", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::starts_with(
+            "\n  agentsync doctor — validate setup and surface warnings\n\n  USAGE\n    agentsync doctor\n",
+        ))
+        .stdout(predicate::str::contains("\n  EXIT STATUS\n"))
+        .stderr("");
 }

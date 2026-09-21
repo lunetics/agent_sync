@@ -4,26 +4,43 @@
 
 use std::io::Write;
 
+use crate::output::help::{Help, Section};
+use crate::output::style::Style;
 use crate::transaction::interrupt::{self, Interrupt};
 use crate::transaction::witness::{self, Preflight};
 use crate::{Error, config::project_config, paths, transaction::backup};
 
-pub const USAGE: &str = "Usage: agentsync rollback [<backup-id>] [OPTIONS]
-
-Restore AgentSync-managed targets from a backup. Without an ID, restores the
-latest complete snapshot. A safety snapshot is created before every restore,
-so the rollback itself can be undone.
-
-Rollback refuses, naming the first changed path, when a target differs from the
-state recorded after the backup's operation finished.
-
-Options:
-  --list       List complete backups
-  --dry-run    Show the restore plan and any conflict without changing files
-  --force      Restore even when targets changed after the backup's operation
-  -y, --yes    Skip the confirmation prompt
-  -h, --help   Show this help
-";
+pub const HELP: Help = Help {
+    command: "rollback",
+    tagline: "restore targets from a backup",
+    synopsis: &["rollback [<backup-id>] [OPTIONS]"],
+    description: &[
+        "Restore AgentSync-managed targets from a backup. Without an ID, restores\nthe latest complete snapshot. A safety snapshot is created before every\nrestore, so the rollback itself can be undone.",
+        "Rollback refuses, naming the first changed path, when a target differs\nfrom the state recorded after the backup's operation finished.",
+    ],
+    sections: &[Section {
+        title: "OPTIONS",
+        entries: &[
+            ("--list", "List complete backups"),
+            (
+                "--dry-run",
+                "Show the restore plan and any conflict without changing files",
+            ),
+            (
+                "--force",
+                "Restore even when targets changed after the backup's operation",
+            ),
+            ("-y, --yes", "Skip the confirmation prompt"),
+            ("-h, --help", "Show this help"),
+        ],
+    }],
+    examples: &[
+        "rollback --list",
+        "rollback",
+        "rollback 20260921T120000Z-sync-4242 --dry-run",
+        "rollback --force --yes",
+    ],
+};
 
 /// The environment `backup_configure` and `backup_prune` read.
 #[derive(Default)]
@@ -39,6 +56,7 @@ pub fn run(
     supplied_root: &str,
     args: &[String],
     env: &Env,
+    style: &Style,
     confirm: &mut dyn FnMut(&str) -> bool,
     out: &mut dyn Write,
     err: &mut dyn Write,
@@ -52,12 +70,12 @@ pub fn run(
             "--force" => force = true,
             "--yes" | "-y" => assume_yes = true,
             "--help" | "-h" => {
-                let _ = out.write_all(USAGE.as_bytes());
+                let _ = out.write_all(HELP.render(style).as_bytes());
                 return 0;
             }
             option if option.starts_with('-') => {
                 let _ = writeln!(err, "Error: Unknown rollback option: {option}");
-                let _ = err.write_all(USAGE.as_bytes());
+                let _ = err.write_all(HELP.render(style).as_bytes());
                 return 1;
             }
             id if backup_id.is_some() => {
@@ -339,6 +357,7 @@ mod tests {
             root,
             &args,
             &Env::default(),
+            &Style::plain(),
             &mut |_| answer,
             &mut out,
             &mut err,
@@ -464,11 +483,9 @@ mod tests {
         let (_dir, root) = project();
         let unknown = rollback(&root, &["--nope"], true);
         assert_eq!(unknown.status, 1);
-        assert!(
-            unknown
-                .err
-                .starts_with("Error: Unknown rollback option: --nope\nUsage: agentsync rollback")
-        );
+        assert!(unknown.err.starts_with(
+            "Error: Unknown rollback option: --nope\n\n  agentsync rollback — restore targets from a backup\n\n  USAGE\n"
+        ));
         assert_eq!(
             rollback(&root, &["a", "b"], true).err,
             "Error: Unexpected rollback argument: b\n"
@@ -489,7 +506,12 @@ mod tests {
             rollback(&root, &["--yes"], true).err,
             "Error: No complete AgentSync backup found\n"
         );
-        assert_eq!(rollback(&root, &["--help", "--nope"], true).out, USAGE);
+        let help = rollback(&root, &["--help", "--nope"], true);
+        assert_eq!((help.status, help.err.as_str()), (0, ""));
+        assert_eq!(
+            help.out,
+            "\n  agentsync rollback — restore targets from a backup\n\n  USAGE\n    agentsync rollback [<backup-id>] [OPTIONS]\n\n  DESCRIPTION\n    Restore AgentSync-managed targets from a backup. Without an ID, restores\n    the latest complete snapshot. A safety snapshot is created before every\n    restore, so the rollback itself can be undone.\n\n    Rollback refuses, naming the first changed path, when a target differs\n    from the state recorded after the backup's operation finished.\n\n  OPTIONS\n    --list       List complete backups\n    --dry-run    Show the restore plan and any conflict without changing files\n    --force      Restore even when targets changed after the backup's operation\n    -y, --yes    Skip the confirmation prompt\n    -h, --help   Show this help\n\n  EXAMPLES\n    agentsync rollback --list\n    agentsync rollback\n    agentsync rollback 20260921T120000Z-sync-4242 --dry-run\n    agentsync rollback --force --yes\n\n"
+        );
     }
 
     #[test]
@@ -525,7 +547,15 @@ mod tests {
         };
         let args = ["--yes".to_string()];
         assert_eq!(
-            run(&root, &args, &env, &mut |_| true, &mut out, &mut err),
+            run(
+                &root,
+                &args,
+                &env,
+                &Style::plain(),
+                &mut |_| true,
+                &mut out,
+                &mut err
+            ),
             0
         );
         assert_eq!(backup::list(&root).unwrap().len(), 2);
@@ -536,7 +566,15 @@ mod tests {
             ..Env::default()
         };
         assert_eq!(
-            run(&root, &args, &env, &mut |_| true, &mut out, &mut err),
+            run(
+                &root,
+                &args,
+                &env,
+                &Style::plain(),
+                &mut |_| true,
+                &mut out,
+                &mut err
+            ),
             1
         );
         assert_eq!(

@@ -8,26 +8,51 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use super::customize::put;
+use crate::output::help::{Help, Section};
+use crate::output::style::Style;
 use crate::{Error, config::yaml_subset};
 
-const USAGE: &str = "Usage: agentsync setup-hooks [--pre-commit]";
 const BLOCK_START: &str = "# >>> AGENTSYNC AUTO SYNC START >>>";
 const BLOCK_END: &str = "# <<< AGENTSYNC AUTO SYNC END <<<";
 
-const HELP: &str = "Usage: agentsync setup-hooks [--pre-commit]
-
-  Installs the git hooks that suit this project's outputs mode.
-
-  committed: pre-commit re-syncs and fails the commit when a
-             generated file changed, so outputs never lag source.
-  local:     post-merge and post-checkout run 'agentsync sync'
-             after pull/checkout.
-
-  --pre-commit   In local mode, also install a pre-commit hook
-                 that runs 'agentsync sync --if-stale'.
-
-  Set AGENTSYNC_SKIP_HOOKS=1 to make the installed hooks no-ops.
-";
+pub const HELP: Help = Help {
+    command: "setup-hooks",
+    tagline: "install the git hooks that suit the project's outputs mode",
+    synopsis: &["setup-hooks [--pre-commit]"],
+    description: &[
+        "Installs the git hooks that suit this project's outputs mode. Each hook\ngets one marked block appended; whatever the hook already ran stays.",
+    ],
+    sections: &[
+        Section {
+            title: "MODES",
+            entries: &[
+                (
+                    "committed",
+                    "pre-commit re-syncs and fails the commit when a generated file\nchanged, so outputs never lag source",
+                ),
+                (
+                    "local",
+                    "post-merge and post-checkout run agentsync sync after\npull/checkout",
+                ),
+            ],
+        },
+        Section {
+            title: "OPTIONS",
+            entries: &[
+                (
+                    "--pre-commit",
+                    "In local mode, also install a pre-commit hook that runs\nagentsync sync --if-stale",
+                ),
+                ("-h, --help", "Show this help"),
+            ],
+        },
+        Section {
+            title: "ENVIRONMENT",
+            entries: &[("AGENTSYNC_SKIP_HOOKS=1", "Make the installed hooks no-ops")],
+        },
+    ],
+    examples: &["setup-hooks", "setup-hooks --pre-commit"],
+};
 
 const HOOKS_PATH_ELSEWHERE: &str =
     "This repository points core.hooksPath at another directory, so AgentSync
@@ -181,6 +206,7 @@ fn executable(_path: &Path) -> Result<(), Error> {
 pub fn setup_hooks(
     args: &[String],
     root: &str,
+    style: &Style,
     out: &mut dyn Write,
     err: &mut dyn Write,
 ) -> Result<u8, Error> {
@@ -189,13 +215,17 @@ pub fn setup_hooks(
         match arg.as_str() {
             "--pre-commit" => pre_commit = true,
             "--help" | "-h" => {
-                put(out, HELP.as_bytes())?;
+                put(out, HELP.render(style).as_bytes())?;
                 return Ok(0);
             }
             other => {
                 put(
                     err,
-                    format!("Error: Unknown option: {other}\n{USAGE}\n").as_bytes(),
+                    format!(
+                        "Error: Unknown option: {other}\nUsage: {}\n",
+                        HELP.synopsis_line()
+                    )
+                    .as_bytes(),
                 )?;
                 return Ok(2);
             }
@@ -252,7 +282,7 @@ mod tests {
     fn run(root: &str, args: &[&str]) -> (u8, String, String) {
         let args: Vec<String> = args.iter().map(|a| a.to_string()).collect();
         let (mut out, mut err) = (Vec::new(), Vec::new());
-        let status = setup_hooks(&args, root, &mut out, &mut err).unwrap();
+        let status = setup_hooks(&args, root, &Style::plain(), &mut out, &mut err).unwrap();
         (
             status,
             String::from_utf8(out).unwrap(),
@@ -377,7 +407,11 @@ mod tests {
             "Error: Unknown option: --bogus\nUsage: agentsync setup-hooks [--pre-commit]\n"
         );
         let (status, out, _) = run(&root, &["--help"]);
-        assert_eq!((status, out.as_str()), (0, HELP));
+        assert_eq!(status, 0);
+        assert_eq!(
+            out,
+            "\n  agentsync setup-hooks — install the git hooks that suit the project's outputs mode\n\n  USAGE\n    agentsync setup-hooks [--pre-commit]\n\n  DESCRIPTION\n    Installs the git hooks that suit this project's outputs mode. Each hook\n    gets one marked block appended; whatever the hook already ran stays.\n\n  MODES\n    committed   pre-commit re-syncs and fails the commit when a generated file\n                changed, so outputs never lag source\n    local       post-merge and post-checkout run agentsync sync after\n                pull/checkout\n\n  OPTIONS\n    --pre-commit   In local mode, also install a pre-commit hook that runs\n                   agentsync sync --if-stale\n    -h, --help     Show this help\n\n  ENVIRONMENT\n    AGENTSYNC_SKIP_HOOKS=1   Make the installed hooks no-ops\n\n  EXAMPLES\n    agentsync setup-hooks\n    agentsync setup-hooks --pre-commit\n\n"
+        );
         let missing = format!("{root}/nowhere");
         let (status, _, err) = run(&missing, &[]);
         assert_eq!(status, 1);

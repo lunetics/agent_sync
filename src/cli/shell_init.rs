@@ -6,27 +6,45 @@ use std::io::Write;
 
 use super::customize::put;
 use crate::Error;
+use crate::output::help::{Help, Section};
 use crate::output::log::Log;
 use crate::output::style::Style;
 
-const USAGE: &str = "Usage: agentsync shell-init [zsh|bash]
-
-  Prints a shell snippet that runs 'agentsync sync --if-stale' for the
-  current .ai/ project when you enter its root directory, so generated
-  outputs stay fresh without syncing parent projects from descendants.
-
-  Recommended: add one of these to your rc file. Eval'ing it regenerates
-  the hook each session, so upgrades and fixes apply without re-editing:
-
-    eval \"$(agentsync shell-init zsh)\"      # in ~/.zshrc
-    eval \"$(agentsync shell-init bash)\"     # in ~/.bashrc
-
-  Or freeze a copy with 'agentsync shell-init zsh >> ~/.zshrc', but then
-  re-run it after each upgrade to pick up changes.
-
-  The shell is auto-detected from $SHELL when omitted.
-  Set AGENTSYNC_NO_AUTO_SYNC=1 to disable without removing the snippet.
-";
+pub const HELP: Help = Help {
+    command: "shell-init",
+    tagline: "print the shell hook that syncs on entering a project",
+    synopsis: &["shell-init [zsh|bash]"],
+    description: &[
+        "Prints a shell snippet that runs agentsync sync --if-stale for the\ncurrent .ai/ project when you enter its root directory, so generated\noutputs stay fresh without syncing parent projects from descendants.",
+        "Recommended: add one of the INSTALL lines to your rc file. Eval'ing it\nregenerates the hook each session, so upgrades and fixes apply without\nre-editing. Or freeze a copy with agentsync shell-init zsh >> ~/.zshrc,\nbut then re-run it after each upgrade to pick up changes.",
+        "The shell is auto-detected from $SHELL when omitted.",
+    ],
+    sections: &[
+        Section {
+            title: "INSTALL",
+            entries: &[
+                ("eval \"$(agentsync shell-init zsh)\"", "in ~/.zshrc"),
+                ("eval \"$(agentsync shell-init bash)\"", "in ~/.bashrc"),
+            ],
+        },
+        Section {
+            title: "OPTIONS",
+            entries: &[("-h, --help", "Show this help")],
+        },
+        Section {
+            title: "ENVIRONMENT",
+            entries: &[(
+                "AGENTSYNC_NO_AUTO_SYNC=1",
+                "Disable the hook without removing the snippet",
+            )],
+        },
+    ],
+    examples: &[
+        "shell-init",
+        "shell-init zsh",
+        "shell-init bash >> ~/.bashrc",
+    ],
+};
 
 const COMMON: &str = "_agentsync_autosync() {
   # Never `cd` here: as a zsh chpwd hook this fires on every directory change,
@@ -84,7 +102,7 @@ pub fn shell_init(
 ) -> Result<u8, Error> {
     let mut shell = args.first().cloned().unwrap_or_default();
     if shell == "--help" || shell == "-h" {
-        return put(out, USAGE.as_bytes()).map(|()| 0);
+        return put(out, HELP.render(style).as_bytes()).map(|()| 0);
     }
     if shell.is_empty() {
         // Git Bash rewrites `$SHELL` with backslashes before it reaches the binary.
@@ -176,7 +194,11 @@ mod tests {
         assert_eq!(run(&[], Some("/usr/bin/zsh"), false).1, zsh);
         assert_eq!(run(&[], Some("/bin/bash"), false).1, bash);
         let (status, out, _) = run(&["--help"], None, false);
-        assert_eq!((status, out.as_str()), (0, USAGE));
+        assert_eq!(status, 0);
+        assert_eq!(
+            out,
+            "\n  agentsync shell-init — print the shell hook that syncs on entering a project\n\n  USAGE\n    agentsync shell-init [zsh|bash]\n\n  DESCRIPTION\n    Prints a shell snippet that runs agentsync sync --if-stale for the\n    current .ai/ project when you enter its root directory, so generated\n    outputs stay fresh without syncing parent projects from descendants.\n\n    Recommended: add one of the INSTALL lines to your rc file. Eval'ing it\n    regenerates the hook each session, so upgrades and fixes apply without\n    re-editing. Or freeze a copy with agentsync shell-init zsh >> ~/.zshrc,\n    but then re-run it after each upgrade to pick up changes.\n\n    The shell is auto-detected from $SHELL when omitted.\n\n  INSTALL\n    eval \"$(agentsync shell-init zsh)\"    in ~/.zshrc\n    eval \"$(agentsync shell-init bash)\"   in ~/.bashrc\n\n  OPTIONS\n    -h, --help   Show this help\n\n  ENVIRONMENT\n    AGENTSYNC_NO_AUTO_SYNC=1   Disable the hook without removing the snippet\n\n  EXAMPLES\n    agentsync shell-init\n    agentsync shell-init zsh\n    agentsync shell-init bash >> ~/.bashrc\n\n"
+        );
     }
 
     #[test]

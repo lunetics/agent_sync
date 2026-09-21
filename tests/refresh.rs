@@ -51,8 +51,10 @@ fn refresh_help_prints_usage() {
         .args(["refresh", "--help"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("agentsync refresh"))
-        .stdout(predicate::str::contains("--only"))
+        .stdout(predicate::str::starts_with(
+            "\n  agentsync refresh — pull new template files into an existing .ai/src/\n\n  USAGE\n    agentsync refresh [OPTIONS]\n\n  DESCRIPTION\n",
+        ))
+        .stdout(predicate::str::contains("\n  OPTIONS\n    --only <csv>          "))
         .stdout(predicate::str::contains("--include-agents-md"))
         .stdout(predicate::str::contains("--include-deleted"))
         .stdout(predicate::str::contains("--dry-run"))

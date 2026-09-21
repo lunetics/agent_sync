@@ -580,6 +580,8 @@ fn add_mcp_names_a_flag_that_is_missing_its_value() {
         .assert()
         .code(1)
         .stderr(predicate::str::contains("--url requires a value."))
-        .stderr(predicate::str::contains("Usage: agentsync add mcp"));
+        .stderr(predicate::str::contains(
+            "\n  USAGE\n    agentsync add <kind> <name> [--force]\n    agentsync add mcp <server>",
+        ));
     assert!(!project.exists(".ai/src/mcp.json"));
 }

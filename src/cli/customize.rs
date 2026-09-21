@@ -7,30 +7,59 @@ use std::path::Path;
 
 use crate::config::payload;
 use crate::config::tool::Tool;
+use crate::output::help::{Help, Section};
 use crate::output::style::Style;
 use crate::project::Project;
 use crate::{Error, config::catalog, text};
 
 pub const VALID_RESOURCES: [&str; 4] = ["tool", "hooks", "mcp", "settings"];
 
-const USAGE: &str = "Usage: agentsync customize <slug> [<resource>] [--full] [--yes]
-
-  Scaffold a per-tool override at .ai/src/tools/<slug>.yaml so you can change
-  fields without forking the whole base template. Empty by default — write
-  only the keys you want to win over base; everything else inherits.
-
-  <resource>   Optional payload override scaffold: tool, hooks, mcp, settings.
-               Default: tool (the YAML override itself).
-  --full       Copy the entire base template into the override. Use when you
-               want to see every available field at once; trim what you don't
-               need with `agentsync simplify`.
-  --yes, -y    Overwrite an existing override without prompting.
-
-  See effective config:  agentsync show <slug>
-  See user vs base diff: agentsync diff <slug>
-";
-
-const SYNOPSIS: &str = "agentsync customize <slug> [<resource>] [--full] [--yes]";
+pub const HELP: Help = Help {
+    command: "customize",
+    tagline: "scaffold a per-tool override",
+    synopsis: &["customize <slug> [<resource>] [--full] [--yes]"],
+    description: &[
+        "Scaffold a per-tool override at .ai/src/tools/<slug>.yaml so you can\nchange fields without forking the whole base template. Empty by default:\nwrite only the keys you want to win over base; everything else inherits.",
+    ],
+    sections: &[
+        Section {
+            title: "ARGUMENTS",
+            entries: &[
+                ("<slug>", "Tool to override"),
+                (
+                    "<resource>",
+                    "Payload override scaffold: tool, hooks, mcp, settings\n(default: tool, the YAML override itself)",
+                ),
+            ],
+        },
+        Section {
+            title: "OPTIONS",
+            entries: &[
+                (
+                    "--full",
+                    "Copy the entire base template into the override. Use when you\nwant to see every available field at once; trim what you don't\nneed with agentsync simplify",
+                ),
+                (
+                    "-y, --yes",
+                    "Overwrite an existing override without prompting",
+                ),
+                ("-h, --help", "Show this help"),
+            ],
+        },
+        Section {
+            title: "SEE ALSO",
+            entries: &[
+                ("agentsync show <slug>", "Effective config for a tool"),
+                ("agentsync diff <slug>", "User vs base diff"),
+            ],
+        },
+    ],
+    examples: &[
+        "customize cursor",
+        "customize cursor --full",
+        "customize claude hooks --yes",
+    ],
+};
 
 pub(crate) fn put(writer: &mut dyn Write, bytes: &[u8]) -> Result<(), Error> {
     writer
@@ -78,7 +107,7 @@ pub fn customize(
             "--full" => full = true,
             "--yes" | "-y" => yes = true,
             "--help" | "-h" => {
-                put(out, USAGE.as_bytes())?;
+                put(out, HELP.render(style).as_bytes())?;
                 return Ok(0);
             }
             flag if flag.starts_with('-') => {
@@ -94,8 +123,9 @@ pub fn customize(
                 put(
                     err,
                     format!(
-                        "{}: Too many arguments.\nUsage: {SYNOPSIS}\n",
-                        style.red("Error")
+                        "{}: Too many arguments.\nUsage: {}\n",
+                        style.red("Error"),
+                        HELP.synopsis_line()
                     )
                     .as_bytes(),
                 )?;
@@ -107,8 +137,9 @@ pub fn customize(
         put(
             err,
             format!(
-                "{}: {SYNOPSIS}\n  <resource>: {} (default: tool)\n",
+                "{}: {}\n  <resource>: {} (default: tool)\n",
                 style.red("Error"),
+                HELP.synopsis_line(),
                 VALID_RESOURCES.join(" ")
             )
             .as_bytes(),
@@ -403,6 +434,12 @@ mod tests {
         assert_eq!(
             usage.err,
             "Error: agentsync customize <slug> [<resource>] [--full] [--yes]\n  <resource>: tool hooks mcp settings (default: tool)\n"
+        );
+        let help = call(&root, &["--help"]);
+        assert_eq!((help.status, help.err.as_str()), (0, ""));
+        assert_eq!(
+            help.out,
+            "\n  agentsync customize — scaffold a per-tool override\n\n  USAGE\n    agentsync customize <slug> [<resource>] [--full] [--yes]\n\n  DESCRIPTION\n    Scaffold a per-tool override at .ai/src/tools/<slug>.yaml so you can\n    change fields without forking the whole base template. Empty by default:\n    write only the keys you want to win over base; everything else inherits.\n\n  ARGUMENTS\n    <slug>       Tool to override\n    <resource>   Payload override scaffold: tool, hooks, mcp, settings\n                 (default: tool, the YAML override itself)\n\n  OPTIONS\n    --full       Copy the entire base template into the override. Use when you\n                 want to see every available field at once; trim what you don't\n                 need with agentsync simplify\n    -y, --yes    Overwrite an existing override without prompting\n    -h, --help   Show this help\n\n  SEE ALSO\n    agentsync show <slug>   Effective config for a tool\n    agentsync diff <slug>   User vs base diff\n\n  EXAMPLES\n    agentsync customize cursor\n    agentsync customize cursor --full\n    agentsync customize claude hooks --yes\n\n"
         );
     }
 

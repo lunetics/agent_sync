@@ -169,3 +169,17 @@ fn check_agrees_with_sync_when_shared_inherit_names_a_category_sync_skips() {
         .success()
         .stdout(predicate::str::contains("synced"));
 }
+
+#[test]
+fn check_help_is_answered_on_stdout_without_rendering() {
+    Project::empty()
+        .agentsync()
+        .args(["check", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::starts_with(
+            "\n  agentsync check — verify outputs are in sync with source\n\n  USAGE\n    agentsync check\n",
+        ))
+        .stdout(predicate::str::contains("\n  EXIT STATUS\n"))
+        .stderr("");
+}

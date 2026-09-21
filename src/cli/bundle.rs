@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use super::customize::put;
+use crate::output::help::{Help, Section};
 use crate::output::style::Style;
 use crate::{Error, config::yaml_subset};
 
@@ -120,15 +121,24 @@ fn count_files(dir: &Path) -> usize {
     files.len()
 }
 
-fn export_usage(style: &Style) -> String {
-    format!(
-        "\n  {} — bundle source files into a shareable archive\n\n  {}\n    agentsync export [options]\n\n  {}\n    --output, -o <path>   Output file path (default: ./agentsync-bundle.tar.gz)\n    --dry-run             Preview what would be exported\n    --help, -h            Show this message\n\n  {}\n    agentsync export\n    agentsync export -o my-config.tar.gz\n    agentsync export --dry-run\n\n",
-        style.bold("agentsync export"),
-        style.green("USAGE"),
-        style.green("OPTIONS"),
-        style.green("EXAMPLES")
-    )
-}
+pub const EXPORT_HELP: Help = Help {
+    command: "export",
+    tagline: "bundle source files into a shareable archive",
+    synopsis: &["export [OPTIONS]"],
+    description: &[],
+    sections: &[Section {
+        title: "OPTIONS",
+        entries: &[
+            (
+                "-o, --output <path>",
+                "Output file path (default: ./agentsync-bundle.tar.gz)",
+            ),
+            ("--dry-run", "Preview what would be exported"),
+            ("-h, --help", "Show this help"),
+        ],
+    }],
+    examples: &["export", "export -o my-config.tar.gz", "export --dry-run"],
+};
 
 /// `stat -f%z` rendered as `cmd_export` prints it.
 fn human_size(size: Option<u64>) -> String {
@@ -169,7 +179,7 @@ pub fn export(
                 i += 1;
             }
             "--help" | "-h" => {
-                put(out, export_usage(style).as_bytes())?;
+                put(out, EXPORT_HELP.render(style).as_bytes())?;
                 return Ok(0);
             }
             other => {
@@ -177,7 +187,7 @@ pub fn export(
                     err,
                     format!("{}: Unknown option: {other}\n", style.red("Error")).as_bytes(),
                 )?;
-                put(err, export_usage(style).as_bytes())?;
+                put(err, EXPORT_HELP.render(style).as_bytes())?;
                 return Ok(1);
             }
         }
@@ -300,16 +310,46 @@ pub fn export(
     .map(|()| 0)
 }
 
-fn import_usage(style: &Style) -> String {
-    format!(
-        "\n  {} — import config from GitHub, archive, or directory\n\n  {}\n    agentsync import <source> [options]\n\n  {}\n    GitHub URL       https://github.com/user/repo\n    Archive file     path/to/agentsync-bundle.tar.gz\n    Local directory  path/to/project/\n\n  {}\n    --branch, -b <name>   Git branch to download (default: main)\n    --only <targets>      Import only specific targets (comma-separated)\n                          Targets: rules,skills,commands,agents,settings,mcp,hooks,tools\n    --force               Overwrite without confirmation\n    --dry-run             Preview changes without writing\n    --help, -h            Show this message\n\n  {}\n    agentsync import https://github.com/user/repo\n    agentsync import https://github.com/user/repo/tree/develop\n    agentsync import agentsync-bundle.tar.gz\n    agentsync import ../other-project/\n    agentsync import https://github.com/user/repo --only rules,skills\n    agentsync import bundle.tar.gz --dry-run\n\n",
-        style.bold("agentsync import"),
-        style.green("USAGE"),
-        style.green("SOURCES"),
-        style.green("OPTIONS"),
-        style.green("EXAMPLES")
-    )
-}
+pub const IMPORT_HELP: Help = Help {
+    command: "import",
+    tagline: "import config from GitHub, archive, or directory",
+    synopsis: &["import <source> [OPTIONS]"],
+    description: &[],
+    sections: &[
+        Section {
+            title: "SOURCES",
+            entries: &[
+                ("GitHub URL", "https://github.com/user/repo"),
+                ("Archive file", "path/to/agentsync-bundle.tar.gz"),
+                ("Local directory", "path/to/project/"),
+            ],
+        },
+        Section {
+            title: "OPTIONS",
+            entries: &[
+                (
+                    "-b, --branch <name>",
+                    "Git branch to download (default: main)",
+                ),
+                (
+                    "--only <targets>",
+                    "Import only specific targets (comma-separated)\nTargets: rules,skills,commands,agents,settings,mcp,hooks,tools",
+                ),
+                ("--force", "Overwrite without confirmation"),
+                ("--dry-run", "Preview changes without writing"),
+                ("-h, --help", "Show this help"),
+            ],
+        },
+    ],
+    examples: &[
+        "import https://github.com/user/repo",
+        "import https://github.com/user/repo/tree/develop",
+        "import agentsync-bundle.tar.gz",
+        "import ../other-project/",
+        "import https://github.com/user/repo --only rules,skills",
+        "import bundle.tar.gz --dry-run",
+    ],
+};
 
 /// `_import_is_github_url`: `^https?://(www\.)?github\.com/[^/]+/[^/]+`.
 fn github_segments(source: &str) -> Option<(&str, &str)> {
@@ -575,7 +615,7 @@ pub fn import(
                 i += 2;
             }
             "--help" | "-h" => {
-                put(out, import_usage(style).as_bytes())?;
+                put(out, IMPORT_HELP.render(style).as_bytes())?;
                 return Ok(0);
             }
             flag if flag.starts_with('-') => {
@@ -583,7 +623,7 @@ pub fn import(
                     err,
                     format!("{}: Unknown option: {flag}\n", style.red("Error")).as_bytes(),
                 )?;
-                put(err, import_usage(style).as_bytes())?;
+                put(err, IMPORT_HELP.render(style).as_bytes())?;
                 return Ok(1);
             }
             positional => {
@@ -609,7 +649,7 @@ pub fn import(
             err,
             format!("{}: No source specified.\n", style.red("Error")).as_bytes(),
         )?;
-        put(err, import_usage(style).as_bytes())?;
+        put(err, IMPORT_HELP.render(style).as_bytes())?;
         return Ok(1);
     }
     put(
@@ -942,6 +982,22 @@ mod tests {
     use super::*;
 
     #[test]
+    fn export_help_has_the_shared_shape() {
+        assert_eq!(
+            EXPORT_HELP.render(&Style::plain()),
+            "\n  agentsync export — bundle source files into a shareable archive\n\n  USAGE\n    agentsync export [OPTIONS]\n\n  OPTIONS\n    -o, --output <path>   Output file path (default: ./agentsync-bundle.tar.gz)\n    --dry-run             Preview what would be exported\n    -h, --help            Show this help\n\n  EXAMPLES\n    agentsync export\n    agentsync export -o my-config.tar.gz\n    agentsync export --dry-run\n\n"
+        );
+    }
+
+    #[test]
+    fn import_help_has_the_shared_shape() {
+        assert_eq!(
+            IMPORT_HELP.render(&Style::plain()),
+            "\n  agentsync import — import config from GitHub, archive, or directory\n\n  USAGE\n    agentsync import <source> [OPTIONS]\n\n  SOURCES\n    GitHub URL        https://github.com/user/repo\n    Archive file      path/to/agentsync-bundle.tar.gz\n    Local directory   path/to/project/\n\n  OPTIONS\n    -b, --branch <name>   Git branch to download (default: main)\n    --only <targets>      Import only specific targets (comma-separated)\n                          Targets: rules,skills,commands,agents,settings,mcp,hooks,tools\n    --force               Overwrite without confirmation\n    --dry-run             Preview changes without writing\n    -h, --help            Show this help\n\n  EXAMPLES\n    agentsync import https://github.com/user/repo\n    agentsync import https://github.com/user/repo/tree/develop\n    agentsync import agentsync-bundle.tar.gz\n    agentsync import ../other-project/\n    agentsync import https://github.com/user/repo --only rules,skills\n    agentsync import bundle.tar.gz --dry-run\n\n"
+        );
+    }
+
+    #[test]
     fn only_filters_the_targets_in_target_order() {
         let targets: Vec<&'static str> = {
             let mut all = vec!["AGENTS.md"];
@@ -1092,7 +1148,13 @@ mod tests {
         );
         let (status, out, err) = run_export(&root, &["--bogus"]);
         assert_eq!((status, out.as_str()), (1, ""));
-        assert!(err.starts_with("Error: Unknown option: --bogus\n\n  agentsync export — bundle"));
+        assert_eq!(
+            err,
+            format!(
+                "Error: Unknown option: --bogus\n{}",
+                EXPORT_HELP.render(&Style::plain())
+            )
+        );
         let (status, _, err) = run_export(&root, &["-o"]);
         assert_eq!(
             (status, err.as_str()),

@@ -9,6 +9,8 @@ use std::path::Path;
 use crate::engine::render::{self, Env};
 use crate::engine::session::Session;
 use crate::engine::workspace::Workspace;
+use crate::output::help::{Help, Section};
+use crate::output::style::Style;
 use crate::paths::Paths;
 use crate::{
     Error, config::project_config, config::version, config::yaml_subset, engine::overlay,
@@ -17,7 +19,51 @@ use crate::{
 
 const MANIFEST_REL: &str = ".ai/.sync-manifest";
 
-pub fn run(root: &str, env: &Env, out: &mut impl Write, err: &mut impl Write) -> Result<u8, Error> {
+pub const HELP: Help = Help {
+    command: "check",
+    tagline: "verify outputs are in sync with source",
+    synopsis: &["check"],
+    description: &[
+        "Renders what agentsync sync --force would write into a temporary\nworkspace and compares every managed output with the project: files\nthat differ, outputs that are missing, and outputs no longer\ngenerated. Nothing on disk is written.",
+        "The report goes to stdout so a hook or CI step can read it; the exit\nstatus carries the verdict, following grep's shape.",
+        "Honours AGENTSYNC_CONFIG_PATH for the project config and\nAGENTSYNC_REPO_ROOT for the project root, as agentsync sync does.",
+    ],
+    sections: &[
+        Section {
+            title: "OPTIONS",
+            entries: &[("-h, --help", "Show this help")],
+        },
+        Section {
+            title: "EXIT STATUS",
+            entries: &[
+                ("0", "Every managed output matches the source"),
+                ("1", "Out of sync, or the check could not run"),
+            ],
+        },
+        Section {
+            title: "SEE ALSO",
+            entries: &[(
+                "agentsync sync",
+                "Write the outputs the check compares against",
+            )],
+        },
+    ],
+    examples: &["check"],
+};
+
+pub fn run(
+    args: &[String],
+    root: &str,
+    env: &Env,
+    style: &Style,
+    out: &mut impl Write,
+    err: &mut impl Write,
+) -> Result<u8, Error> {
+    if matches!(args.first().map(String::as_str), Some("--help" | "-h")) {
+        out.write_all(HELP.render(style).as_bytes())
+            .map_err(|e| Error::io("<stdout>", e))?;
+        return Ok(0);
+    }
     let report = check(root, env)?;
     out.write_all(report.stdout.as_bytes())
         .map_err(|e| Error::io("<stdout>", e))?;
@@ -311,6 +357,29 @@ mod tests {
         );
         let root = root.disk_text();
         (dir, root)
+    }
+
+    #[test]
+    fn help_is_answered_on_stdout_without_a_project() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().disk_text();
+        let (mut out, mut err) = (Vec::new(), Vec::new());
+        let status = run(
+            &["--help".to_string()],
+            &root,
+            &Env::default(),
+            &Style::plain(),
+            &mut out,
+            &mut err,
+        )
+        .unwrap();
+        assert_eq!(status, 0);
+        assert_eq!(err, b"");
+        let out = String::from_utf8(out).unwrap();
+        assert_eq!(out, HELP.render(&Style::plain()));
+        assert!(out.starts_with(
+            "\n  agentsync check — verify outputs are in sync with source\n\n  USAGE\n    agentsync check\n"
+        ));
     }
 
     #[test]

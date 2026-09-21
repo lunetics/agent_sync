@@ -2,56 +2,70 @@
 
 use super::Run;
 use crate::Error;
+use crate::output::help::{Help, Section};
 
 pub(super) const CONTENT_DEFAULT: &str = "agents,rules,skills,commands,subagents";
 pub(super) const CONTENT_VALID: [&str; 5] = ["agents", "rules", "skills", "commands", "subagents"];
 
-const HELP: &str = "Usage: agentsync init [<dir>] [OPTIONS]
-
-Scaffold .ai/ in a project. Minimal by default — only tools you opt in to
-get per-tool payload scaffolding (settings/mcp/hooks).
-
-Before writing, init snapshots its .ai/ paths and the selected tools' existing
-destinations under .ai/backups/ so a partial setup can be restored safely.
-
-In a terminal, `init` opens an interactive wizard that lets you pick tools
-and content sections. In non-TTY environments (CI, scripts), it runs silently
-with auto-detected defaults. Pass --yes or any of --tools/--content/--no-detect
-/--no-templates to skip the wizard.
-
-Options:
-  --tools <csv>        Enable these tools (e.g. claude,cursor). Unions with
-                       auto-detection unless --no-detect is passed.
-  --content <csv>      Which source sections to scaffold. Valid tokens:
-                       agents, rules, skills, commands, subagents.
-                       Default: all of them.
-  --no-detect          Skip filesystem marker auto-detection (tools only).
-  --outputs <mode>     Where generated tool files live. `committed` (default)
-                       keeps them and .ai/.sync-manifest in git so teammates
-                       need only `git pull`; `local` gitignores both and every
-                       clone runs `agentsync sync`.
-  --existing <action>  What to do with tool config the project already has:
-                       `adopt` (default) copies it into .ai/src/ so the first
-                       sync reproduces it; `replace` regenerates from the
-                       shipped templates.
-  --ci <provider>      Write a CI gate that runs `agentsync check`. Only
-                       `github` is supported; an existing workflow is kept.
-  --no-sync            Skip the first `agentsync sync` at the end.
-  --no-templates       Create selected content paths without copying shipped
-                       starter files. AGENTS.md is empty when agents is selected.
-  -y, --yes            Skip all prompts, accept defaults.
-  --dry-run            Show what would be created; don't write anything.
-  -h, --help           Show this help.
-
-Examples:
-  agentsync init                           # interactive wizard (TTY)
-  agentsync init --yes                     # auto-detect + defaults, no prompt
-  agentsync init --tools claude            # Claude only, no detection union
-  agentsync init --tools claude,cursor --content agents,rules
-  agentsync init --no-detect               # no tool auto-detection; pick tools later
-  agentsync init --no-templates --no-detect  # empty .ai/src/ layout, no starters
-  agentsync init --dry-run                 # preview without writing
-";
+pub const HELP: Help = Help {
+    command: "init",
+    tagline: "scaffold .ai/ in a project",
+    synopsis: &["init [<dir>] [OPTIONS]"],
+    description: &[
+        "Minimal by default: only tools you opt in to get per-tool payload\nscaffolding (settings/mcp/hooks).",
+        "Before writing, init snapshots its .ai/ paths and the selected tools'\nexisting destinations under .ai/backups/ so a partial setup can be\nrestored safely.",
+        "In a terminal, init opens an interactive wizard that lets you pick tools\nand content sections. In non-TTY environments (CI, scripts), it runs\nsilently with auto-detected defaults. Pass --yes or any of --tools,\n--content, --no-detect, or --no-templates to skip the wizard.",
+    ],
+    sections: &[Section {
+        title: "OPTIONS",
+        entries: &[
+            (
+                "--tools <csv>",
+                "Enable these tools (e.g. claude,cursor). Unions\nwith auto-detection unless --no-detect is passed",
+            ),
+            (
+                "--content <csv>",
+                "Which source sections to scaffold. Valid tokens:\nagents, rules, skills, commands, subagents\n(default: all of them)",
+            ),
+            (
+                "--no-detect",
+                "Skip filesystem marker auto-detection (tools only)",
+            ),
+            (
+                "--outputs <mode>",
+                "Where generated tool files live. committed\n(default) keeps them and .ai/.sync-manifest in git\nso teammates need only git pull; local gitignores\nboth and every clone runs agentsync sync",
+            ),
+            (
+                "--existing <action>",
+                "What to do with tool config the project already\nhas: adopt (default) copies it into .ai/src/ so the\nfirst sync reproduces it; replace regenerates from\nthe shipped templates",
+            ),
+            (
+                "--ci <provider>",
+                "Write a CI gate that runs agentsync check. Only\ngithub is supported; an existing workflow is kept",
+            ),
+            ("--no-sync", "Skip the first agentsync sync at the end"),
+            (
+                "--no-templates",
+                "Create selected content paths without copying\nshipped starter files. AGENTS.md is empty when\nagents is selected",
+            ),
+            ("-y, --yes", "Skip all prompts, accept defaults"),
+            (
+                "--dry-run",
+                "Show what would be created without writing anything",
+            ),
+            ("-h, --help", "Show this help"),
+        ],
+    }],
+    examples: &[
+        "init                              # interactive wizard (TTY)",
+        "init --yes                        # auto-detect + defaults, no prompt",
+        "init --tools claude               # Claude only, no detection union",
+        "init --tools claude,cursor --content agents,rules",
+        "init --no-detect                  # no tool auto-detection; pick tools later",
+        "init --no-templates --no-detect   # empty .ai/src/ layout, no starters",
+        "init --dry-run                    # preview without writing",
+    ],
+};
 
 pub(super) struct Options {
     pub(super) target: Option<String>,
@@ -123,7 +137,7 @@ pub(super) fn parse_args(args: &[String], run: &mut Run) -> Result<Result<Option
             "--yes" | "-y" => options.assume_yes = true,
             "--dry-run" => options.dry_run = true,
             "--help" | "-h" => {
-                run.say(HELP)?;
+                run.say(&HELP.render(style))?;
                 return Ok(Err(0));
             }
             flag if flag.starts_with("--tools=") => {
@@ -195,21 +209,20 @@ mod tests {
     use std::path::Path;
 
     #[test]
-    fn arguments_and_validation_are_refused_like_bash() {
+    fn help_renders_in_the_shared_shape() {
         let (_dir, root) = project(&[]);
         let help = call(&root, &["--help"], quiet());
         assert_eq!(help.status, 0);
-        assert!(
-            help.out.starts_with(
-                "Usage: agentsync init [<dir>] [OPTIONS]\n\nScaffold .ai/ in a project."
-            )
+        assert_eq!(help.err, "");
+        assert_eq!(
+            help.out,
+            "\n  agentsync init — scaffold .ai/ in a project\n\n  USAGE\n    agentsync init [<dir>] [OPTIONS]\n\n  DESCRIPTION\n    Minimal by default: only tools you opt in to get per-tool payload\n    scaffolding (settings/mcp/hooks).\n\n    Before writing, init snapshots its .ai/ paths and the selected tools'\n    existing destinations under .ai/backups/ so a partial setup can be\n    restored safely.\n\n    In a terminal, init opens an interactive wizard that lets you pick tools\n    and content sections. In non-TTY environments (CI, scripts), it runs\n    silently with auto-detected defaults. Pass --yes or any of --tools,\n    --content, --no-detect, or --no-templates to skip the wizard.\n\n  OPTIONS\n    --tools <csv>         Enable these tools (e.g. claude,cursor). Unions\n                          with auto-detection unless --no-detect is passed\n    --content <csv>       Which source sections to scaffold. Valid tokens:\n                          agents, rules, skills, commands, subagents\n                          (default: all of them)\n    --no-detect           Skip filesystem marker auto-detection (tools only)\n    --outputs <mode>      Where generated tool files live. committed\n                          (default) keeps them and .ai/.sync-manifest in git\n                          so teammates need only git pull; local gitignores\n                          both and every clone runs agentsync sync\n    --existing <action>   What to do with tool config the project already\n                          has: adopt (default) copies it into .ai/src/ so the\n                          first sync reproduces it; replace regenerates from\n                          the shipped templates\n    --ci <provider>       Write a CI gate that runs agentsync check. Only\n                          github is supported; an existing workflow is kept\n    --no-sync             Skip the first agentsync sync at the end\n    --no-templates        Create selected content paths without copying\n                          shipped starter files. AGENTS.md is empty when\n                          agents is selected\n    -y, --yes             Skip all prompts, accept defaults\n    --dry-run             Show what would be created without writing anything\n    -h, --help            Show this help\n\n  EXAMPLES\n    agentsync init                              # interactive wizard (TTY)\n    agentsync init --yes                        # auto-detect + defaults, no prompt\n    agentsync init --tools claude               # Claude only, no detection union\n    agentsync init --tools claude,cursor --content agents,rules\n    agentsync init --no-detect                  # no tool auto-detection; pick tools later\n    agentsync init --no-templates --no-detect   # empty .ai/src/ layout, no starters\n    agentsync init --dry-run                    # preview without writing\n\n"
         );
-        assert!(
-            help.out.ends_with(
-                "  agentsync init --dry-run                 # preview without writing\n"
-            )
-        );
-        assert_eq!(help.out.lines().count(), 45);
+    }
+
+    #[test]
+    fn arguments_and_validation_are_refused_like_bash() {
+        let (_dir, root) = project(&[]);
         let cases: [(&[&str], u8, &str); 9] = [
             (
                 &["--bogus"],

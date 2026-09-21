@@ -60,3 +60,18 @@ fn list_survives_a_tool_override_that_does_not_set_enabled() {
         .stdout(predicate::str::contains("My Cursor"))
         .stdout(predicate::str::contains("1 tool override(s)"));
 }
+
+#[test]
+fn list_help_is_answered_on_stdout_without_the_table() {
+    Project::empty()
+        .agentsync()
+        .args(["list", "-h"])
+        .assert()
+        .success()
+        .stdout(predicate::str::starts_with(
+            "\n  agentsync list — show available tools and their status\n\n  USAGE\n    agentsync list\n    agentsync ls\n",
+        ))
+        .stdout(predicate::str::contains("\n  LEGEND\n"))
+        .stdout(predicate::str::contains("AgentSync Tools").not())
+        .stderr("");
+}

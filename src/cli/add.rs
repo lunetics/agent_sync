@@ -6,40 +6,64 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use super::customize::put;
+use crate::output::help::{Help, Section};
 use crate::output::style::Style;
 use crate::{Error, config::catalog, engine::staging};
 
-const USAGE: &str = "Usage: agentsync add <kind> <name> [--force]
-       agentsync add mcp <server> (--url URL | --command CMD [--args 'a b'] [--env K=V,...])
-
-  Scaffold a new entry under .ai/src/:
-    rule       Create .ai/src/rules/<name>.md
-    skill      Create .ai/src/skills/<name>/SKILL.md
-    command    Create .ai/src/commands/<name>.md
-    subagent   Create .ai/src/agents/<name>.md
-    mcp        Add an MCP server entry to .ai/src/mcp.json
-
-  --force, -f   Overwrite an existing file.
-
-  Edit the scaffold, then run `agentsync sync` to propagate.
-";
-
-const MCP_USAGE: &str = "Usage: agentsync add mcp <server> (--url URL | --command CMD)
-                                  [--args \"a b c\"] [--env K=V[,K=V...]]
-                                  [--force]
-";
+pub const HELP: Help = Help {
+    command: "add",
+    tagline: "scaffold a rule, skill, command, subagent, or MCP server",
+    synopsis: &[
+        "add <kind> <name> [--force]",
+        "add mcp <server> (--url URL | --command CMD) [MCP OPTIONS] [--force]",
+    ],
+    description: &[
+        "Scaffold a new entry under .ai/src/ from the shipped content templates,\nor add one server entry to the shared .ai/src/mcp.json.",
+        "Edit the scaffold, then run agentsync sync to propagate.",
+    ],
+    sections: &[
+        Section {
+            title: "KINDS",
+            entries: &[
+                ("rule", "Create .ai/src/rules/<name>.md"),
+                ("skill", "Create .ai/src/skills/<name>/SKILL.md"),
+                ("command", "Create .ai/src/commands/<name>.md"),
+                ("subagent", "Create .ai/src/agents/<name>.md"),
+                ("mcp", "Add an MCP server entry to .ai/src/mcp.json"),
+            ],
+        },
+        Section {
+            title: "MCP OPTIONS",
+            entries: &[
+                ("--url URL", "HTTP server endpoint"),
+                ("--command CMD", "Command that starts the server"),
+                ("--args \"a b c\"", "Command arguments, split on whitespace"),
+                ("--env K=V[,K=V...]", "Environment variables for the server"),
+            ],
+        },
+        Section {
+            title: "OPTIONS",
+            entries: &[
+                ("-f, --force", "Overwrite an existing file or server entry"),
+                ("-h, --help", "Show this help"),
+            ],
+        },
+    ],
+    examples: &[
+        "add rule testing",
+        "add skill deploy",
+        "add mcp linear --url https://mcp.linear.app/sse",
+        "add mcp github --command npx --args \"-y @github/mcp-server\"",
+    ],
+};
 
 const EMPTY_MCP: &str = "{\n  \"mcpServers\": {}\n}\n";
 
-/// `_add_print_usage`.
-fn usage(style: &Style, err: &mut dyn Write) -> Result<(), Error> {
+/// `_add_print_usage`: the refusal line, then the help.
+fn usage(message: &str, style: &Style, err: &mut dyn Write) -> Result<(), Error> {
     put(
         err,
-        format!(
-            "{}: agentsync add <kind> <name> [options]\n\nKinds: rule, skill, command, subagent, mcp\n\nMCP: agentsync add mcp <server> (--url URL | --command CMD [--args 'a b'] [--env K=V,...])\n",
-            style.red("Error")
-        )
-        .as_bytes(),
+        format!("{}: {message}\n{}", style.red("Error"), HELP.render(style)).as_bytes(),
     )
 }
 
@@ -133,7 +157,7 @@ pub fn add(
         match arg.as_str() {
             "--force" | "-f" => force = true,
             "--help" | "-h" => {
-                put(out, USAGE.as_bytes())?;
+                put(out, HELP.render(style).as_bytes())?;
                 return Ok(0);
             }
             flag if flag.starts_with('-') => {
@@ -149,22 +173,18 @@ pub fn add(
                 } else if name.is_empty() {
                     name = positional.to_string();
                 } else {
-                    put(
-                        err,
-                        format!(
-                            "{}: Unexpected argument: {positional}\n",
-                            style.red("Error")
-                        )
-                        .as_bytes(),
-                    )?;
-                    usage(style, err)?;
+                    usage(&format!("Unexpected argument: {positional}"), style, err)?;
                     return Ok(1);
                 }
             }
         }
     }
-    if kind.is_empty() || name.is_empty() {
-        usage(style, err)?;
+    if kind.is_empty() {
+        usage("missing <kind> and <name>", style, err)?;
+        return Ok(1);
+    }
+    if name.is_empty() {
+        usage(&format!("missing <name> for {kind}"), style, err)?;
         return Ok(1);
     }
     if !matches!(kind.as_str(), "rule" | "skill" | "command" | "subagent") {
@@ -522,11 +542,7 @@ fn add_mcp(
         match arg {
             "--url" | "--command" | "--args" | "--env" => {
                 let Some(value) = args.get(i + 1) else {
-                    put(
-                        err,
-                        format!("{}: {arg} requires a value.\n", style.red("Error")).as_bytes(),
-                    )?;
-                    put(err, MCP_USAGE.as_bytes())?;
+                    usage(&format!("{arg} requires a value."), style, err)?;
                     return Ok(1);
                 };
                 match arg {
@@ -542,15 +558,11 @@ fn add_mcp(
                 i += 1;
             }
             "-h" | "--help" => {
-                put(err, MCP_USAGE.as_bytes())?;
+                put(out, HELP.render(style).as_bytes())?;
                 return Ok(0);
             }
             flag if flag.starts_with('-') => {
-                put(
-                    err,
-                    format!("{}: Unknown flag: {flag}\n", style.red("Error")).as_bytes(),
-                )?;
-                put(err, MCP_USAGE.as_bytes())?;
+                usage(&format!("Unknown flag: {flag}"), style, err)?;
                 return Ok(1);
             }
             positional => {
@@ -558,22 +570,14 @@ fn add_mcp(
                     server = positional.to_string();
                     i += 1;
                 } else {
-                    put(
-                        err,
-                        format!(
-                            "{}: Unexpected argument: {positional}\n",
-                            style.red("Error")
-                        )
-                        .as_bytes(),
-                    )?;
-                    put(err, MCP_USAGE.as_bytes())?;
+                    usage(&format!("Unexpected argument: {positional}"), style, err)?;
                     return Ok(1);
                 }
             }
         }
     }
     if server.is_empty() {
-        put(err, MCP_USAGE.as_bytes())?;
+        usage("missing <server> for mcp", style, err)?;
         return Ok(1);
     }
     if let Some(refusal) = validate_name(&server, style) {
@@ -581,15 +585,7 @@ fn add_mcp(
         return Ok(1);
     }
     if url.is_empty() && command.is_empty() {
-        put(
-            err,
-            format!(
-                "{}: one of --url or --command is required.\n",
-                style.red("Error")
-            )
-            .as_bytes(),
-        )?;
-        put(err, MCP_USAGE.as_bytes())?;
+        usage("one of --url or --command is required.", style, err)?;
         return Ok(1);
     }
     if !url.is_empty() && !command.is_empty() {
@@ -895,10 +891,21 @@ mod tests {
         let (status, _, err) = run(&root, &["rule", "testing", "--force", "extra"]);
         assert_eq!(status, 1);
         assert!(err.starts_with(
-            "Error: Unexpected argument: extra\nError: agentsync add <kind> <name> [options]\n"
+            "Error: Unexpected argument: extra\n\n  agentsync add — scaffold a rule, skill, command, subagent, or MCP server\n\n  USAGE\n"
         ));
+        let (status, _, err) = run(&root, &["rule"]);
+        assert_eq!(status, 1);
+        assert!(err.starts_with("Error: missing <name> for rule\n\n  agentsync add — "));
         let (status, out, _) = run(&root, &["-h"]);
-        assert_eq!((status, out.as_str()), (0, USAGE));
+        assert_eq!((status, out), (0, HELP.render(&Style::plain())));
+    }
+
+    #[test]
+    fn help_renders_both_forms_with_their_kinds_and_mcp_options() {
+        assert_eq!(
+            HELP.render(&Style::plain()),
+            "\n  agentsync add — scaffold a rule, skill, command, subagent, or MCP server\n\n  USAGE\n    agentsync add <kind> <name> [--force]\n    agentsync add mcp <server> (--url URL | --command CMD) [MCP OPTIONS] [--force]\n\n  DESCRIPTION\n    Scaffold a new entry under .ai/src/ from the shipped content templates,\n    or add one server entry to the shared .ai/src/mcp.json.\n\n    Edit the scaffold, then run agentsync sync to propagate.\n\n  KINDS\n    rule       Create .ai/src/rules/<name>.md\n    skill      Create .ai/src/skills/<name>/SKILL.md\n    command    Create .ai/src/commands/<name>.md\n    subagent   Create .ai/src/agents/<name>.md\n    mcp        Add an MCP server entry to .ai/src/mcp.json\n\n  MCP OPTIONS\n    --url URL            HTTP server endpoint\n    --command CMD        Command that starts the server\n    --args \"a b c\"       Command arguments, split on whitespace\n    --env K=V[,K=V...]   Environment variables for the server\n\n  OPTIONS\n    -f, --force   Overwrite an existing file or server entry\n    -h, --help    Show this help\n\n  EXAMPLES\n    agentsync add rule testing\n    agentsync add skill deploy\n    agentsync add mcp linear --url https://mcp.linear.app/sse\n    agentsync add mcp github --command npx --args \"-y @github/mcp-server\"\n\n"
+        );
     }
 
     #[cfg(unix)]
@@ -928,11 +935,21 @@ mod tests {
         );
         let (status, out, err) = run(&root, &["mcp", "gh", "--url"]);
         assert_eq!((status, out.as_str()), (1, ""));
-        assert_eq!(err, format!("Error: --url requires a value.\n{MCP_USAGE}"));
+        assert_eq!(
+            err,
+            format!(
+                "Error: --url requires a value.\n{}",
+                HELP.render(&Style::plain())
+            )
+        );
+        let (status, _, err) = run(&root, &["mcp"]);
+        assert_eq!(status, 1);
+        assert!(err.starts_with("Error: missing <server> for mcp\n\n  agentsync add — "));
         let (status, out, err) = run(&root, &["mcp", "bad", "--command", "c", "--env", "NOEQ"]);
         assert_eq!((status, out.as_str()), (1, ""));
         assert_eq!(err, "Error: --env entry 'NOEQ' must be KEY=VALUE.\n");
-        let (status, _, err) = run(&root, &["mcp", "-h"]);
-        assert_eq!((status, err.as_str()), (0, MCP_USAGE));
+        let (status, out, err) = run(&root, &["mcp", "-h"]);
+        assert_eq!((status, err.as_str()), (0, ""));
+        assert_eq!(out, HELP.render(&Style::plain()));
     }
 }

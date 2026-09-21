@@ -282,8 +282,10 @@ fn migrate_legacy_help_documents_the_legacy_route() {
         .args(["migrate", "--legacy", "--help"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("agentsync migrate --legacy"))
-        .stdout(predicate::str::contains("Moves legacy flat-layout"));
+        .stdout(predicate::str::contains(
+            "\n  USAGE\n    agentsync migrate\n    agentsync migrate --legacy [--apply] [--yes]\n",
+        ))
+        .stdout(predicate::str::contains("moves legacy flat-layout"));
 }
 
 // ── Legacy pre-v0.6 .agent/ (singular) directory removal ──────────────────

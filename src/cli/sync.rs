@@ -6,33 +6,67 @@ use std::path::Path;
 use crate::engine::render::{self, Run, Selection, Stop};
 use crate::engine::session::Session;
 use crate::engine::workspace::Workspace;
+use crate::output::help::{Help, Section};
 use crate::output::log::{Log, Sink};
+use crate::output::style::Style;
 use crate::paths::{self, Paths};
 use crate::transaction::interrupt::{self, Interrupt};
 use crate::transaction::manifest::{self, Manifest};
 use crate::{Error, engine::gitignore, text, transaction::backup, transaction::witness};
 
-pub const USAGE: &str = "Usage: agentsync sync [OPTIONS]
-
-Sync .ai/src/ to every enabled tool.
-
-Real sync runs snapshot every destination they may change and automatically
-restore that snapshot if the run fails. Use 'agentsync rollback' to restore a
-successful run manually.
-
-Options:
-  --only <tools>    Sync only specified tools (comma-separated)
-  --skip <tools>    Skip specified tools (comma-separated)
-  --profile <name>  Also sync this profile (default: personal + active profiles)
-  --dry-run         Show what would be copied without making changes
-  --force           Overwrite destination files even if they were edited manually
-  --if-stale        Sync only when source changed since the last sync (else no-op)
-  --quiet, -q       Print only warnings, errors, and the closing summary
-  --json            Print a one-line JSON summary on stdout after a successful run
-  --help            Show this help message
-
-The log goes to stderr. Stdout stays empty unless --json asks for the summary.
-";
+pub const HELP: Help = Help {
+    command: "sync",
+    tagline: "sync .ai/src/ to every enabled tool",
+    synopsis: &["sync [OPTIONS]"],
+    description: &[
+        "A real run snapshots every destination it may change and restores the\nsnapshot if the run fails. Use agentsync rollback to restore a successful\nrun by hand.",
+        "The log goes to stderr. Stdout stays empty unless --json asks for the\nsummary.",
+    ],
+    sections: &[Section {
+        title: "OPTIONS",
+        entries: &[
+            ("--only <tools>", "Sync only these tools (comma-separated)"),
+            ("--skip <tools>", "Skip these tools (comma-separated)"),
+            (
+                "--profile <name>",
+                "Also sync this profile (default: personal + active profiles)",
+            ),
+            (
+                "--dry-run",
+                "Show what would be copied without making changes",
+            ),
+            (
+                "--force",
+                "Overwrite destination files even if they were edited manually",
+            ),
+            (
+                "--if-stale",
+                "Sync only when source changed since the last sync (else no-op)",
+            ),
+            (
+                "--workspace",
+                "Run sync in every .ai/ below cwd (bottom-up alphabetical)",
+            ),
+            (
+                "-q, --quiet",
+                "Print only warnings, errors, and the closing summary",
+            ),
+            (
+                "--json",
+                "Print a one-line JSON summary on stdout after a successful run",
+            ),
+            ("-h, --help", "Show this help"),
+        ],
+    }],
+    examples: &[
+        "sync",
+        "sync --only claude,cursor",
+        "sync --profile hub",
+        "sync --dry-run",
+        "sync --if-stale",
+        "sync --quiet --json",
+    ],
+};
 
 /// The options `parse_args` accepts.
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -116,14 +150,14 @@ pub fn run(root: &str, args: &[String], env: &Env, colors: bool, sink: Sink) -> 
     let args = match parse(args) {
         Parsed::Run(args) => args,
         Parsed::Help => {
-            for line in USAGE.lines() {
+            for line in HELP.render(&Style::for_stdout()).lines() {
                 log.out(line.to_string());
             }
             return 0;
         }
         Parsed::Invalid(message) => {
             log.error(&message);
-            for line in USAGE.lines() {
+            for line in HELP.render(&Style::new(colors)).lines() {
                 log.err(line.to_string());
             }
             return 1;

@@ -6,21 +6,43 @@ use std::io::Write;
 use super::customize::{VALID_RESOURCES, put, unknown_resource};
 use crate::config::payload::{self, Source};
 use crate::config::tool::Tool;
+use crate::output::help::{Help, Section};
 use crate::output::style::Style;
 use crate::paths::ENGINE_ROOT;
 use crate::project::Project;
 use crate::{Error, config::catalog, config::yaml_subset, text};
 
-const USAGE: &str = "Usage: agentsync show <slug> [<resource>] [--base]
-
-  Print effective configuration for a tool. Each line is marked
-  \"base\" (inherited from the shipped template) or \"user\" (overridden in
-  .ai/src/tools/<slug>.yaml).
-
-  <resource>   Optional payload resource: tool, hooks, mcp, settings.
-               Default: tool (the YAML config).
-  --base       Print the base template only, ignoring user overrides.
-";
+pub const HELP: Help = Help {
+    command: "show",
+    tagline: "show effective config for a tool",
+    synopsis: &["show <slug> [<resource>] [--base]"],
+    description: &[
+        "Print effective configuration for a tool. Each line is marked \"base\"\n(inherited from the shipped template) or \"user\" (overridden in\n.ai/src/tools/<slug>.yaml).",
+    ],
+    sections: &[
+        Section {
+            title: "ARGUMENTS",
+            entries: &[
+                ("<slug>", "Tool to show"),
+                (
+                    "<resource>",
+                    "Payload resource: tool, hooks, mcp, settings\n(default: tool, the YAML config)",
+                ),
+            ],
+        },
+        Section {
+            title: "OPTIONS",
+            entries: &[
+                (
+                    "--base",
+                    "Print the base template only, ignoring user overrides",
+                ),
+                ("-h, --help", "Show this help"),
+            ],
+        },
+    ],
+    examples: &["show cursor", "show cursor --base", "show claude hooks"],
+};
 
 const KEYS: [&str; 30] = [
     "name",
@@ -80,7 +102,7 @@ pub fn show(
         match arg.as_str() {
             "--base" => show_base = true,
             "--help" | "-h" => {
-                put(out, USAGE.as_bytes())?;
+                put(out, HELP.render(style).as_bytes())?;
                 return Ok(0);
             }
             flag if flag.starts_with('-') => {
@@ -105,8 +127,9 @@ pub fn show(
         put(
             err,
             format!(
-                "{}: agentsync show <slug> [<resource>] [--base]\n  <resource>: {} (default: tool)\n",
+                "{}: {}\n  <resource>: {} (default: tool)\n",
                 style.red("Error"),
+                HELP.synopsis_line(),
                 VALID_RESOURCES.join(" ")
             )
             .as_bytes(),
@@ -333,6 +356,27 @@ mod tests {
         )
         .unwrap();
         (dir, root)
+    }
+
+    #[test]
+    fn help_and_the_missing_slug_refusal_share_one_synopsis() {
+        let (_dir, root) = project();
+        assert_eq!(
+            call(&root, &["--help"]),
+            (
+                0,
+                "\n  agentsync show — show effective config for a tool\n\n  USAGE\n    agentsync show <slug> [<resource>] [--base]\n\n  DESCRIPTION\n    Print effective configuration for a tool. Each line is marked \"base\"\n    (inherited from the shipped template) or \"user\" (overridden in\n    .ai/src/tools/<slug>.yaml).\n\n  ARGUMENTS\n    <slug>       Tool to show\n    <resource>   Payload resource: tool, hooks, mcp, settings\n                 (default: tool, the YAML config)\n\n  OPTIONS\n    --base       Print the base template only, ignoring user overrides\n    -h, --help   Show this help\n\n  EXAMPLES\n    agentsync show cursor\n    agentsync show cursor --base\n    agentsync show claude hooks\n\n".to_string(),
+                String::new()
+            )
+        );
+        assert_eq!(
+            call(&root, &[]),
+            (
+                1,
+                String::new(),
+                "Error: agentsync show <slug> [<resource>] [--base]\n  <resource>: tool hooks mcp settings (default: tool)\n".to_string()
+            )
+        );
     }
 
     #[test]

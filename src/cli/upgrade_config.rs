@@ -6,16 +6,25 @@ use std::io::Write;
 use std::path::Path;
 
 use super::customize::put;
+use crate::output::help::{Help, Section};
 use crate::output::style::Style;
 use crate::{Error, engine::staging};
 
 const KEY: &str = "agentsync_version:";
 
-const USAGE: &str = "Usage: agentsync upgrade-config
-
-  Re-pin agentsync_version in agent_sync.yaml to the running engine, after
-  an `agentsync update`. Re-sync and commit the outputs afterwards.
-";
+pub const HELP: Help = Help {
+    command: "upgrade-config",
+    tagline: "re-pin agentsync_version to the running engine",
+    synopsis: &["upgrade-config"],
+    description: &[
+        "Re-pins agentsync_version in agent_sync.yaml to the running engine, after\nan agentsync update. Re-sync and commit the outputs afterwards.",
+    ],
+    sections: &[Section {
+        title: "OPTIONS",
+        entries: &[("-h, --help", "Show this help")],
+    }],
+    examples: &["upgrade-config"],
+};
 
 /// The `awk` insertion or the `sed` rewrite, as `cmd_upgrade_config` picks it.
 pub fn upgrade_text(text: &str, version: &str) -> (String, bool) {
@@ -66,13 +75,18 @@ pub fn run(
     match args.first().map(String::as_str) {
         None => {}
         Some("--help" | "-h") => {
-            put(out, USAGE.as_bytes())?;
+            put(out, HELP.render(style).as_bytes())?;
             return Ok(0);
         }
         Some(other) => {
             put(
                 err,
-                format!("{}: Unknown argument: {other}\n{USAGE}", style.red("Error")).as_bytes(),
+                format!(
+                    "{}: Unknown argument: {other}\n{}",
+                    style.red("Error"),
+                    HELP.render(style)
+                )
+                .as_bytes(),
             )?;
             return Ok(2);
         }
@@ -129,11 +143,8 @@ mod tests {
         let args = ["--help".to_string()];
         let status = run(&args, dir.path(), "9.9.9", &style, &mut out, &mut err).unwrap();
         assert_eq!(status, 0);
-        assert!(
-            String::from_utf8(out)
-                .unwrap()
-                .starts_with("Usage: agentsync upgrade-config\n")
-        );
+        let help = "\n  agentsync upgrade-config — re-pin agentsync_version to the running engine\n\n  USAGE\n    agentsync upgrade-config\n\n  DESCRIPTION\n    Re-pins agentsync_version in agent_sync.yaml to the running engine, after\n    an agentsync update. Re-sync and commit the outputs afterwards.\n\n  OPTIONS\n    -h, --help   Show this help\n\n  EXAMPLES\n    agentsync upgrade-config\n\n";
+        assert_eq!(String::from_utf8(out).unwrap(), help);
         let args = ["--bogus".to_string()];
         let status = run(
             &args,
@@ -145,10 +156,9 @@ mod tests {
         )
         .unwrap();
         assert_eq!(status, 2);
-        assert!(
-            String::from_utf8(err)
-                .unwrap()
-                .starts_with("Error: Unknown argument: --bogus\n")
+        assert_eq!(
+            String::from_utf8(err).unwrap(),
+            format!("Error: Unknown argument: --bogus\n{help}")
         );
         assert_eq!(
             std::fs::read_to_string(&config).unwrap(),

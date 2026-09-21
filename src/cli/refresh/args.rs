@@ -5,6 +5,7 @@ use std::path::Path;
 
 use crate::Error;
 use crate::cli::customize::put;
+use crate::output::help::{Help, Section};
 use crate::output::style::Style;
 
 const CATEGORIES_VALID: [&str; 5] = ["rules", "skills", "commands", "agents", "subagents"];
@@ -55,7 +56,7 @@ pub(super) fn parse_args(
                 }
             },
             "--help" | "-h" => {
-                put(out, usage(style).as_bytes())?;
+                put(out, HELP.render(style).as_bytes())?;
                 return Ok(Err(0));
             }
             flag if flag.starts_with("--only=") => {
@@ -67,7 +68,7 @@ pub(super) fn parse_args(
                     format!(
                         "{}: Unknown option: {flag}\n{}",
                         style.red("Error"),
-                        usage(style)
+                        HELP.render(style)
                     )
                     .as_bytes(),
                 )?;
@@ -79,7 +80,7 @@ pub(super) fn parse_args(
                     format!(
                         "{}: Unexpected argument: {value}\n{}",
                         style.red("Error"),
-                        usage(style)
+                        HELP.render(style)
                     )
                     .as_bytes(),
                 )?;
@@ -160,22 +161,69 @@ pub(super) fn resolve_scope(
     Ok(Ok(categories))
 }
 
-/// `_refresh_usage`.
-fn usage(style: &Style) -> String {
-    format!(
-        "\n  {} — pull new template files into an existing .ai/src/\n\n  {}\n    agentsync refresh [options]\n\n  {}\n    Compares each shipped template (rules, skills, commands, agents) against\n    your local .ai/src/ using a three-way diff (template-old vs template-new\n    vs your current file) when a template manifest is present. Files you\n    haven't touched auto-update silently; only true conflicts require review.\n    Files in .ai/src/ that aren't part of the templates (your custom content)\n    are left alone.\n\n  {}\n    --only <csv>           Categories to consider: rules, skills, commands, agents\n                           Default: only categories that already have a subdir\n                           in your .ai/src/. Pass --only to opt into a category\n                           you don't have yet.\n    --include-agents-md    Also offer updates to AGENTS.md (off by default —\n                           almost always heavily customized).\n    --include-deleted      Re-offer files you previously declined and removed\n                           from disk so they can be restored.\n    --review               Resurface every local divergence from the shipped\n                           templates, including conflicts you previously\n                           [s]kipped. Use this to revisit earlier decisions\n                           or audit local edits.\n    --status               Print declined breakdown (persistent + local) and\n                           exit. No mutation, no prompts.\n    --dry-run              Print the plan without writing anything.\n    -y, --yes              Apply auto-updates and add new files; skip conflicts\n                           (no prompts). Required in non-interactive contexts.\n    -h, --help             Show this help.\n\n  {}\n    Picking {} on a conflict records the current template hash in\n    .ai/.template-manifest. The divergence stays silent on future refreshes\n    until a newer template ships (at which point it resurfaces automatically\n    so you can review the new change). Pass {} at any time to\n    revisit your skips explicitly.\n\n  {}\n    Edit .ai/agent_sync.yaml to silence specific templates forever (this is\n    stronger than {} — even new template versions stay hidden):\n\n      template_overrides:\n        declined:        # always-skip; never offered\n          - rules/some-rule.md\n        pinned:          # ignore template updates; keep your version\n          - rules/my-version.md\n\n  {}\n    agentsync refresh\n    agentsync refresh --only rules,skills\n    agentsync refresh --dry-run\n    agentsync refresh --yes               # CI-friendly: auto-update + add new\n    agentsync refresh --include-deleted   # revisit previously declined files\n    agentsync refresh --review            # revisit conflicts you skipped\n",
-        style.bold("agentsync refresh"),
-        style.green("USAGE"),
-        style.green("DESCRIPTION"),
-        style.green("OPTIONS"),
-        style.green("REMEMBERED SKIPS"),
-        style.yellow("[s]kip"),
-        style.cyan("--review"),
-        style.green("PERSISTENT OVERRIDES"),
-        style.yellow("[s]kip"),
-        style.green("EXAMPLES")
-    )
-}
+pub const HELP: Help = Help {
+    command: "refresh",
+    tagline: "pull new template files into an existing .ai/src/",
+    synopsis: &["refresh [OPTIONS]"],
+    description: &[
+        "Compares each shipped template (rules, skills, commands, agents) against\nyour local .ai/src/ using a three-way diff (template-old vs template-new\nvs your current file) when a template manifest is present. Files you\nhaven't touched auto-update silently; only true conflicts require review.\nFiles in .ai/src/ that aren't part of the templates (your custom content)\nare left alone.",
+    ],
+    sections: &[
+        Section {
+            title: "OPTIONS",
+            entries: &[
+                (
+                    "--only <csv>",
+                    "Categories to consider: rules, skills, commands, agents\nDefault: only categories that already have a subdir\nin your .ai/src/. Pass --only to opt into a category\nyou don't have yet.",
+                ),
+                (
+                    "--include-agents-md",
+                    "Also offer updates to AGENTS.md (off by default —\nalmost always heavily customized).",
+                ),
+                (
+                    "--include-deleted",
+                    "Re-offer files you previously declined and removed\nfrom disk so they can be restored.",
+                ),
+                (
+                    "--review",
+                    "Resurface every local divergence from the shipped\ntemplates, including conflicts you previously\n[s]kipped. Use this to revisit earlier decisions\nor audit local edits.",
+                ),
+                (
+                    "--status",
+                    "Print declined breakdown (persistent + local) and\nexit. No mutation, no prompts.",
+                ),
+                ("--dry-run", "Print the plan without writing anything."),
+                (
+                    "-y, --yes",
+                    "Apply auto-updates and add new files; skip conflicts\n(no prompts). Required in non-interactive contexts.",
+                ),
+                ("-h, --help", "Show this help"),
+            ],
+        },
+        Section {
+            title: "REMEMBERED SKIPS",
+            entries: &[(
+                "",
+                "Picking [s]kip on a conflict records the current template hash in\n.ai/.template-manifest. The divergence stays silent on future\nrefreshes until a newer template ships (at which point it\nresurfaces automatically so you can review the new change). Pass\n--review at any time to revisit your skips explicitly.",
+            )],
+        },
+        Section {
+            title: "PERSISTENT OVERRIDES",
+            entries: &[(
+                "",
+                "Edit .ai/agent_sync.yaml to silence specific templates forever (this\nis stronger than [s]kip — even new template versions stay hidden):\ntemplate_overrides:\n  declined:        # always-skip; never offered\n    - rules/some-rule.md\n  pinned:          # ignore template updates; keep your version\n    - rules/my-version.md",
+            )],
+        },
+    ],
+    examples: &[
+        "refresh",
+        "refresh --only rules,skills",
+        "refresh --dry-run",
+        "refresh --yes               # CI-friendly: auto-update + add new",
+        "refresh --include-deleted   # revisit previously declined files",
+        "refresh --review            # revisit conflicts you skipped",
+    ],
+};
 
 #[cfg(all(test, unix))]
 mod tests {
@@ -189,18 +237,10 @@ mod tests {
         let (_dir, root) = seeded();
         let help = call(&root, &["--help", "--bogus"], false, &[]);
         assert_eq!(help.status, 0);
-        assert!(help.out.starts_with(
-            "\n  agentsync refresh — pull new template files into an existing .ai/src/\n\n  USAGE\n    agentsync refresh [options]\n\n  DESCRIPTION\n"
-        ));
-        assert!(
-            help.out
-                .contains("\n  REMEMBERED SKIPS\n    Picking [s]kip on a conflict")
+        assert_eq!(
+            help.out,
+            "\n  agentsync refresh — pull new template files into an existing .ai/src/\n\n  USAGE\n    agentsync refresh [OPTIONS]\n\n  DESCRIPTION\n    Compares each shipped template (rules, skills, commands, agents) against\n    your local .ai/src/ using a three-way diff (template-old vs template-new\n    vs your current file) when a template manifest is present. Files you\n    haven't touched auto-update silently; only true conflicts require review.\n    Files in .ai/src/ that aren't part of the templates (your custom content)\n    are left alone.\n\n  OPTIONS\n    --only <csv>          Categories to consider: rules, skills, commands, agents\n                          Default: only categories that already have a subdir\n                          in your .ai/src/. Pass --only to opt into a category\n                          you don't have yet.\n    --include-agents-md   Also offer updates to AGENTS.md (off by default —\n                          almost always heavily customized).\n    --include-deleted     Re-offer files you previously declined and removed\n                          from disk so they can be restored.\n    --review              Resurface every local divergence from the shipped\n                          templates, including conflicts you previously\n                          [s]kipped. Use this to revisit earlier decisions\n                          or audit local edits.\n    --status              Print declined breakdown (persistent + local) and\n                          exit. No mutation, no prompts.\n    --dry-run             Print the plan without writing anything.\n    -y, --yes             Apply auto-updates and add new files; skip conflicts\n                          (no prompts). Required in non-interactive contexts.\n    -h, --help            Show this help\n\n  REMEMBERED SKIPS\n    Picking [s]kip on a conflict records the current template hash in\n    .ai/.template-manifest. The divergence stays silent on future\n    refreshes until a newer template ships (at which point it\n    resurfaces automatically so you can review the new change). Pass\n    --review at any time to revisit your skips explicitly.\n\n  PERSISTENT OVERRIDES\n    Edit .ai/agent_sync.yaml to silence specific templates forever (this\n    is stronger than [s]kip — even new template versions stay hidden):\n    template_overrides:\n      declined:        # always-skip; never offered\n        - rules/some-rule.md\n      pinned:          # ignore template updates; keep your version\n        - rules/my-version.md\n\n  EXAMPLES\n    agentsync refresh\n    agentsync refresh --only rules,skills\n    agentsync refresh --dry-run\n    agentsync refresh --yes               # CI-friendly: auto-update + add new\n    agentsync refresh --include-deleted   # revisit previously declined files\n    agentsync refresh --review            # revisit conflicts you skipped\n\n"
         );
-        assert!(help.out.contains("\n  PERSISTENT OVERRIDES\n"));
-        assert!(help.out.ends_with(
-            "    agentsync refresh --review            # revisit conflicts you skipped\n"
-        ));
-        assert_eq!(help.out.lines().count(), 58);
 
         let bogus = call(&root, &["--bogus", "--help"], false, &[]);
         assert_eq!((bogus.status, bogus.out.as_str()), (1, ""));

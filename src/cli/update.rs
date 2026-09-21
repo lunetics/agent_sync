@@ -15,12 +15,39 @@ use super::customize::put;
 use super::notice::{CACHE_FILE, REPO};
 use crate::config::snapshot::{self, Conflict};
 use crate::output::changelog;
+use crate::output::help::{Help, Section};
 use crate::output::style::Style;
 use crate::transaction::manifest::sha256_hex;
 use crate::{Error, config::catalog, engine_version};
 
-const USAGE: &str = "Usage: agentsync update [<version>] [--strict]";
-const HELP: &str = "Usage: agentsync update [<version>] [--strict]\n\n  <version>   Pin the install to that release tag (e.g. 0.35.0) instead of\n              the latest release — what a project's agentsync_version asks for.\n  --strict    Exit non-zero if upstream changed a field you have overridden.\n";
+pub const HELP: Help = Help {
+    command: "update",
+    tagline: "replace the binary with a GitHub release",
+    synopsis: &["update [<version>] [--strict]"],
+    description: &[
+        "Downloads the release archive for this platform from GitHub Releases,\nverifies its sha256, and moves the new binary over the running one.\nConflicts between the new catalog and your overrides are queued for\nagentsync resolve.",
+    ],
+    sections: &[
+        Section {
+            title: "ARGUMENTS",
+            entries: &[(
+                "<version>",
+                "Pin the install to that release tag (e.g. 0.35.0) instead of\nthe latest release — what a project's agentsync_version asks for",
+            )],
+        },
+        Section {
+            title: "OPTIONS",
+            entries: &[
+                (
+                    "--strict",
+                    "Exit non-zero if upstream changed a field you have overridden",
+                ),
+                ("-h, --help", "Show this help"),
+            ],
+        },
+    ],
+    examples: &["update", "update 0.35.0", "update --strict"],
+};
 
 /// The hidden command a newer binary answers with its catalog.
 pub const CATALOG_COMMAND: &str = "__catalog";
@@ -546,13 +573,18 @@ pub fn update(
 ) -> Result<u8, Error> {
     let (pin, strict) = match parse_args(args) {
         Args::Help => {
-            put(out, HELP.as_bytes())?;
+            put(out, HELP.render(style).as_bytes())?;
             return Ok(0);
         }
         Args::Refused(message) => {
             put(
                 err,
-                format!("{}: {message}\n{USAGE}\n", style.red("Error")).as_bytes(),
+                format!(
+                    "{}: {message}\nUsage: {}\n",
+                    style.red("Error"),
+                    HELP.synopsis_line()
+                )
+                .as_bytes(),
             )?;
             return Ok(2);
         }
@@ -863,7 +895,11 @@ mod tests {
     fn help_and_bad_arguments_answer_like_cmd_update() {
         let mut fixture = Fixture::new("9.9.9", &catalog_dump());
         let (status, out, err) = fixture.run(&["--help"]);
-        assert_eq!((status, out.as_str(), err.as_str()), (0, HELP, ""));
+        assert_eq!((status, err.as_str()), (0, ""));
+        assert_eq!(
+            out,
+            "\n  agentsync update — replace the binary with a GitHub release\n\n  USAGE\n    agentsync update [<version>] [--strict]\n\n  DESCRIPTION\n    Downloads the release archive for this platform from GitHub Releases,\n    verifies its sha256, and moves the new binary over the running one.\n    Conflicts between the new catalog and your overrides are queued for\n    agentsync resolve.\n\n  ARGUMENTS\n    <version>   Pin the install to that release tag (e.g. 0.35.0) instead of\n                the latest release — what a project's agentsync_version asks for\n\n  OPTIONS\n    --strict     Exit non-zero if upstream changed a field you have overridden\n    -h, --help   Show this help\n\n  EXAMPLES\n    agentsync update\n    agentsync update 0.35.0\n    agentsync update --strict\n\n"
+        );
         let (status, out, err) = fixture.run(&["--bogus"]);
         assert_eq!(
             (status, out.as_str(), err.as_str()),

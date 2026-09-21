@@ -262,7 +262,9 @@ fn shell_init_errors_when_the_shell_cannot_be_detected() {
 fn shell_init_help_prints_usage() {
     shell_init(&Project::empty(), &["--help"])
         .success()
-        .stdout(predicate::str::contains("Usage: agentsync shell-init"));
+        .stdout(predicate::str::contains(
+            "\n  USAGE\n    agentsync shell-init [zsh|bash]\n",
+        ));
 }
 
 #[test]

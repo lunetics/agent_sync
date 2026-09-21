@@ -15,6 +15,7 @@ use crate::config::template_manifest::TemplateManifest;
 use crate::output::style::Style;
 use crate::{Error, config::catalog};
 
+pub use args::HELP;
 use args::{parse_args, resolve_scope};
 use classify::{collect, load_overrides};
 use session::Run;

@@ -7,9 +7,28 @@ use std::path::{Path, PathBuf};
 
 use super::customize::{put, relative};
 use crate::config::tool::Tool;
+use crate::output::help::{Help, Section};
 use crate::output::style::Style;
 use crate::project::Project;
 use crate::{Error, config::catalog, config::yaml_edit, config::yaml_subset};
+
+pub const HELP: Help = Help {
+    command: "simplify",
+    tagline: "drop override fields that match base",
+    synopsis: &["simplify [<tool>] [--apply] [-y]"],
+    description: &[
+        "Removes fields from user overrides when they match the base.\nDry-run by default: pass --apply to persist.",
+    ],
+    sections: &[Section {
+        title: "OPTIONS",
+        entries: &[
+            ("--apply", "Write changes to disk (default: preview)"),
+            ("-y, --yes", "Auto-delete empty override files (no prompt)"),
+            ("-h, --help", "Show this help"),
+        ],
+    }],
+    examples: &["simplify", "simplify cursor --apply", "simplify --apply -y"],
+};
 
 const KEYS: [&str; 31] = [
     "name",
@@ -97,15 +116,7 @@ pub fn simplify(
             "--apply" => apply = true,
             "-y" | "--yes" => auto_yes = true,
             "-h" | "--help" => {
-                put(
-                    out,
-                    format!(
-                        "\n{}\n\n  Removes fields from user overrides when they match the base.\n  Dry-run by default — pass {} to persist.\n\n  Flags:\n    --apply    Write changes to disk (default: preview)\n    -y, --yes  Auto-delete empty override files (no prompt)\n\n",
-                        style.bold("  agentsync simplify [<tool>] [--apply] [-y]"),
-                        style.cyan("--apply")
-                    )
-                    .as_bytes(),
-                )?;
+                put(out, HELP.render(style).as_bytes())?;
                 return Ok(0);
             }
             flag if flag.starts_with('-') => {
@@ -533,6 +544,14 @@ mod tests {
     #[test]
     fn a_dry_run_lists_redundant_and_kept_fields_like_bash() {
         let (_dir, root) = project();
+        assert_eq!(
+            call(&root, &["--help"], false, ""),
+            (
+                0,
+                "\n  agentsync simplify — drop override fields that match base\n\n  USAGE\n    agentsync simplify [<tool>] [--apply] [-y]\n\n  DESCRIPTION\n    Removes fields from user overrides when they match the base.\n    Dry-run by default: pass --apply to persist.\n\n  OPTIONS\n    --apply      Write changes to disk (default: preview)\n    -y, --yes    Auto-delete empty override files (no prompt)\n    -h, --help   Show this help\n\n  EXAMPLES\n    agentsync simplify\n    agentsync simplify cursor --apply\n    agentsync simplify --apply -y\n\n".to_string(),
+                String::new()
+            )
+        );
         assert_eq!(
             call(&root, &[], false, "").1,
             "\n  No user overrides — nothing to simplify.\n\n"

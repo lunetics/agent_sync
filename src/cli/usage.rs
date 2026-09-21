@@ -114,10 +114,6 @@ const EXAMPLES: &str = "    agentsync init
     agentsync refresh --dry-run
 ";
 
-/// Commands whose own parser does not read `--help`; the usage is printed
-/// when their first argument asks for it.
-const HELP_INTERCEPTED: [&str; 6] = ["check", "doctor", "list", "ls", "disable", "resolve"];
-
 /// `print_usage`.
 pub fn usage(style: &Style) -> String {
     let mut text = format!(
@@ -147,16 +143,12 @@ pub fn usage(style: &Style) -> String {
     text
 }
 
-/// Whether `args` is answered with the usage: no command, an
-/// empty one (`${1:-help}`), `help`, `--help`, `-h`, or an intercepted command
-/// whose next argument is `--help` or `-h`. Later arguments are ignored.
+/// Whether `args` is answered with the usage: no command, an empty one
+/// (`${1:-help}`), `help`, `--help`, or `-h`. Later arguments are ignored;
+/// every command answers its own `--help`.
 pub fn wants_usage(args: &[String]) -> bool {
     let command = args.first().map(String::as_str).unwrap_or("");
-    if matches!(command, "" | "help" | "--help" | "-h") {
-        return true;
-    }
-    HELP_INTERCEPTED.contains(&command)
-        && matches!(args.get(1).map(String::as_str), Some("--help" | "-h"))
+    matches!(command, "" | "help" | "--help" | "-h")
 }
 
 /// The `*)` arm of `main`: the refusal and the usage on stderr, status 1.
@@ -218,9 +210,6 @@ mod tests {
             &["help", "sync"],
             &["--help"],
             &["-h", "--bogus"],
-            &["check", "--help"],
-            &["ls", "-h"],
-            &["resolve", "--help", "claude"],
         ] {
             assert!(wants_usage(&words(args)), "{args:?}");
         }
@@ -228,7 +217,9 @@ mod tests {
             &["HELP"][..],
             &["sync", "--help"],
             &["rollback", "-h"],
-            &["check", "--only", "x", "--help"],
+            &["check", "--help"],
+            &["ls", "-h"],
+            &["resolve", "--help", "claude"],
             &["enable", "--help"],
             &["version", "--help"],
         ] {

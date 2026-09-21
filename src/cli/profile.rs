@@ -8,21 +8,51 @@ use std::path::Path;
 use super::customize::put;
 use crate::config::tool::Tool;
 use crate::engine::render::TARGET_KEYS;
+use crate::output::help::{Help, Section};
 use crate::output::log::Log;
 use crate::output::style::Style;
 use crate::paths::Paths;
 use crate::project::Project;
 use crate::{Error, config::profiles, config::yaml_edit};
 
-const USAGE: &str = "Usage: agentsync profile <command>
-
-  add <name> [--tools a,b] [--adopt]   Scaffold variant tools + overlay + config entry
-  list                                 Show profiles, their tools and config homes
-  remove <name> [--yes]                Delete config-home output, variants, and entry
-
-Sync a profile:  agentsync sync --profile <name>
-Active profiles also sync on a plain: agentsync sync
-";
+pub const HELP: Help = Help {
+    command: "profile",
+    tagline: "scaffold, list, and remove config-home variants of tools",
+    synopsis: &["profile <subcommand>"],
+    description: &[],
+    sections: &[
+        Section {
+            title: "SUBCOMMANDS",
+            entries: &[
+                (
+                    "add <name> [--tools a,b] [--adopt]",
+                    "Scaffold variant tools + overlay + config entry",
+                ),
+                ("list", "Show profiles, their tools and config homes"),
+                (
+                    "remove <name> [--yes]",
+                    "Delete config-home output, variants, and entry",
+                ),
+            ],
+        },
+        Section {
+            title: "OPTIONS",
+            entries: &[("-h, --help", "Show this help")],
+        },
+        Section {
+            title: "SEE ALSO",
+            entries: &[
+                ("agentsync sync --profile <name>", "Sync a profile"),
+                ("agentsync sync", "Active profiles also sync on a plain run"),
+            ],
+        },
+    ],
+    examples: &[
+        "profile add hub --tools claude,cursor",
+        "profile list",
+        "profile remove hub --yes",
+    ],
+};
 
 type Discover<'a> = &'a dyn Fn() -> Result<Project, Error>;
 
@@ -41,7 +71,7 @@ pub fn profile(
         "list" | "ls" => list(discover, style, out, err),
         "remove" | "rm" => remove(rest, discover, style, interactive, confirm, out, err),
         "--help" | "-h" | "help" => {
-            put(out, USAGE.as_bytes())?;
+            put(out, HELP.render(style).as_bytes())?;
             Ok(0)
         }
         other => {
@@ -684,5 +714,17 @@ mod tests {
             call(&root, &[]).1,
             "\n  No profiles. Create one with: agentsync profile add <name>\n"
         );
+    }
+
+    #[test]
+    fn help_renders_the_shared_shape() {
+        let (_dir, root) = project();
+        let (status, out, err) = call(&root, &["--help"]);
+        assert_eq!((status, err.as_str()), (0, ""));
+        assert_eq!(
+            out,
+            "\n  agentsync profile — scaffold, list, and remove config-home variants of tools\n\n  USAGE\n    agentsync profile <subcommand>\n\n  SUBCOMMANDS\n    add <name> [--tools a,b] [--adopt]   Scaffold variant tools + overlay + config entry\n    list                                 Show profiles, their tools and config homes\n    remove <name> [--yes]                Delete config-home output, variants, and entry\n\n  OPTIONS\n    -h, --help   Show this help\n\n  SEE ALSO\n    agentsync sync --profile <name>   Sync a profile\n    agentsync sync                    Active profiles also sync on a plain run\n\n  EXAMPLES\n    agentsync profile add hub --tools claude,cursor\n    agentsync profile list\n    agentsync profile remove hub --yes\n\n"
+        );
+        assert_eq!(call(&root, &["help"]).1, out);
     }
 }

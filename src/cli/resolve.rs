@@ -6,9 +6,46 @@ use std::io::Write;
 use super::customize::{put, relative};
 use super::diff::KEYS;
 use crate::config::tool::Tool;
+use crate::output::help::{Help, Section};
 use crate::output::style::Style;
 use crate::project::Project;
 use crate::{Error, config::catalog, config::snapshot, config::yaml_edit, config::yaml_subset};
+
+pub const HELP: Help = Help {
+    command: "resolve",
+    tagline: "interactively reconcile overrides with base values",
+    synopsis: &["resolve [<slug>]"],
+    description: &[
+        "Walks every field in .ai/src/tools/<slug>.yaml that differs from the\nshipped base and asks, one field at a time, whether to [k]eep the\noverride, [a]dopt the base value (the field is removed from the\noverride file), or [s]kip it for now. With a slug, only that tool is\nreviewed.",
+        "A field the last agentsync update flagged, because upstream changed\nits base value while the override was in place, is marked with ⚡. A\nfull walk clears the flags.",
+        "Without a terminal the command is read-only and says so; use\nagentsync diff for a plain listing. Run agentsync sync afterwards to\napply what was adopted.",
+    ],
+    sections: &[
+        Section {
+            title: "ARGUMENTS",
+            entries: &[("<slug>", "Review only this tool's override")],
+        },
+        Section {
+            title: "OPTIONS",
+            entries: &[("-h, --help", "Show this help")],
+        },
+        Section {
+            title: "EXIT STATUS",
+            entries: &[
+                ("0", "The walk finished, or there was nothing to resolve"),
+                ("1", "No override exists for <slug>"),
+            ],
+        },
+        Section {
+            title: "SEE ALSO",
+            entries: &[
+                ("agentsync diff", "List every override against its base"),
+                ("agentsync update", "Where the ⚡ flags come from"),
+            ],
+        },
+    ],
+    examples: &["resolve", "resolve cursor"],
+};
 
 type Ask<'a> = &'a mut dyn FnMut(&str, &mut dyn Write) -> String;
 
@@ -21,6 +58,10 @@ pub fn resolve(
     out: &mut dyn Write,
     err: &mut dyn Write,
 ) -> Result<u8, Error> {
+    if matches!(args.first().map(String::as_str), Some("--help" | "-h")) {
+        put(out, HELP.render(style).as_bytes())?;
+        return Ok(0);
+    }
     let filter = args.first().cloned().unwrap_or_default();
     let project = discover()?;
     let pending = snapshot::read_pending_pairs(&project.root);
@@ -218,6 +259,30 @@ mod tests {
         let root = std::fs::canonicalize(dir.path()).unwrap().disk_text();
         std::fs::create_dir_all(format!("{root}/.ai/src/tools")).unwrap();
         (dir, root)
+    }
+
+    #[test]
+    fn help_is_answered_on_stdout_before_the_project_is_discovered() {
+        let (mut out, mut err) = (Vec::new(), Vec::new());
+        let status = resolve(
+            &["-h".to_string()],
+            &|| panic!("--help must not discover the project"),
+            &Style::plain(),
+            false,
+            &mut |_, _| String::new(),
+            &mut out,
+            &mut err,
+        )
+        .unwrap();
+        assert_eq!(status, 0);
+        assert_eq!(err, b"");
+        assert_eq!(
+            String::from_utf8(out).unwrap(),
+            HELP.render(&Style::plain())
+        );
+        assert!(HELP.render(&Style::plain()).starts_with(
+            "\n  agentsync resolve — interactively reconcile overrides with base values\n\n  USAGE\n    agentsync resolve [<slug>]\n"
+        ));
     }
 
     #[test]

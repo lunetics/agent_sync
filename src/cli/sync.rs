@@ -12,9 +12,9 @@ use crate::transaction::interrupt::{self, Interrupt};
 use crate::transaction::manifest::{self, Manifest};
 use crate::{Error, engine::gitignore, text, transaction::backup, transaction::witness};
 
-pub const USAGE: &str = "AgentSync Config Sync Script
+pub const USAGE: &str = "Usage: agentsync sync [OPTIONS]
 
-Usage: sync.sh [OPTIONS]
+Sync .ai/src/ to every enabled tool.
 
 Real sync runs snapshot every destination they may change and automatically
 restore that snapshot if the run fails. Use 'agentsync rollback' to restore a

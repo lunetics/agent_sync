@@ -220,6 +220,10 @@ pub fn release(
     let mut skip_push = false;
     for arg in args {
         match (arg.as_str(), Bump::parse(arg)) {
+            ("--help" | "-h", _) => {
+                put(out, format!("{}\n", USAGE.trim_start()).as_bytes())?;
+                return Ok(0);
+            }
             ("--no-push", _) => skip_push = true,
             (_, Some(named)) => bump = named,
             (other, None) => {

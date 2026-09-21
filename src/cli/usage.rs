@@ -116,9 +116,7 @@ const EXAMPLES: &str = "    agentsync init
 
 /// Commands whose own parser does not read `--help`; the usage is printed
 /// when their first argument asks for it.
-const HELP_INTERCEPTED: [&str; 8] = [
-    "check", "doctor", "list", "ls", "show", "diff", "disable", "resolve",
-];
+const HELP_INTERCEPTED: [&str; 6] = ["check", "doctor", "list", "ls", "disable", "resolve"];
 
 /// `print_usage`.
 pub fn usage(style: &Style) -> String {

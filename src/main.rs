@@ -305,6 +305,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
         Command::UpgradeConfig => {
             let root = project_root()?;
             cli::upgrade_config::run(
+                rest,
                 Path::new(&root),
                 engine_version(),
                 &style,

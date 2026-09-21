@@ -128,7 +128,7 @@ fn sync_options_are_checked_before_anything_runs() {
         .code(1)
         .stdout("")
         .stderr(predicate::str::starts_with(
-            "[ERROR] Unknown option: --bogus\nAgentSync Config Sync Script\n\nUsage: sync.sh [OPTIONS]\n",
+            "[ERROR] Unknown option: --bogus\nUsage: agentsync sync [OPTIONS]\n\nSync .ai/src/ to every enabled tool.\n",
         ));
     sync_in(&dir)
         .args(["--", "--dry-run"])
@@ -344,6 +344,38 @@ fn no_arguments_shows_help() {
         .assert()
         .success()
         .stdout(predicate::str::contains("COMMANDS"));
+}
+
+#[test]
+fn every_command_with_its_own_usage_answers_help_without_running() {
+    let project = common::Project::seeded(&[]);
+    let stale = project
+        .read(".ai/agent_sync.yaml")
+        .replace(engine_version(), "0.0.1");
+    project.write(".ai/agent_sync.yaml", &stale);
+    for command in [
+        "sync",
+        "show",
+        "diff",
+        "generate",
+        "release",
+        "upgrade-config",
+    ] {
+        project
+            .agentsync()
+            .args([command, "--help"])
+            .assert()
+            .success()
+            .stdout(predicate::str::starts_with(format!(
+                "Usage: agentsync {command}"
+            )))
+            .stderr("");
+    }
+    assert_eq!(
+        project.read(".ai/agent_sync.yaml"),
+        stale,
+        "upgrade-config --help must not touch the pin"
+    );
 }
 
 #[test]

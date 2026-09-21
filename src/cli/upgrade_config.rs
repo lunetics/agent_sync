@@ -11,6 +11,12 @@ use crate::{Error, engine::staging};
 
 const KEY: &str = "agentsync_version:";
 
+const USAGE: &str = "Usage: agentsync upgrade-config
+
+  Re-pin agentsync_version in agent_sync.yaml to the running engine, after
+  an `agentsync update`. Re-sync and commit the outputs afterwards.
+";
+
 /// The `awk` insertion or the `sed` rewrite, as `cmd_upgrade_config` picks it.
 pub fn upgrade_text(text: &str, version: &str) -> (String, bool) {
     let pin = format!("agentsync_version: \"{version}\"");
@@ -50,12 +56,27 @@ pub fn upgrade_text(text: &str, version: &str) -> (String, bool) {
 }
 
 pub fn run(
+    args: &[String],
     root: &Path,
     version: &str,
     style: &Style,
     out: &mut dyn Write,
     err: &mut dyn Write,
 ) -> Result<u8, Error> {
+    match args.first().map(String::as_str) {
+        None => {}
+        Some("--help" | "-h") => {
+            put(out, USAGE.as_bytes())?;
+            return Ok(0);
+        }
+        Some(other) => {
+            put(
+                err,
+                format!("{}: Unknown argument: {other}\n{USAGE}", style.red("Error")).as_bytes(),
+            )?;
+            return Ok(2);
+        }
+    }
     let config = [
         root.join(".ai").join("agent_sync.yaml"),
         root.join("agent_sync.yaml"),
@@ -96,6 +117,44 @@ pub fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn help_and_an_unknown_argument_leave_the_config_untouched() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = dir.path().join(".ai").join("agent_sync.yaml");
+        std::fs::create_dir_all(config.parent().unwrap()).unwrap();
+        std::fs::write(&config, "agentsync_version: \"0.1.0\"\n").unwrap();
+        let style = Style::plain();
+        let (mut out, mut err) = (Vec::new(), Vec::new());
+        let args = ["--help".to_string()];
+        let status = run(&args, dir.path(), "9.9.9", &style, &mut out, &mut err).unwrap();
+        assert_eq!(status, 0);
+        assert!(
+            String::from_utf8(out)
+                .unwrap()
+                .starts_with("Usage: agentsync upgrade-config\n")
+        );
+        let args = ["--bogus".to_string()];
+        let status = run(
+            &args,
+            dir.path(),
+            "9.9.9",
+            &style,
+            &mut Vec::new(),
+            &mut err,
+        )
+        .unwrap();
+        assert_eq!(status, 2);
+        assert!(
+            String::from_utf8(err)
+                .unwrap()
+                .starts_with("Error: Unknown argument: --bogus\n")
+        );
+        assert_eq!(
+            std::fs::read_to_string(&config).unwrap(),
+            "agentsync_version: \"0.1.0\"\n"
+        );
+    }
 
     #[test]
     fn the_pin_is_inserted_after_leading_comments_or_every_line_is_rewritten() {

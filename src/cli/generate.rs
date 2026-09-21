@@ -11,6 +11,20 @@ use crate::output::style::Style;
 /// `lib/prompts/generate.md`, embedded.
 pub const PROMPT: &str = include_str!("../../lib/prompts/generate.md");
 
+const USAGE: &str = "Usage: agentsync generate [<project description>...]
+
+  Print an AI prompt that generates project-specific rules, skills, commands,
+  and agents for .ai/src/, and copy it to the clipboard when one is available.
+
+  Words after the command become the project description at the top of the
+  prompt. In a terminal with no description, a short menu asks for one.
+
+Examples:
+  agentsync generate
+  agentsync generate React + TypeScript + Next.js project with Prisma ORM
+  agentsync generate > prompt.md
+";
+
 /// What `generate` takes from the process.
 pub struct Env<'a> {
     /// `-t 0` and `-t 1`: the menu opens only when both are terminals.
@@ -84,6 +98,10 @@ pub fn generate(
     out: &mut dyn Write,
     err: &mut dyn Write,
 ) -> Result<u8, Error> {
+    if matches!(args.first().map(String::as_str), Some("--help" | "-h")) {
+        put(out, USAGE.as_bytes())?;
+        return Ok(0);
+    }
     let context = args.join(" ");
     if !context.is_empty() {
         output_prompt(&context, style, env, out, err)?;

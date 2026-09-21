@@ -7,14 +7,14 @@
   <h3>One source → 13 AI tools. Stop copy-pasting rules.</h3>
 
   <p>
-    <a href="https://github.com/yelmuratoff/agent">
+    <a href="https://github.com/yelmuratoff/agent_sync">
       <img src="https://img.shields.io/badge/built_with-rust-4EAA25?style=for-the-badge&logo=rust&logoColor=white" alt="Built with Rust">
     </a>
     <a href="https://www.gnu.org/licenses/gpl-3.0.html">
       <img src="https://img.shields.io/badge/license-GPL--3.0--only-4EAA25?style=for-the-badge" alt="GPL-3.0-only License">
     </a>
-    <a href="https://github.com/yelmuratoff/agent">
-      <img src="https://img.shields.io/github/stars/yelmuratoff/agent?style=for-the-badge&logo=github&color=4EAA25" alt="GitHub stars">
+    <a href="https://github.com/yelmuratoff/agent_sync">
+      <img src="https://img.shields.io/github/stars/yelmuratoff/agent_sync?style=for-the-badge&logo=github&color=4EAA25" alt="GitHub stars">
     </a>
   </p>
 </div>
@@ -1116,12 +1116,12 @@ rm -rf .ai/
 
 ## Star history
 
-<a href="https://star-history.com/#yelmuratoff/agent&Date">
-  <img src="https://api.star-history.com/svg?repos=yelmuratoff/agent&type=Date" alt="Star History Chart">
+<a href="https://star-history.com/#yelmuratoff/agent_sync&Date">
+  <img src="https://api.star-history.com/svg?repos=yelmuratoff/agent_sync&type=Date" alt="Star History Chart">
 </a>
 
 <div align="center">
-  <a href="https://github.com/yelmuratoff/agent/graphs/contributors">
-    <img src="https://contrib.rocks/image?repo=yelmuratoff/agent" />
+  <a href="https://github.com/yelmuratoff/agent_sync/graphs/contributors">
+    <img src="https://contrib.rocks/image?repo=yelmuratoff/agent_sync" />
   </a>
 </div> -->

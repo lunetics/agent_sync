@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **Every command hint is coloured the same way.** The sync log's version-pin hints (`agentsync update <pinned>`, `agentsync upgrade-config`), its drift and first-sync advice, the legacy-layout warning, and the `run agentsync init` / `agentsync sync` errors of `profile`, `adopt`, and `doctor` print the command in cyan on a terminal, as `doctor` and `list` already did, and drop the quotes around it. Piped output is unchanged apart from those quotes.
+- **`sync --help` names the command.** The usage opens with `Usage: agentsync sync [OPTIONS]` instead of the `sync.sh` header the Bash engine printed.
+- **`show --help` and `diff --help` print their own usage** instead of the top-level command list.
+- **`refresh` names the templates by release.** The header reads `Templates: shipped with agentsync v0.39.0` where it printed the engine-internal `/<agentsync>/lib/templates`.
+
+### Fixed
+
+- **`upgrade-config --help` re-pinned the project.** The command took no arguments, so `--help` ran it. It prints its usage now, and an unknown argument is refused with exit status 2 before anything is written.
+- **`generate --help` and `release --help` answer with usage.** `generate` treated the flag as the project description; `release` refused it as an unknown bump type.
+
 ## 0.39.0
 
 ### Breaking

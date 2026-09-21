@@ -3,13 +3,12 @@ use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use agentsync::cli::{self, Cli, Command};
+use agentsync::cli::{self, Command};
 use agentsync::log::{Sink, Stream};
 use agentsync::project::Project;
 use agentsync::render::Env;
 use agentsync::style::Style;
 use agentsync::{Error, engine_version, paths, prompts};
-use clap::Parser;
 
 fn main() -> ExitCode {
     let args: Vec<OsString> = std::env::args_os().skip(1).collect();
@@ -29,46 +28,6 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
     if cli::notice::wants_notice(first) {
         check_for_updates()?;
     }
-    if first == cli::update::CATALOG_COMMAND {
-        let mut out = std::io::stdout().lock();
-        return out
-            .write_all(cli::update::catalog_dump().as_bytes())
-            .map(|()| 0)
-            .map_err(|e| Error::io("<stdout>", e));
-    }
-    if first == "__update-cache" {
-        if let Some(cache) = args.get(1) {
-            cli::notice::refresh_cache(Path::new(cache));
-        }
-        return Ok(0);
-    }
-    if first == "update" {
-        let rest: Vec<String> = args[1..]
-            .iter()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect();
-        let exe = current_exe().map_err(|e| Error::io("<exe>", e))?;
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs())
-            .unwrap_or(0);
-        let mut env = cli::update::Env {
-            exe,
-            project_dir: notice_root()?,
-            today: agentsync::snapshot::utc_date(now),
-            width: cli::update::terminal_width(),
-            fetch: &mut cli::update::curl_fetch,
-            extract: &mut cli::update::tar_extract,
-            ask: &mut cli::update::ask_binary,
-        };
-        return cli::update::update(
-            &rest,
-            &Style::for_stdout(),
-            &mut env,
-            &mut std::io::stdout(),
-            &mut std::io::stderr(),
-        );
-    }
     let words: Vec<String> = args
         .iter()
         .map(|a| a.to_string_lossy().into_owned())
@@ -76,390 +35,376 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
     if cli::usage::wants_usage(&words) {
         return print_usage();
     }
-    // The Bash CLI accepts these flags as commands; clap's own version flag is off.
-    if matches!(
-        args.first().and_then(|a| a.to_str()),
-        Some("--version" | "-v")
-    ) {
-        return print_version();
-    }
-    if args.first().and_then(|a| a.to_str()) == Some("dedupe") {
-        let rest: Vec<String> = args[1..]
-            .iter()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect();
-        let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
-        let cwd = paths::logical_root(None, &cwd, var("PWD").as_deref());
-        return cli::dedupe::dedupe(
-            &rest,
-            &cwd,
-            &project_root,
-            &Style::for_stdout(),
-            prompts::is_tty().then_some(&mut prompts::read_terminal as &mut dyn FnMut() -> String),
-            &mut std::io::stdout(),
-            &mut std::io::stderr(),
-        );
-    }
-    if args.first().and_then(|a| a.to_str()) == Some("migrate") {
-        let rest: Vec<String> = args[1..]
-            .iter()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect();
-        let prompt_root = match path_var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty()) {
-            Some(root) => root,
-            None => {
-                let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
-                paths::logical_root(None, &cwd, var("PWD").as_deref())
+    let Some(command) = Command::parse(first) else {
+        let word = words.first().map(String::as_str).unwrap_or_default();
+        return cli::usage::unknown_command(word, &Style::for_stdout(), &mut std::io::stderr());
+    };
+    let rest = &words[1..];
+    let style = Style::for_stdout();
+    match command {
+        Command::Version => print_version(),
+        Command::Catalog => {
+            let mut out = std::io::stdout().lock();
+            out.write_all(cli::update::catalog_dump().as_bytes())
+                .map(|()| 0)
+                .map_err(|e| Error::io("<stdout>", e))
+        }
+        Command::UpdateCache => {
+            if let Some(cache) = args.get(1) {
+                cli::notice::refresh_cache(Path::new(cache));
             }
-        };
-        let path_var = var("PATH");
-        let mut env = cli::migrate::Env {
-            version: engine_version(),
-            prompt_root,
-            no_clipboard: var("AGENTSYNC_NO_CLIPBOARD").as_deref() == Some("1"),
-            stdout_tty: std::io::stdout().is_terminal(),
-            interactive: prompts::is_tty(),
-            confirm: &mut |question: &str, default_yes: bool| {
-                prompts::confirm(question, default_yes)
-            },
-            copy: &mut |text: &str| cli::migrate::copy_to_clipboard(text, path_var.as_deref()),
-        };
-        return cli::migrate::migrate(
-            &rest,
-            &Project::discover,
-            &Style::for_stdout(),
-            &mut env,
-            &mut std::io::stdout(),
-            &mut std::io::stderr(),
-        );
-    }
-    if matches!(
-        args.first().and_then(|a| a.to_str()),
-        Some("generate" | "gen")
-    ) {
-        let rest: Vec<String> = args[1..]
-            .iter()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect();
-        let mut read_line = || {
-            let mut line = String::new();
-            match std::io::stdin().read_line(&mut line) {
-                Ok(0) | Err(_) => None,
-                Ok(_) => Some(line.trim_end_matches(['\n', '\r']).to_string()),
-            }
-        };
-        let mut env = cli::generate::Env {
-            stdin_tty: std::io::stdin().is_terminal(),
-            stdout_tty: std::io::stdout().is_terminal(),
-            clipboard: clipboard_command(),
-            read_line: &mut read_line,
-        };
-        return cli::generate::generate(
-            &rest,
-            &Style::for_stdout(),
-            &mut env,
-            &mut std::io::stdout(),
-            &mut std::io::stderr(),
-        );
-    }
-    if args.first().and_then(|a| a.to_str()) == Some("shell-init") {
-        let rest: Vec<String> = args[1..]
-            .iter()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect();
-        return cli::shell_init::shell_init(
-            &rest,
+            Ok(0)
+        }
+        Command::Update => {
+            let exe = current_exe().map_err(|e| Error::io("<exe>", e))?;
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            let mut env = cli::update::Env {
+                exe,
+                project_dir: notice_root()?,
+                today: agentsync::snapshot::utc_date(now),
+                width: cli::update::terminal_width(),
+                fetch: &mut cli::update::curl_fetch,
+                extract: &mut cli::update::tar_extract,
+                ask: &mut cli::update::ask_binary,
+            };
+            cli::update::update(
+                rest,
+                &style,
+                &mut env,
+                &mut std::io::stdout(),
+                &mut std::io::stderr(),
+            )
+        }
+        Command::Dedupe => {
+            let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
+            let cwd = paths::logical_root(None, &cwd, var("PWD").as_deref());
+            cli::dedupe::dedupe(
+                rest,
+                &cwd,
+                &project_root,
+                &style,
+                prompts::is_tty()
+                    .then_some(&mut prompts::read_terminal as &mut dyn FnMut() -> String),
+                &mut std::io::stdout(),
+                &mut std::io::stderr(),
+            )
+        }
+        Command::Migrate => {
+            let prompt_root = match path_var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty())
+            {
+                Some(root) => root,
+                None => {
+                    let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
+                    paths::logical_root(None, &cwd, var("PWD").as_deref())
+                }
+            };
+            let path_var = var("PATH");
+            let mut env = cli::migrate::Env {
+                version: engine_version(),
+                prompt_root,
+                no_clipboard: var("AGENTSYNC_NO_CLIPBOARD").as_deref() == Some("1"),
+                stdout_tty: std::io::stdout().is_terminal(),
+                interactive: prompts::is_tty(),
+                confirm: &mut |question: &str, default_yes: bool| {
+                    prompts::confirm(question, default_yes)
+                },
+                copy: &mut |text: &str| cli::migrate::copy_to_clipboard(text, path_var.as_deref()),
+            };
+            cli::migrate::migrate(
+                rest,
+                &Project::discover,
+                &style,
+                &mut env,
+                &mut std::io::stdout(),
+                &mut std::io::stderr(),
+            )
+        }
+        Command::Generate => {
+            let mut read_line = || {
+                let mut line = String::new();
+                match std::io::stdin().read_line(&mut line) {
+                    Ok(0) | Err(_) => None,
+                    Ok(_) => Some(line.trim_end_matches(['\n', '\r']).to_string()),
+                }
+            };
+            let mut env = cli::generate::Env {
+                stdin_tty: std::io::stdin().is_terminal(),
+                stdout_tty: std::io::stdout().is_terminal(),
+                clipboard: clipboard_command(),
+                read_line: &mut read_line,
+            };
+            cli::generate::generate(
+                rest,
+                &style,
+                &mut env,
+                &mut std::io::stdout(),
+                &mut std::io::stderr(),
+            )
+        }
+        Command::ShellInit => cli::shell_init::shell_init(
+            rest,
             var("SHELL").as_deref(),
-            &Style::for_stdout(),
+            &style,
             log_colors(),
             &mut std::io::stdout(),
             &mut std::io::stderr(),
-        );
-    }
-    if args.first().and_then(|a| a.to_str()) == Some("setup-hooks") {
-        let rest: Vec<String> = args[1..]
-            .iter()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect();
-        let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
-        let env_root = path_var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty());
-        let root = match env_root {
-            Some(root) => root,
-            None => paths::logical_root(None, &cwd, var("PWD").as_deref()),
-        };
-        return cli::setup_hooks::setup_hooks(
-            &rest,
-            &root,
-            &mut std::io::stdout(),
-            &mut std::io::stderr(),
-        );
-    }
-    if args.first().and_then(|a| a.to_str()) == Some("release") {
-        let rest: Vec<String> = args[1..]
-            .iter()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect();
-        let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
-        let mut read_line = || {
-            let mut line = String::new();
-            match std::io::stdin().read_line(&mut line) {
-                Ok(0) | Err(_) => None,
-                Ok(_) => Some(line.trim_end_matches('\n').to_string()),
-            }
-        };
-        let mut env = cli::release::Env {
-            cwd: paths::logical_root(None, &cwd, var("PWD").as_deref()),
-            install_dir: var("AGENTSYNC_HOME").filter(|home| Path::new(home).join(".git").is_dir()),
-            read_line: &mut read_line,
-        };
-        return cli::release::release(
-            &rest,
-            &Style::for_stdout(),
-            &mut env,
-            &mut std::io::stdout(),
-            &mut std::io::stderr(),
-        );
-    }
-    if let Some(command @ ("export" | "import")) = args.first().and_then(|a| a.to_str()) {
-        let rest: Vec<String> = args[1..]
-            .iter()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect();
-        let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
-        let logical_cwd = paths::logical_root(None, &cwd, var("PWD").as_deref());
-        let env_root = path_var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty());
-        let root = paths::logical_root(env_root.as_deref(), &cwd, var("PWD").as_deref());
-        let style = Style::for_stdout();
-        if command == "export" {
-            return cli::bundle::export(
-                &rest,
+        ),
+        Command::SetupHooks => {
+            let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
+            let env_root = path_var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty());
+            let root = match env_root {
+                Some(root) => root,
+                None => paths::logical_root(None, &cwd, var("PWD").as_deref()),
+            };
+            cli::setup_hooks::setup_hooks(
+                rest,
+                &root,
+                &mut std::io::stdout(),
+                &mut std::io::stderr(),
+            )
+        }
+        Command::Release => {
+            let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
+            let mut read_line = || {
+                let mut line = String::new();
+                match std::io::stdin().read_line(&mut line) {
+                    Ok(0) | Err(_) => None,
+                    Ok(_) => Some(line.trim_end_matches('\n').to_string()),
+                }
+            };
+            let mut env = cli::release::Env {
+                cwd: paths::logical_root(None, &cwd, var("PWD").as_deref()),
+                install_dir: var("AGENTSYNC_HOME")
+                    .filter(|home| Path::new(home).join(".git").is_dir()),
+                read_line: &mut read_line,
+            };
+            cli::release::release(
+                rest,
+                &style,
+                &mut env,
+                &mut std::io::stdout(),
+                &mut std::io::stderr(),
+            )
+        }
+        Command::Export => {
+            let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
+            let env_root = path_var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty());
+            let root = paths::logical_root(env_root.as_deref(), &cwd, var("PWD").as_deref());
+            cli::bundle::export(
+                rest,
                 &root,
                 &style,
                 &mut std::io::stdout(),
                 &mut std::io::stderr(),
-            );
+            )
         }
-        let mut read_line = || {
-            let mut line = String::new();
-            let _ = std::io::stdin().read_line(&mut line);
-            line.trim_end_matches(['\n', '\r']).to_string()
-        };
-        let mut env = cli::bundle::Env {
-            cwd: logical_cwd,
-            interactive: std::io::stdin().is_terminal(),
-            path: var("PATH"),
-            read_line: &mut read_line,
-        };
-        return cli::bundle::import(
-            &rest,
-            &root,
-            &style,
-            &mut env,
-            &mut std::io::stdout(),
-            &mut std::io::stderr(),
-        );
-    }
-    if args.first().and_then(|a| a.to_str()) == Some("add") {
-        let rest: Vec<String> = args[1..]
-            .iter()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect();
-        let env_root = path_var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty());
-        let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
-        let root = paths::logical_root(env_root.as_deref(), &cwd, var("PWD").as_deref());
-        return cli::add::add(
-            &rest,
-            &root,
-            &Style::for_stdout(),
-            &mut std::io::stdout(),
-            &mut std::io::stderr(),
-        );
-    }
-    if args.first().and_then(|a| a.to_str()) == Some("doctor") {
-        let env = cli::doctor::Env {
-            version: engine_version(),
-            external_roots: external_roots_var(),
-        };
-        return cli::doctor::doctor(
+        Command::Import => {
+            let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
+            let logical_cwd = paths::logical_root(None, &cwd, var("PWD").as_deref());
+            let env_root = path_var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty());
+            let root = paths::logical_root(env_root.as_deref(), &cwd, var("PWD").as_deref());
+            let mut read_line = || {
+                let mut line = String::new();
+                let _ = std::io::stdin().read_line(&mut line);
+                line.trim_end_matches(['\n', '\r']).to_string()
+            };
+            let mut env = cli::bundle::Env {
+                cwd: logical_cwd,
+                interactive: std::io::stdin().is_terminal(),
+                path: var("PATH"),
+                read_line: &mut read_line,
+            };
+            cli::bundle::import(
+                rest,
+                &root,
+                &style,
+                &mut env,
+                &mut std::io::stdout(),
+                &mut std::io::stderr(),
+            )
+        }
+        Command::Add => {
+            let env_root = path_var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty());
+            let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
+            let root = paths::logical_root(env_root.as_deref(), &cwd, var("PWD").as_deref());
+            cli::add::add(
+                rest,
+                &root,
+                &style,
+                &mut std::io::stdout(),
+                &mut std::io::stderr(),
+            )
+        }
+        Command::Doctor => {
+            let env = cli::doctor::Env {
+                version: engine_version(),
+                external_roots: external_roots_var(),
+            };
+            cli::doctor::doctor(
+                &Project::discover,
+                &style,
+                &env,
+                &mut std::io::stdout(),
+                &mut std::io::stderr(),
+            )
+        }
+        Command::Init => {
+            let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
+            let cwd = paths::logical_root(None, &cwd, var("PWD").as_deref());
+            let sync_env = sync_env();
+            let colors = log_colors();
+            let mut sync = |root: &str| cli::sync::run(root, &[], &sync_env, colors, streams());
+            let mut confirm =
+                |question: &str, default_yes: bool| prompts::confirm(question, default_yes);
+            let mut multiselect = |title: &str, options: &[String], preselected: &[String]| {
+                prompts::multiselect_on_terminal(title, options, preselected, &style)
+            };
+            let mut env = cli::init::Env {
+                version: engine_version(),
+                cwd,
+                config_path: path_var("AGENTSYNC_CONFIG_PATH"),
+                backup_limit: var("AGENTSYNC_BACKUP_LIMIT"),
+                backup_max_age: var("AGENTSYNC_BACKUP_MAX_AGE_DAYS"),
+                interactive: prompts::is_tty(),
+                confirm: &mut confirm,
+                multiselect: &mut multiselect,
+                sync: &mut sync,
+            };
+            cli::init::init(
+                rest,
+                &style,
+                &mut env,
+                &mut std::io::stdout(),
+                &mut std::io::stderr(),
+            )
+        }
+        Command::Refresh => {
+            let root = match path_var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty()) {
+                Some(root) => root,
+                None => {
+                    let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
+                    paths::logical_root(None, &cwd, var("PWD").as_deref())
+                }
+            };
+            let mut env = cli::refresh::Env {
+                interactive: prompts::is_tty(),
+                read_line: &mut prompts::read_terminal,
+            };
+            cli::refresh::refresh(
+                rest,
+                &root,
+                &style,
+                &mut env,
+                &mut std::io::stdout(),
+                &mut std::io::stderr(),
+            )
+        }
+        Command::UpgradeConfig => {
+            let root = project_root()?;
+            cli::upgrade_config::run(
+                Path::new(&root),
+                engine_version(),
+                &style,
+                &mut std::io::stdout(),
+                &mut std::io::stderr(),
+            )
+        }
+        Command::Enable => cli::enable::enable(
+            rest,
             &Project::discover,
-            &Style::for_stdout(),
-            &env,
-            &mut std::io::stdout(),
-            &mut std::io::stderr(),
-        );
-    }
-    if args.first().and_then(|a| a.to_str()) == Some("init") {
-        let rest: Vec<String> = args[1..]
-            .iter()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect();
-        let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
-        let cwd = paths::logical_root(None, &cwd, var("PWD").as_deref());
-        let style = Style::for_stdout();
-        let sync_env = sync_env();
-        let colors = log_colors();
-        let mut sync = |root: &str| cli::sync::run(root, &[], &sync_env, colors, streams());
-        let mut confirm =
-            |question: &str, default_yes: bool| prompts::confirm(question, default_yes);
-        let mut multiselect = |title: &str, options: &[String], preselected: &[String]| {
-            prompts::multiselect_on_terminal(title, options, preselected, &style)
-        };
-        let mut env = cli::init::Env {
-            version: engine_version(),
-            cwd,
-            config_path: path_var("AGENTSYNC_CONFIG_PATH"),
-            backup_limit: var("AGENTSYNC_BACKUP_LIMIT"),
-            backup_max_age: var("AGENTSYNC_BACKUP_MAX_AGE_DAYS"),
-            interactive: prompts::is_tty(),
-            confirm: &mut confirm,
-            multiselect: &mut multiselect,
-            sync: &mut sync,
-        };
-        return cli::init::init(
-            &rest,
             &style,
-            &mut env,
+            prompts::is_tty(),
+            &mut |question: &str| prompts::confirm(question, true),
             &mut std::io::stdout(),
             &mut std::io::stderr(),
-        );
-    }
-    if args.first().and_then(|a| a.to_str()) == Some("refresh") {
-        let rest: Vec<String> = args[1..]
-            .iter()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect();
-        let root = match path_var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty()) {
-            Some(root) => root,
-            None => {
-                let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
-                paths::logical_root(None, &cwd, var("PWD").as_deref())
-            }
-        };
-        let mut env = cli::refresh::Env {
-            interactive: prompts::is_tty(),
-            read_line: &mut prompts::read_terminal,
-        };
-        return cli::refresh::refresh(
-            &rest,
-            &root,
-            &Style::for_stdout(),
-            &mut env,
+        ),
+        Command::Disable => cli::enable::disable(
+            rest,
+            &Project::discover,
+            &style,
             &mut std::io::stdout(),
             &mut std::io::stderr(),
-        );
-    }
-    if args.first().and_then(|a| a.to_str()) == Some("upgrade-config") {
-        let root = project_root()?;
-        return cli::upgrade_config::run(
-            Path::new(&root),
-            engine_version(),
-            &Style::for_stdout(),
+        ),
+        Command::Show => cli::show::show(
+            rest,
+            &Project::discover,
+            &style,
             &mut std::io::stdout(),
             &mut std::io::stderr(),
-        );
-    }
-    // These parse their arguments as their Bash `cmd_*` do; clap would consume a leading `--`.
-    if let Some(
-        command @ ("enable" | "disable" | "customize" | "show" | "diff" | "simplify" | "resolve"
-        | "profile" | "adopt"),
-    ) = args.first().and_then(|a| a.to_str())
-    {
-        let rest: Vec<String> = args[1..]
-            .iter()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect();
-        let style = Style::for_stdout();
-        let (mut out, mut err) = (std::io::stdout(), std::io::stderr());
-        return match command {
-            "enable" => cli::enable::enable(
-                &rest,
-                &Project::discover,
-                &style,
-                prompts::is_tty(),
-                &mut |question: &str| prompts::confirm(question, true),
-                &mut out,
-                &mut err,
-            ),
-            "disable" => {
-                cli::enable::disable(&rest, &Project::discover, &style, &mut out, &mut err)
-            }
-            "show" => cli::show::show(&rest, &Project::discover, &style, &mut out, &mut err),
-            "adopt" => cli::adopt::adopt(
-                &rest,
-                &Project::discover,
-                &style,
-                prompts::is_tty(),
-                &mut |question: &str| prompts::confirm(question, false),
-                &mut out,
-                &mut err,
-            ),
-            "profile" => cli::profile::profile(
-                &rest,
-                &Project::discover,
-                &style,
-                prompts::is_tty(),
-                &mut |question: &str| prompts::confirm(question, false),
-                &mut out,
-                &mut err,
-            ),
-            "diff" => cli::diff::diff(&rest, &Project::discover, &style, &mut out, &mut err),
-            "resolve" => cli::resolve::resolve(
-                &rest,
-                &Project::discover,
-                &style,
-                prompts::is_tty(),
-                &mut |prompt: &str, out: &mut dyn Write| {
-                    let _ = write!(out, "        {prompt} ");
-                    let _ = out.flush();
-                    prompts::read_terminal()
-                },
-                &mut out,
-                &mut err,
-            ),
-            "simplify" => cli::simplify::simplify(
-                &rest,
-                &Project::discover,
-                &style,
-                prompts::is_tty(),
-                &mut |prompt: &str, out: &mut dyn Write| {
-                    let _ = write!(out, "  {prompt} ");
-                    let _ = out.flush();
-                    prompts::read_terminal()
-                },
-                &mut out,
-                &mut err,
-            ),
-            _ => cli::customize::customize(
-                &rest,
-                &Project::discover,
-                &style,
-                std::io::stdin().is_terminal(),
-                &mut |prompt: &str| {
-                    eprint!("{prompt}");
-                    let _ = std::io::stderr().flush();
-                    let mut line = String::new();
-                    let _ = std::io::stdin().read_line(&mut line);
-                    line.trim_matches([' ', '\t', '\n']).to_string()
-                },
-                &mut out,
-                &mut err,
-            ),
-        };
-    }
-    let command = words.first().map(String::as_str).unwrap_or_default();
-    if !matches!(
-        command,
-        "version" | "list" | "ls" | "check" | "sync" | "rollback"
-    ) {
-        return cli::usage::unknown_command(command, &Style::for_stdout(), &mut std::io::stderr());
-    }
-    let cli = Cli::parse_from(std::iter::once(OsString::from("agentsync")).chain(args));
-    match cli.command {
-        Command::Version => print_version(),
+        ),
+        Command::Adopt => cli::adopt::adopt(
+            rest,
+            &Project::discover,
+            &style,
+            prompts::is_tty(),
+            &mut |question: &str| prompts::confirm(question, false),
+            &mut std::io::stdout(),
+            &mut std::io::stderr(),
+        ),
+        Command::Profile => cli::profile::profile(
+            rest,
+            &Project::discover,
+            &style,
+            prompts::is_tty(),
+            &mut |question: &str| prompts::confirm(question, false),
+            &mut std::io::stdout(),
+            &mut std::io::stderr(),
+        ),
+        Command::Diff => cli::diff::diff(
+            rest,
+            &Project::discover,
+            &style,
+            &mut std::io::stdout(),
+            &mut std::io::stderr(),
+        ),
+        Command::Resolve => cli::resolve::resolve(
+            rest,
+            &Project::discover,
+            &style,
+            prompts::is_tty(),
+            &mut |prompt: &str, out: &mut dyn Write| {
+                let _ = write!(out, "        {prompt} ");
+                let _ = out.flush();
+                prompts::read_terminal()
+            },
+            &mut std::io::stdout(),
+            &mut std::io::stderr(),
+        ),
+        Command::Simplify => cli::simplify::simplify(
+            rest,
+            &Project::discover,
+            &style,
+            prompts::is_tty(),
+            &mut |prompt: &str, out: &mut dyn Write| {
+                let _ = write!(out, "  {prompt} ");
+                let _ = out.flush();
+                prompts::read_terminal()
+            },
+            &mut std::io::stdout(),
+            &mut std::io::stderr(),
+        ),
+        Command::Customize => cli::customize::customize(
+            rest,
+            &Project::discover,
+            &style,
+            std::io::stdin().is_terminal(),
+            &mut |prompt: &str| {
+                eprint!("{prompt}");
+                let _ = std::io::stderr().flush();
+                let mut line = String::new();
+                let _ = std::io::stdin().read_line(&mut line);
+                line.trim_matches([' ', '\t', '\n']).to_string()
+            },
+            &mut std::io::stdout(),
+            &mut std::io::stderr(),
+        ),
         Command::List => {
             let project = Project::discover()?;
             let mut out = std::io::stdout().lock();
-            cli::list::run(&project, &Style::for_stdout(), &mut out).map(|()| 0)
+            cli::list::run(&project, &style, &mut out).map(|()| 0)
         }
         Command::Check => {
             let root = project_root()?;
@@ -474,20 +419,34 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
             let mut err = std::io::stderr().lock();
             cli::check::run(&root, &env, &mut out, &mut err)
         }
-        Command::Sync { args } if args.iter().any(|a| a == "--workspace") => {
-            let forwarded: Vec<String> = args.into_iter().filter(|a| a != "--workspace").collect();
+        Command::Sync if rest.iter().any(|a| a == "--workspace") => {
+            let forwarded: Vec<String> = rest
+                .iter()
+                .filter(|a| *a != "--workspace")
+                .cloned()
+                .collect();
             let cwd = std::env::current_dir().map_err(|e| Error::io(".", e))?;
             let cwd = paths::logical_root(None, &cwd, var("PWD").as_deref());
             Ok(cli::workspace::run(
                 &cwd,
                 &forwarded,
                 &sync_env(),
-                &Style::for_stdout(),
+                &style,
                 log_colors(),
                 &streams,
             ))
         }
-        Command::Rollback { args } => {
+        Command::Sync => {
+            let root = project_root()?;
+            Ok(cli::sync::run(
+                &root,
+                rest,
+                &sync_env(),
+                log_colors(),
+                streams(),
+            ))
+        }
+        Command::Rollback => {
             let supplied_root =
                 match path_var("AGENTSYNC_REPO_ROOT").filter(|root| !root.is_empty()) {
                     Some(root) => root,
@@ -504,26 +463,15 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
             let mut confirm = |question: &str| prompts::confirm(question, false);
             Ok(cli::rollback::run(
                 &supplied_root,
-                &args,
+                rest,
                 &env,
                 &mut confirm,
                 &mut std::io::stdout(),
                 &mut std::io::stderr(),
             ))
         }
-        Command::Sync { args } => {
-            let root = project_root()?;
-            Ok(cli::sync::run(
-                &root,
-                &args,
-                &sync_env(),
-                log_colors(),
-                streams(),
-            ))
-        }
     }
 }
-
 fn var(name: &str) -> Option<String> {
     std::env::var(name).ok()
 }

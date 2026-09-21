@@ -30,8 +30,6 @@ pub mod workspace;
 use crate::paths::DiskText;
 use std::io::Write;
 
-use clap::{Parser, Subcommand};
-
 use crate::Error;
 use crate::project::Project;
 use crate::style::Style;
@@ -54,44 +52,107 @@ pub(crate) fn refuse_outside_tools_dir(
     Ok(1)
 }
 
-/// Argument surface of the commands. `usage::wants_usage` answers `help` and
-/// the help flags before anything reaches this parser, so clap's help and
-/// version flags are disabled: `--version` must print `agentsync v<VERSION>`,
-/// not clap's format.
-#[derive(Debug, Parser)]
-#[command(
-    name = "agentsync",
-    disable_help_flag = true,
-    disable_version_flag = true,
-    disable_help_subcommand = true
-)]
-pub struct Cli {
-    #[command(subcommand)]
-    pub command: Command,
+/// The command word `main` dispatches on. Each command parses its own options
+/// as its Bash `cmd_*` did, so only the word is matched here: a parser owning
+/// the options would consume a leading `--`. `usage::wants_usage` answers
+/// `help` and the help flags before this runs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Command {
+    Version,
+    List,
+    Check,
+    Sync,
+    Rollback,
+    Update,
+    UpdateCache,
+    Catalog,
+    Dedupe,
+    Migrate,
+    Generate,
+    ShellInit,
+    SetupHooks,
+    Release,
+    Export,
+    Import,
+    Add,
+    Doctor,
+    Init,
+    Refresh,
+    UpgradeConfig,
+    Enable,
+    Disable,
+    Customize,
+    Show,
+    Diff,
+    Simplify,
+    Resolve,
+    Profile,
+    Adopt,
 }
 
-#[derive(Debug, Subcommand)]
-pub enum Command {
-    /// Print the engine version.
-    #[command(disable_help_flag = true)]
-    Version,
-    /// Show available tools and their status.
-    #[command(visible_alias = "ls", disable_help_flag = true)]
-    List,
-    /// Verify generated outputs match what sync would write.
-    #[command(disable_help_flag = true)]
-    Check,
-    /// Distribute `.ai/src` to every enabled tool. Bash's `lib/sync.sh` parsed its
-    /// own options, messages and usage included, so they pass through as text.
-    #[command(disable_help_flag = true)]
-    Sync {
-        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-        args: Vec<String>,
-    },
-    /// Restore targets from a backup; parses its own options like `cmd_rollback`.
-    #[command(disable_help_flag = true)]
-    Rollback {
-        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
-        args: Vec<String>,
-    },
+impl Command {
+    /// The command `word` names, with the aliases the Bash `case` accepted:
+    /// `ls`, `gen`, and the version flags as commands.
+    pub fn parse(word: &str) -> Option<Self> {
+        Some(match word {
+            "version" | "--version" | "-v" => Self::Version,
+            "list" | "ls" => Self::List,
+            "check" => Self::Check,
+            "sync" => Self::Sync,
+            "rollback" => Self::Rollback,
+            "update" => Self::Update,
+            "__update-cache" => Self::UpdateCache,
+            update::CATALOG_COMMAND => Self::Catalog,
+            "dedupe" => Self::Dedupe,
+            "migrate" => Self::Migrate,
+            "generate" | "gen" => Self::Generate,
+            "shell-init" => Self::ShellInit,
+            "setup-hooks" => Self::SetupHooks,
+            "release" => Self::Release,
+            "export" => Self::Export,
+            "import" => Self::Import,
+            "add" => Self::Add,
+            "doctor" => Self::Doctor,
+            "init" => Self::Init,
+            "refresh" => Self::Refresh,
+            "upgrade-config" => Self::UpgradeConfig,
+            "enable" => Self::Enable,
+            "disable" => Self::Disable,
+            "customize" => Self::Customize,
+            "show" => Self::Show,
+            "diff" => Self::Diff,
+            "simplify" => Self::Simplify,
+            "resolve" => Self::Resolve,
+            "profile" => Self::Profile,
+            "adopt" => Self::Adopt,
+            _ => return None,
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Command;
+
+    #[test]
+    fn aliases_name_the_same_command() {
+        assert_eq!(Command::parse("ls"), Some(Command::List));
+        assert_eq!(Command::parse("gen"), Some(Command::Generate));
+        assert_eq!(Command::parse("--version"), Some(Command::Version));
+        assert_eq!(Command::parse("-v"), Some(Command::Version));
+    }
+
+    #[test]
+    fn hidden_commands_parse() {
+        assert_eq!(Command::parse("__update-cache"), Some(Command::UpdateCache));
+        assert_eq!(Command::parse("__catalog"), Some(Command::Catalog));
+    }
+
+    #[test]
+    fn unknown_words_and_help_are_not_commands() {
+        assert_eq!(Command::parse(""), None);
+        assert_eq!(Command::parse("help"), None);
+        assert_eq!(Command::parse("--help"), None);
+        assert_eq!(Command::parse("synch"), None);
+    }
 }

@@ -27,7 +27,7 @@ Add a new AI coding tool to AgentSync so `agentsync sync` distributes instructio
    - `00-context.md` pattern for AGENTS.md content in rules dir
    - TOML format for agents (Codex)
    - Safe Markdown/JSON composition for OpenCode-style shared files
-5. **Extend generic conversion only when required** — Add reusable behavior in `src/convert.rs`, `src/rules.rs`, or a focused composition module, with unit tests. Keep `src/render.rs` as orchestration and avoid tool-name branches.
+5. **Extend generic conversion only when required** — Add reusable behavior in `src/engine/convert.rs`, `src/engine/rules.rs`, or a focused composition module, with unit tests. Keep `src/engine/render/` as orchestration and avoid tool-name branches.
 6. **Add optional payload bases** — Put shipped settings, MCP, or hooks under the matching `lib/templates/<resource>/` directory only when the tool supports that surface.
 7. **Update documentation** — Keep README support tables, the bundled AgentSync skill, `lib/templates/tools/_TEMPLATE.yaml`, and CHANGELOG aligned with the new target.
 8. **Write tests** — Add assertions in:
@@ -41,7 +41,7 @@ Add a new AI coding tool to AgentSync so `agentsync sync` distributes instructio
 
 - Every tool has quirks. Read the tool's docs for where it expects instruction files.
 - Some tools share output paths (e.g., Copilot uses `.github/`). Check for collisions with existing tools.
-- Use only YAML shapes supported by `src/yaml_subset.rs`; include/exclude filters support scalar, inline-list, and block-list forms.
+- Use only YAML shapes supported by `src/config/yaml_subset.rs`; include/exclude filters support scalar, inline-list, and block-list forms.
 - The catalog discovers `lib/templates/tools/*.yaml`; do not add a command-local registration list.
 - Tool names must be lowercase and match the YAML filename (e.g., `claude.yaml` → tool name `claude`).
 - Credentials and global-only preferences stay outside project sync.

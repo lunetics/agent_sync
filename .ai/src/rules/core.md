@@ -24,11 +24,11 @@ Applies to the shell CI gates: `install.sh` and `lib/templates/guard/claude.sh`.
 - Touch only what the task requires. Adjacent code stays as-is until asked.
 - Three similar lines beat a premature abstraction — let real duplication drive helpers.
 - Delete dead code outright; git keeps the history.
-- Keep configuration within the scalar, nested-key, and supported list shapes implemented in `src/yaml_subset.rs`.
+- Keep configuration within the scalar, nested-key, and supported list shapes implemented in `src/config/yaml_subset.rs`.
 
 ## Error Handling
 
-- Match the surrounding command's output layer: the engine logs through `src/log.rs`; command modules use `src/style.rs` and `src/prompts.rs`.
+- Match the surrounding command's output layer: the engine logs through `src/output/log.rs`; command modules use `src/output/style.rs` and `src/output/prompts.rs`.
 - `src/error.rs` is the single error type; `main` maps each variant to its message and exit code. Guard expected optional inputs explicitly. Let unexpected filesystem, parser, and subprocess failures propagate as `Error`.
 - Preserve meaningful non-zero exit codes and actionable stderr messages at CLI boundaries.
 - In shell, let `set -euo pipefail` stay active throughout the run — fix the failing command rather than disabling strict mode for it.

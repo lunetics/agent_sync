@@ -22,8 +22,8 @@ Run these **before** touching VERSION or CHANGELOG. If any check surfaces a prob
    - `README.md` — command list, flag list, supported tools table. If a command/flag was renamed, removed, or added since the last tag, README must match.
    - `.ai/src/commands/*.md` and `.ai/src/skills/**/SKILL.md` — descriptions, argument hints, examples line up with what the binary actually accepts (`src/cli/usage.rs`, `src/cli/mod.rs`).
    - `.ai/src/rules/*.md` — invariants and module map (`architecture.md`) match the current file layout in `src/`.
-   - `lib/templates/tools/_TEMPLATE.yaml` — every YAML option read by `src/render.rs` and `src/tool.rs` is documented; no documented option is dead.
-   - Cross-check `git log --since="<last-tag-date>" --name-only` against the doc files: if `src/cli/` or `src/render.rs` changed and no doc file did, ask whether docs need a follow-up before tagging.
+   - `lib/templates/tools/_TEMPLATE.yaml` — every YAML option read by `src/engine/render/` and `src/config/tool.rs` is documented; no documented option is dead.
+   - Cross-check `git log --since="<last-tag-date>" --name-only` against the doc files: if `src/cli/` or `src/engine/render/` changed and no doc file did, ask whether docs need a follow-up before tagging.
 
 When a doc gap is real, fix it in the **same release commit** (or a separate commit immediately before) rather than punting to a "docs" release later — release notes that lie age the project faster than missing features.
 

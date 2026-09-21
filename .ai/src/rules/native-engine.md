@@ -14,12 +14,12 @@ The Rust crate at the repo root is the whole engine: one binary, `agentsync`, bu
 - Edition 2024, `rust-version = "1.85"`, `unsafe_code = "forbid"`. `cargo fmt --all --check` and `cargo clippy --all-targets -- -D warnings` stay clean.
 - `VERSION` is the release source of truth. The crate reads it with `include_str!`, `Cargo.toml` and `Cargo.lock` carry the same value, `agentsync release` bumps the three together, and a test in `src/lib.rs` fails when the crate version and `VERSION` disagree.
 - Templates embed from `lib/templates/` through `include_dir!`. The binary never looks up an engine directory at runtime.
-- Dependencies: clap, include_dir, sha2, signal-hook, thiserror; dev: assert_cmd, predicates, tempfile. Add a crate only for a concrete command need. A YAML parser is never added: `yaml_subset` reads the supported shapes by design.
+- Dependencies: include_dir, sha2, signal-hook, thiserror; dev: assert_cmd, predicates, tempfile. Add a crate only for a concrete command need. No argument parser: every command reads its own options as its Bash `cmd_*` did, and `cli::Command` matches only the command word. A YAML parser is never added: `yaml_subset` reads the supported shapes by design.
 
 ## Structure
 
 - `src/main.rs` is the only process-aware file: arguments, environment, `ExitCode`. Everything else is a library with a `Result<_, Error>` API.
-- `src/cli/<cmd>.rs` owns one command through a public entry point named for it (`init`, `doctor`, `refresh`, …; `run` where the name would collide) that takes `out`/`err` writers and returns the exit status as `Result<u8, Error>` — or a bare `u8` where the module reports its own failures (`sync`, `rollback`). A pure `render(…) -> Result<String, Error>` beside `run` keeps the output testable when a command has one. Writes go only through those writers or the log sink `main` hands it; core modules never print.
+- `src/cli/<cmd>.rs` (a `src/cli/<cmd>/` directory once it outgrows one file) owns one command through a public entry point named for it (`init`, `doctor`, `refresh`, …; `run` where the name would collide) that takes `out`/`err` writers and returns the exit status as `Result<u8, Error>` — or a bare `u8` where the module reports its own failures (`sync`, `rollback`). A pure `render(…) -> Result<String, Error>` beside `run` keeps the output testable when a command has one. Writes go only through those writers or the log sink `main` hands it; core modules never print.
 - `src/error.rs` is the single error type. Each variant's `Display` text is the message the user sees, and `main` maps the variant to the exit code.
 - Two output voices, kept apart: `style` for command modules; `log` for the engine. Neither leaks into the other's module.
 - Engine paths are `/`-separated strings, drive-aware on Windows (`paths`). A disk path enters through `from_disk`/`DiskText`; arguments stay verbatim.

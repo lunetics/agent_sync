@@ -1055,7 +1055,7 @@ On sync, `agentsync sync` builds every `active` profile alongside your personal 
 AgentSync is a Rust crate at the repository root (edition 2024, `unsafe_code`
 forbidden); `src/main.rs` is the `agentsync` binary and the tool templates in
 `lib/templates/` are embedded into it at build time. Configuration is read by
-`src/yaml_subset.rs`, a parser for the YAML shapes AgentSync accepts, so the
+`src/config/yaml_subset.rs`, a parser for the YAML shapes AgentSync accepts, so the
 binary has no YAML dependency. Build it and run the checks from the repo root:
 
 ```bash

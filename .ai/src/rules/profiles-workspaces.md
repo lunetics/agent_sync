@@ -1,13 +1,13 @@
 ---
 paths:
-  - "src/profiles.rs"
-  - "src/overlay.rs"
-  - "src/workspace.rs"
+  - "src/config/profiles.rs"
+  - "src/engine/overlay.rs"
+  - "src/engine/workspace.rs"
   - "src/paths.rs"
-  - "src/render.rs"
+  - "src/engine/render/**"
   - "src/cli/profile.rs"
   - "src/cli/dedupe.rs"
-  - "src/cli/doctor.rs"
+  - "src/cli/doctor/**"
   - "src/cli/workspace.rs"
   - ".ai/**"
 ---

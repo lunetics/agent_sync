@@ -19,23 +19,28 @@ The sync engine is config-driven: shipped tool behaviour lives in `lib/templates
 ## Module Map
 
 ```
-src/main.rs                    → process boundary: arguments, exit codes, environment.
-src/cli/<cmd>.rs               → one command each; `usage.rs` owns help and the unknown-command refusal.
-src/render.rs / session.rs     → sync and check orchestration: overlays, catalog, tool/profile passes, checkpoint.
-src/yaml_subset.rs / yaml_edit.rs → supported YAML scalar, nesting, and list shapes; line-preserving edits.
-src/tool.rs / catalog.rs / payload.rs → layered base/user/profile config, embedded templates, payload resolution.
-src/file_ops.rs / staging.rs   → safe copying, directory sync, cleanup, write-then-rename.
-src/rules.rs / convert.rs / opencode_json.rs → rule headers and merges, target format conversion and composition.
-src/paths.rs / filters.rs      → containment, drive-aware `/`-separated paths, include/exclude matching.
-src/backup.rs / witness.rs / manifest.rs → transactions, post-operation witnesses, ownership, and drift.
-src/overlay.rs / profiles.rs / workspace.rs → source overlays, config-home variants, the virtual file tree.
-src/project.rs / project_config.rs / version.rs → the project root, which `agent_sync.yaml` it uses, the `version_pin` policy.
-src/snapshot.rs / template_manifest.rs / format_rev.rs → update diffs and the conflict queue, template content hashes, the project format revision.
-src/gitignore.rs / edit_paths.rs / changelog.rs → the managed `.gitignore` block, where payload overrides are edited, changelog rendering.
-src/interrupt.rs / text.rs     → signal traps a transaction arms; byte-level line and whitespace handling.
-src/log.rs / style.rs / prompts.rs → engine log voice, command colours, terminal prompts.
+src/main.rs                    → process boundary: arguments, exit codes, environment; matches `cli::Command` and wires each command.
+src/cli/<cmd>.rs               → one command each (`init/`, `doctor/`, `refresh/` are directories); `usage.rs` owns help and the unknown-command refusal.
+src/config/                    → what a project and the engine declare:
+  yaml_subset.rs / yaml_edit.rs                    supported YAML scalar, nesting, and list shapes; line-preserving edits.
+  tool.rs / catalog.rs / payload.rs                layered base/user/profile config, embedded templates, payload resolution.
+  project_config.rs / profiles.rs / version.rs     which `agent_sync.yaml` a project uses, config-home variants, the `version_pin` policy.
+  snapshot.rs / template_manifest.rs / format_rev.rs  update diffs and the conflict queue, template content hashes, the project format revision.
+  edit_paths.rs                                    where payload overrides are edited.
+src/engine/                    → the render:
+  render/ / session.rs                             sync and check orchestration: prepare, per-tool passes, steps, checkpoint.
+  overlay.rs / workspace.rs                        source overlays, the virtual file tree.
+  file_ops.rs / staging.rs                         safe copying, directory sync, cleanup, write-then-rename.
+  rules.rs / convert.rs / opencode_json.rs         rule headers and merges, target format conversion and composition.
+  filters.rs / gitignore.rs                        include/exclude matching, the managed `.gitignore` block.
+src/transaction/               → what makes a mutating run restorable:
+  backup.rs / witness.rs / manifest.rs             transactions, post-operation witnesses, ownership, and drift.
+  interrupt.rs                                     signal traps a transaction arms.
+src/output/                    → log.rs / style.rs / prompts.rs / changelog.rs: engine log voice, command colours, terminal prompts, changelog rendering.
+src/paths.rs / text.rs         → containment, drive-aware `/`-separated paths; byte-level line and whitespace handling.
+src/project.rs                 → the project being operated on: its root and `agent_sync.yaml`.
 src/error.rs                   → the single error type; `main` maps variants to messages and exit codes.
-src/lib.rs                     → the library root: the module list and the test that pins the crate version to `VERSION`.
+src/lib.rs                     → the library root: the group list and the test that pins the crate version to `VERSION`.
 lib/templates/                 → shipped tool/payload bases and init/refresh content, embedded at build time.
 ```
 

@@ -31,7 +31,7 @@ On top of the priority order above, a diff in this repo answers:
 
 - **Portability** — does it hold on macOS, Linux, and Windows? Engine paths stay `/`-separated through `src/paths.rs`; no GNU-only flag in `install.sh` or the POSIX-`sh` guard hook.
 - **Idempotency** — will `agentsync sync` still produce byte-identical output on a second run? Unsorted directory listings and PID- or timestamp-derived names are the usual culprits.
-- **Error handling** — exit codes preserved, the right `Error` variant, and the two output voices kept apart (`src/log.rs` for the engine, `src/style.rs` for command modules).
+- **Error handling** — exit codes preserved, the right `Error` variant, and the two output voices kept apart (`src/output/log.rs` for the engine, `src/output/style.rs` for command modules).
 - **Transactional safety** — backup, restore, manifest, and cleanup behaviour for `init`, `sync`, and `rollback`.
 - **Security** — no `eval`, no unsafe path escape, no leaked secret, no unquoted user-controlled YAML value.
 - **Test coverage** — new behaviour and failure paths covered by `cargo test`: a unit test in the owning module, or an integration test in `tests/<surface>.rs`.
@@ -45,8 +45,8 @@ Run `shellcheck -x -S warning -e SC1091` on any changed `.sh` file.
 [1-2 sentence overview]
 
 ## Issues
-- **[blocking]** src/render.rs:42 — [problem and suggested fix]
-- **[suggestion]** src/render.rs:15 — [observation and reasoning]
+- **[blocking]** src/engine/render/passes.rs:42 — [problem and suggested fix]
+- **[suggestion]** src/engine/render/passes.rs:15 — [observation and reasoning]
 
 ## Verdict
 [Approve / Request changes / Needs discussion]

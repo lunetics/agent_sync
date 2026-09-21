@@ -170,7 +170,7 @@ fn adopt_existing(run: &mut Run, target: &str, existing: &[String]) -> Result<()
     let style = run.style;
     let project = Project::at(target)?;
     let sources = adopt::discover_sources(&project)?;
-    let mut resolver = Resolver::new(&project, sources)?;
+    let mut resolver = Resolver::new(&project, sources, style)?;
     let mut claimed: Vec<String> = Vec::new();
     let mut skips: Vec<String> = Vec::new();
     let mut adopted = 0;

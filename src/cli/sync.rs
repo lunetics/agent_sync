@@ -109,7 +109,8 @@ pub fn run(root: &str, args: &[String], env: &Env, colors: bool, sink: Sink) -> 
             "Refusing to sync from inside the .ai/ directory: {root}"
         ));
         log.err("Run agentsync from the project root (the parent of .ai/):".to_string());
-        log.err(format!("  cd \"{project}\" && agentsync sync"));
+        let command = log.command(&format!("cd \"{project}\" && agentsync sync"));
+        log.err(format!("  {command}"));
         return 2;
     }
     let args = match parse(args) {
@@ -391,10 +392,12 @@ fn warn_baseline_replacements(s: &mut Session, run: &Run, baseline: bool) {
     }
     s.log
         .err("      Content AgentSync did not generate is replaced from .ai/src/.".into());
-    s.log.err(
-        "      To keep a file instead, restore it with 'agentsync rollback' and run 'agentsync adopt <file>' first."
-            .into(),
+    let keep = format!(
+        "      To keep a file instead, restore it with {} and run {} first.",
+        s.log.command("agentsync rollback"),
+        s.log.command("agentsync adopt <file>")
     );
+    s.log.err(keep);
 }
 
 /// `find <dir> -type f | head -n 1` is not empty.
@@ -439,15 +442,16 @@ fn check_drift(s: &mut Session, previous: Option<&Manifest>) -> Result<(), Stop>
     for rel in drift {
         s.log.err(format!("      {rel}"));
     }
+    let adopt = s.log.command("agentsync adopt <file>");
     for line in [
-        "",
-        "  These files would be silently overwritten. Choose one:",
-        "    • Move your edits into .ai/src/, then re-run sync",
-        "    • If a tool wrote here out of band, run 'agentsync adopt <file>' to pull it into .ai/src/",
-        "    • Re-run with --force to discard the edits and rewrite from source",
-        "",
+        String::new(),
+        "  These files would be silently overwritten. Choose one:".into(),
+        "    • Move your edits into .ai/src/, then re-run sync".into(),
+        format!("    • If a tool wrote here out of band, run {adopt} to pull it into .ai/src/"),
+        "    • Re-run with --force to discard the edits and rewrite from source".into(),
+        String::new(),
     ] {
-        s.log.err(line.to_string());
+        s.log.err(line);
     }
     Err(Stop(1))
 }

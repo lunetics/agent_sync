@@ -92,11 +92,12 @@ pub struct Resolver<'a> {
     pub paths: Paths,
     pub sources: Sources,
     tools: Vec<String>,
+    style: &'a Style,
     warned_legacy: bool,
 }
 
 impl<'a> Resolver<'a> {
-    pub fn new(project: &'a Project, sources: Sources) -> Result<Self, Error> {
+    pub fn new(project: &'a Project, sources: Sources, style: &'a Style) -> Result<Self, Error> {
         let root = project.root.disk_text();
         let mut tools = catalog::base_tools();
         tools.extend(project.user_override_tools()?);
@@ -107,6 +108,7 @@ impl<'a> Resolver<'a> {
             paths: Paths::on_disk(&root),
             sources,
             tools,
+            style,
             warned_legacy: false,
         })
     }
@@ -235,7 +237,10 @@ impl<'a> Resolver<'a> {
             && !self.warned_legacy
         {
             self.warned_legacy = true;
-            put(err, payload::legacy_warning(self.project, &path).as_bytes())?;
+            put(
+                err,
+                payload::legacy_warning(self.project, &path, self.style).as_bytes(),
+            )?;
         }
         Ok(source)
     }
@@ -487,14 +492,15 @@ pub fn adopt(
         put(
             err,
             format!(
-                "{}: no .ai/.sync-manifest yet — run 'agentsync sync' first, or adopt one file at a time.\n",
-                style.red("Error")
+                "{}: no .ai/.sync-manifest yet — run {} first, or adopt one file at a time.\n",
+                style.red("Error"),
+                style.cyan("agentsync sync")
             )
             .as_bytes(),
         )?;
         return Ok(1);
     }
-    let mut resolver = Resolver::new(&project, sources)?;
+    let mut resolver = Resolver::new(&project, sources, style)?;
     let mut run = Run {
         style,
         root: &root,
@@ -922,7 +928,9 @@ mod tests {
         ]);
         let (_dir, root) = project(&files);
         let project = Project::at(&root).unwrap();
-        let mut resolver = Resolver::new(&project, discover_sources(&project).unwrap()).unwrap();
+        let style = Style::plain();
+        let mut resolver =
+            Resolver::new(&project, discover_sources(&project).unwrap(), &style).unwrap();
         let mut err = Vec::new();
         let mut resolve = |raw: &str| {
             resolver
@@ -1134,7 +1142,7 @@ mod tests {
             refused(&["--all"]),
             (
                 1,
-                "Error: no .ai/.sync-manifest yet — run 'agentsync sync' first, or adopt one file at a time.\n"
+                "Error: no .ai/.sync-manifest yet — run agentsync sync first, or adopt one file at a time.\n"
                     .to_string()
             )
         );

@@ -168,7 +168,7 @@ fn version_pin_mismatch(
     if pinned.is_empty() || pinned == engine {
         return None;
     }
-    let [first, second] = version::hint(&pinned, engine);
+    let [first, second] = version::hint(&pinned, engine, str::to_string);
     Some(vec![
         format!("✗ {}", version::mismatch_error(&pinned, engine, committed)),
         first,

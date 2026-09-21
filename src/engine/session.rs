@@ -135,8 +135,8 @@ impl Session {
             .err(format!("!  Legacy payload override layout detected: {rel}"));
         self.log
             .err("   Move to .ai/src/tools/<tool>/<resource>.<ext> (canonical since 0.11).".into());
-        self.log
-            .err("   Migrate with: agentsync migrate --legacy".into());
+        let migrate = self.log.command("agentsync migrate --legacy");
+        self.log.err(format!("   Migrate with: {migrate}"));
     }
 }
 

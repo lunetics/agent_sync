@@ -48,8 +48,9 @@ pub fn profile(
             put(
                 err,
                 format!(
-                    "{}: unknown subcommand: {other}\nTry: agentsync profile --help\n",
-                    style.red("Error")
+                    "{}: unknown subcommand: {other}\nTry: {}\n",
+                    style.red("Error"),
+                    style.cyan("agentsync profile --help")
                 )
                 .as_bytes(),
             )?;
@@ -161,8 +162,9 @@ fn add(
         put(
             err,
             format!(
-                "{}: no agent_sync.yaml — run 'agentsync init' first.\n",
-                style.red("Error")
+                "{}: no agent_sync.yaml — run {} first.\n",
+                style.red("Error"),
+                style.cyan("agentsync init")
             )
             .as_bytes(),
         )?;

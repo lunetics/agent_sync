@@ -224,7 +224,10 @@ fn show_payload(
     let legacy = payload::legacy_override_path(project, &tool, resource).filter(|p| p.is_file());
     let (effective, warn) = payload::effective_source(project, &tool, resource)?;
     if let Some(path) = &warn {
-        put(err, payload::legacy_warning(project, path).as_bytes())?;
+        put(
+            err,
+            payload::legacy_warning(project, path, style).as_bytes(),
+        )?;
     }
 
     if show_base {

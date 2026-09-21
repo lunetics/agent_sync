@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use include_dir::File;
 
 use crate::engine::session::Session;
+use crate::output::style::Style;
 use crate::paths::{self, ENGINE_ROOT};
 use crate::{Error, config::tool::Tool, project::Project};
 
@@ -147,12 +148,13 @@ pub fn effective_source(
 }
 
 /// `_warn_legacy_payload_path`.
-pub fn legacy_warning(project: &Project, path: &Path) -> String {
+pub fn legacy_warning(project: &Project, path: &Path, style: &Style) -> String {
     let text = path.disk_text();
     let root = format!("{}/", project.root.disk_text());
     let rel = text.strip_prefix(&root).unwrap_or(&text);
     format!(
-        "!  Legacy payload override layout detected: {rel}\n   Move to .ai/src/tools/<tool>/<resource>.<ext> (canonical since 0.11).\n   Migrate with: agentsync migrate --legacy\n"
+        "!  Legacy payload override layout detected: {rel}\n   Move to .ai/src/tools/<tool>/<resource>.<ext> (canonical since 0.11).\n   Migrate with: {}\n",
+        style.cyan("agentsync migrate --legacy")
     )
 }
 
@@ -359,7 +361,7 @@ mod tests {
             (Some(legacy.disk_text()), Some(legacy.clone()))
         );
         assert_eq!(
-            legacy_warning(&project, &legacy),
+            legacy_warning(&project, &legacy, &Style::plain()),
             "!  Legacy payload override layout detected: .ai/src/hooks/cursor.json\n   Move to .ai/src/tools/<tool>/<resource>.<ext> (canonical since 0.11).\n   Migrate with: agentsync migrate --legacy\n"
         );
         write(&root, ".ai/src/tools/cursor/hooks.json", "{}\n");

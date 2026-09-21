@@ -27,6 +27,7 @@ const BLUE: &str = "\x1b[0;34m";
 const GREEN: &str = "\x1b[0;32m";
 const YELLOW: &str = "\x1b[0;33m";
 const RED: &str = "\x1b[0;31m";
+const CYAN: &str = "\x1b[0;36m";
 
 impl Log {
     /// A log that keeps its lines for `lines()`, coloured when `colors`.
@@ -66,6 +67,16 @@ impl Log {
             format!("{tag} {msg}")
         };
         self.emit(stream, line);
+    }
+
+    /// A command the reader should run, coloured as `Style::cyan` colours it
+    /// in a command's report, so it stands out from the prose around it.
+    pub fn command(&self, cmd: &str) -> String {
+        if self.colors {
+            format!("{CYAN}{cmd}{RESET}")
+        } else {
+            cmd.to_string()
+        }
     }
 
     pub fn info(&mut self, msg: &str) {
@@ -226,5 +237,14 @@ mod tests {
                 (Stream::Err, "   s".to_string()),
             ]
         );
+    }
+
+    #[test]
+    fn a_command_is_cyan_only_when_the_log_colours() {
+        assert_eq!(
+            Log::capturing(true).command("agentsync sync"),
+            "\x1b[0;36magentsync sync\x1b[0m"
+        );
+        assert_eq!(Log::default().command("agentsync sync"), "agentsync sync");
     }
 }

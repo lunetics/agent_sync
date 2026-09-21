@@ -128,7 +128,7 @@ impl Doctor<'_> {
             self.warned_legacy = true;
             put(
                 self.err,
-                payload::legacy_warning(self.project, &path).as_bytes(),
+                payload::legacy_warning(self.project, &path, self.style).as_bytes(),
             )?;
         }
         Ok(source.filter(|source| match source {
@@ -245,7 +245,10 @@ pub fn doctor(
     if Path::new(&root).join(".ai").is_dir() {
         d.ok(".ai/ directory present")?;
     } else {
-        d.fail(".ai/ directory missing — run 'agentsync init'")?;
+        d.fail(&format!(
+            ".ai/ directory missing — run {}",
+            style.cyan("agentsync init")
+        ))?;
         d.say("\n")?;
         return Ok(2);
     }
@@ -568,7 +571,7 @@ mod tests {
         assert_eq!(
             out,
             format!(
-                "\n  AgentSync Doctor\n  {root}\n\n  Project layout\n    ✗ .ai/ directory missing — run 'agentsync init'\n\n"
+                "\n  AgentSync Doctor\n  {root}\n\n  Project layout\n    ✗ .ai/ directory missing — run agentsync init\n\n"
             )
         );
     }

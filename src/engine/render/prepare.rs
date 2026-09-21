@@ -324,7 +324,7 @@ pub fn check_version_pin(s: &mut Session, run: &Run) -> Step {
     if pinned.is_empty() || pinned == engine {
         return Ok(());
     }
-    let hint = version::hint(&pinned, engine);
+    let hint = version::hint(&pinned, engine, |cmd| s.log.command(cmd));
     let committed = run.outputs == "committed";
     if committed || run.version_pin == version::Mode::Strict {
         s.log

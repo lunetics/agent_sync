@@ -37,12 +37,17 @@ pub fn mismatch_error(pinned: &str, engine: &str, committed: bool) -> String {
     }
 }
 
-/// `version_pin_mismatch_hint`.
-pub fn hint(pinned: &str, engine: &str) -> [String; 2] {
+/// `version_pin_mismatch_hint`; `command` styles each command to run the way
+/// the caller's output layer styles one.
+pub fn hint(pinned: &str, engine: &str, command: impl Fn(&str) -> String) -> [String; 2] {
     [
-        format!("  • Match the pin:  agentsync update {pinned}"),
         format!(
-            "  • Or move it:     agentsync upgrade-config   (re-pins to {engine}; re-sync and commit the outputs)"
+            "  • Match the pin:  {}",
+            command(&format!("agentsync update {pinned}"))
+        ),
+        format!(
+            "  • Or move it:     {}   (re-pins to {engine}; re-sync and commit the outputs)",
+            command("agentsync upgrade-config")
         ),
     ]
 }
@@ -95,10 +100,21 @@ mod tests {
             "This project pins agentsync 0.1.0 but you are running 0.36.0 — committed outputs must come from one version everywhere."
         );
         assert_eq!(
-            hint("0.1.0", "0.36.0"),
+            hint("0.1.0", "0.36.0", str::to_string),
             [
                 "  • Match the pin:  agentsync update 0.1.0".to_string(),
                 "  • Or move it:     agentsync upgrade-config   (re-pins to 0.36.0; re-sync and commit the outputs)".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn the_hint_styles_only_the_commands() {
+        assert_eq!(
+            hint("0.1.0", "0.36.0", |cmd| format!("<{cmd}>")),
+            [
+                "  • Match the pin:  <agentsync update 0.1.0>".to_string(),
+                "  • Or move it:     <agentsync upgrade-config>   (re-pins to 0.36.0; re-sync and commit the outputs)".to_string(),
             ]
         );
     }

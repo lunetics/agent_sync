@@ -750,6 +750,10 @@ Appended one line at a time as they are found, with the phase:
   `PATH` — that file cannot exist in a user's project any more, so the hook
   says so and skips instead. Both were byte-identical to Bash until here, and
   both would have told a user to run something that does not exist.
+- After Phase 7: clap is gone, and with it the Phase 1 deviation. `list`,
+  `check`, and `version` ignore extra arguments again as Bash did, and a
+  leading `--` reaches the command's own parser (`sync -- --dry-run` is
+  `Unknown option: --`, as `sync.sh` answered) where clap had swallowed it.
 
 ## Risks
 

@@ -55,6 +55,22 @@ fn ls_is_an_alias_for_list() {
 }
 
 #[test]
+fn list_and_version_ignore_extra_arguments_like_bash() {
+    let dir = tempfile::tempdir().unwrap();
+    agentsync()
+        .current_dir(dir.path())
+        .args(["list", "--bogus"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("  AgentSync Tools\n"));
+    agentsync()
+        .args(["version", "extra"])
+        .assert()
+        .success()
+        .stdout(format!("agentsync v{}\n", engine_version()));
+}
+
+#[test]
 fn list_counts_configured_tools_and_honours_the_repo_root_variable() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(dir.path().join(".ai")).unwrap();
@@ -114,6 +130,11 @@ fn sync_options_are_checked_before_anything_runs() {
         .stdout(predicate::str::starts_with(
             "AgentSync Config Sync Script\n\nUsage: sync.sh [OPTIONS]\n",
         ));
+    sync_in(&dir)
+        .args(["--", "--dry-run"])
+        .assert()
+        .code(1)
+        .stderr("[ERROR] Unknown option: --\n");
     sync_in(&dir)
         .arg("--help")
         .assert()

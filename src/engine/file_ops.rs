@@ -23,14 +23,26 @@ pub fn cleanup_path(s: &mut Session, target: &str) -> bool {
 
 /// `copy_file`: a missing source is a warning, not a failure.
 pub fn copy_file(s: &mut Session, src: &str, dest: &str) -> Result<(), Error> {
+    copy_file_noted(s, src, dest, "")
+}
+
+/// `copy_file` whose log line ends with `(note)` when `note` is not empty,
+/// for a source the reader cannot tell apart by path alone.
+pub fn copy_file_noted(s: &mut Session, src: &str, dest: &str, note: &str) -> Result<(), Error> {
     if !s.ws.is_file(src) {
         s.log.warning(&format!("Source file not found: {src}"));
         return Ok(());
     }
     let src_disp = s.display(src);
     let dest_disp = s.display(dest);
+    let note = if note.is_empty() {
+        String::new()
+    } else {
+        format!(" ({note})")
+    };
     if s.dry_run {
-        s.log.step(&format!("{src_disp} → {dest_disp} (dry-run)"));
+        s.log
+            .step(&format!("{src_disp} → {dest_disp}{note} (dry-run)"));
         return Ok(());
     }
     s.ws.create_dir_all(&paths::parent(dest))?;
@@ -41,7 +53,7 @@ pub fn copy_file(s: &mut Session, src: &str, dest: &str) -> Result<(), Error> {
         s.ws.copy(src, dest)?;
     }
     s.record_write(dest);
-    s.log.step(&format!("{src_disp} → {dest_disp}"));
+    s.log.step(&format!("{src_disp} → {dest_disp}{note}"));
     Ok(())
 }
 
@@ -112,11 +124,21 @@ pub fn sync_dir(
         format!(", include='{include}'")
     };
     let suffix = if s.dry_run { " (dry-run)" } else { "" };
+    let counts = counts(source_items.len(), cleaned);
     s.log.step(&format!(
-        "{src_disp}/ → {dest_disp}/ ({} updates, {cleaned} cleanups){extra}{suffix}",
-        source_items.len()
+        "{src_disp}/ → {dest_disp}/ {counts}{extra}{suffix}"
     ));
     Ok(())
+}
+
+/// The tally a directory sync ends with: `(N updated)`, and `, M removed`
+/// only once a prune happened.
+pub fn counts(updated: usize, removed: usize) -> String {
+    if removed == 0 {
+        format!("({updated} updated)")
+    } else {
+        format!("({updated} updated, {removed} removed)")
+    }
 }
 
 #[cfg(test)]
@@ -203,7 +225,7 @@ mod tests {
             s.log.tail(2),
             [
                 "   Removed: .claude/skills/stale",
-                "   .ai/src/skills/ → .claude/skills/ (1 updates, 1 cleanups)"
+                "   .ai/src/skills/ → .claude/skills/ (1 updated, 1 removed)"
             ]
         );
     }
@@ -244,7 +266,7 @@ mod tests {
             [
                 "   .ai/src/AGENTS.md → CLAUDE.md (dry-run)",
                 "   Would remove: .claude/skills/stale (extraneous)",
-                "   .ai/src/skills/ → .claude/skills/ (1 updates, 1 cleanups) (dry-run)",
+                "   .ai/src/skills/ → .claude/skills/ (1 updated, 1 removed) (dry-run)",
                 "   Would remove: .cursor/rules (dry-run)"
             ]
         );
@@ -273,7 +295,7 @@ mod tests {
             [
                 "[WARNING] Kept .claude/skills/mine (not from .ai/src/; move it into .ai/src/, or re-run with --force to prune)",
                 "   Removed: .claude/skills/old",
-                "   .ai/src/skills/ → .claude/skills/ (1 updates, 1 cleanups)"
+                "   .ai/src/skills/ → .claude/skills/ (1 updated, 1 removed)"
             ]
         );
     }

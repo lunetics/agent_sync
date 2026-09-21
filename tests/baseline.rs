@@ -21,7 +21,7 @@ fn baseline_a_pre_existing_claude_md_is_reported_before_being_replaced() {
         .arg("sync")
         .assert()
         .success()
-        .stdout(predicate::str::contains("already exist"))
+        .stderr(predicate::str::contains("already exist"))
         .stderr(predicate::str::contains("CLAUDE.md"));
 }
 
@@ -74,7 +74,7 @@ fn baseline_a_path_several_tools_write_is_counted_once() {
         .arg("sync")
         .assert()
         .success()
-        .stdout(predicate::str::contains(
+        .stderr(predicate::str::contains(
             "regenerating 1 path(s) that already exist",
         ));
 }
@@ -88,7 +88,7 @@ fn baseline_an_empty_generated_directory_is_not_reported() {
         .arg("sync")
         .assert()
         .success()
-        .stdout(predicate::str::contains("already exist").not());
+        .stderr(predicate::str::contains("already exist").not());
 }
 
 #[test]
@@ -100,7 +100,7 @@ fn baseline_dry_run_reports_nothing_and_writes_nothing() {
         .args(["sync", "--dry-run"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("already exist").not());
+        .stderr(predicate::str::contains("already exist").not());
     assert_eq!(project.read("CLAUDE.md"), "# Hand-written rules");
 }
 
@@ -155,5 +155,5 @@ fn baseline_a_second_sync_reports_nothing() {
         .arg("sync")
         .assert()
         .success()
-        .stdout(predicate::str::contains("already exist").not());
+        .stderr(predicate::str::contains("already exist").not());
 }

@@ -2,8 +2,21 @@
 
 ## Unreleased
 
+### Breaking
+
+- **The sync log moved to stderr; stdout is empty unless you ask for `--json`.** Every line `sync` and `sync --workspace` print for a person — `[INFO]`, the per-file steps, `[WARNING]`, `[ERROR]`, the closing `[DONE]`, the workspace banner — now goes to stderr, where POSIX puts diagnostics and where cargo, git, and npm put their progress. Stdout is reserved for what a program reads: `--help`, and the `--json` summary below. A script that read `agentsync sync` from stdout reads nothing now; give it `--json`, or `2>&1` if it wants the human log. The human log is not a contract and may change again; the JSON object is, and a field is only ever added to it short of a major version. This ships as a minor version.
+
+### Added
+
+- **`sync --json`.** After a successful run, one object on stdout: `{"dry_run":false,"synced":2,"total":13,"skipped":["Cursor",…],"written":[".claude/rules/core.md",…],"preserved":0,"backup":".ai/backups/<id>"}`. `written` lists root-relative paths this run wrote, `preserved` counts user files the sync left in place, and `backup` is `null` on a dry run. A fresh `--if-stale` run reports `total` 0. On failure there is no object: the exit status and stderr say what went wrong.
+- **`sync --quiet` (`-q`).** Prints only warnings, errors, and the closing `[DONE]` line, for hooks and CI steps that want one line per run. `--workspace` forwards `-q` and `--json` to every project.
+
 ### Changed
 
+- **A hint follows its error on stderr.** Running `sync` from inside `.ai/` printed the error on stderr and the two hint lines on stdout; an unknown option printed the error on stderr and the usage on stdout. Both now keep the error and its help together, as rustc keeps `error:` and `help:`. `--help` alone prints usage on stdout.
+- **The list of skipped tools is dry-run detail.** A real run ends with `[DONE] Synced 2/13 tools (11 skipped)` and no longer prints the eleven names above it; `sync --dry-run` and `sync --json` still list them.
+- **The sync log is shorter and reads the same in a pipe.** The `═══` rules and the `Starting AgentSync Config Sync...` banner are gone; a blank line ends each tool's block, and only a dry run announces itself (`Dry run: nothing will be written`). `[SUCCESS] <tool> complete` no longer follows every block, since the closing `[DONE] Synced N/M tools` already says which ran. Headings drop their trailing `...`. Counts read `(8 updated)`, `(8 updated, 1 removed)`, `(1 agent, md→toml)`, `(1 file merged)`: singular for one, and no `0 cleanups`. A note that belongs to a tool's block, such as Codex having no native commands surface, is indented under it instead of standing as its own `[INFO]` line, and the MCP source is a suffix on the copy line — `.ai/src/mcp.json → .mcp.json (shared)` — rather than a separate `mcp source: shared` line.
+- **The sync log never prints an engine-internal path.** A source from the merged overlay is named by its category — `rules/ → .claude/rules/`, `AGENTS.md → CLAUDE.md` — and a shipped file by its template path, `templates/guard/claude.sh`, where the log used to print `/<agentsync-overlay>/base-src/src/rules/` and `/<agentsync>/lib/templates/guard/claude.sh`.
 - **`list`, `check`, and `version` ignore extra arguments again, as the Bash engine did.** Since 0.37.0 the binary refused them with `error: unexpected argument` and exit status 2; that came from the argument parser the port used, not from anything AgentSync meant. A leading `--` now reaches the command's own option parser too, so `sync -- --dry-run` answers `Unknown option: --` as `sync.sh` did, where the port had silently dropped the `--` and run a dry run.
 
 ### Internal

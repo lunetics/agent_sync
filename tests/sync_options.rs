@@ -103,7 +103,7 @@ fn sync_dry_run_does_not_create_files() {
         .args(["sync", "--dry-run"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("dry-run"));
+        .stderr(predicate::str::contains("dry-run"));
     assert!(!project.exists("CLAUDE.md"));
     assert_eq!(complete_backup_count(&project), backups_before);
 }
@@ -222,7 +222,7 @@ fn sync_restores_every_target_when_a_post_sync_hook_fails() {
         .args(["sync", "--only", "claude"])
         .assert()
         .failure()
-        .stdout(predicate::str::contains("Restored pre-sync state"));
+        .stderr(predicate::str::contains("Restored pre-sync state"));
 
     assert_eq!(project.read("CLAUDE.md"), "before-sync\n");
     assert_eq!(project.read(".gitignore"), "before-gitignore\n");
@@ -289,7 +289,7 @@ fn sync_in_repo_post_sync_allow_does_not_enable_the_hook() {
         .arg("sync")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Skipping post-sync hook"));
+        .stderr(predicate::str::contains("Skipping post-sync hook"));
     assert!(!project.exists("post_sync_ran"));
 }
 
@@ -327,7 +327,7 @@ fn sync_bad_per_tool_source_is_skipped_run_completes_and_writes_manifest() {
         .arg("sync")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Rules source not found"));
+        .stderr(predicate::str::contains("Rules source not found"));
     // Both tools still produced output, and the manifest was written.
     assert!(project.exists("CLAUDE.md"));
     assert!(project.exists("AGENTS.md"));
@@ -367,4 +367,57 @@ fn sync_a_category_with_no_enabled_flag_stays_on_default() {
         .assert()
         .success();
     assert!(project.join(".claude/rules").is_dir());
+}
+
+// ── --quiet and --json: the two ways a script reads a sync ──────────────
+
+#[test]
+fn sync_quiet_leaves_only_the_closing_line_on_stderr_and_nothing_on_stdout() {
+    let project = seeded();
+    project.enable_tools(&["claude"]);
+    project
+        .agentsync()
+        .args(["sync", "--quiet"])
+        .assert()
+        .success()
+        .stdout("")
+        .stderr(predicate::str::starts_with("[DONE] Synced 1/"));
+}
+
+#[test]
+fn sync_json_prints_one_summary_object_on_stdout() {
+    let project = seeded();
+    project.enable_tools(&["claude"]);
+    let output = project
+        .agentsync()
+        .args(["sync", "--json"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("[DONE] Synced 1/"))
+        .get_output()
+        .stdout
+        .clone();
+    let stdout = String::from_utf8(output).unwrap();
+    assert_eq!(stdout.lines().count(), 1, "one line: {stdout}");
+    assert!(stdout.starts_with("{\"dry_run\":false,\"synced\":1,\"total\":"));
+    assert!(stdout.contains("\"skipped\":[\"Amazon Q Developer\","));
+    assert!(stdout.contains("\"written\":[\".claude/"));
+    assert!(stdout.contains("\"CLAUDE.md\""));
+    assert!(stdout.contains("\"preserved\":0,\"backup\":\".ai/backups/"));
+    assert!(stdout.ends_with("\"}\n"));
+}
+
+#[test]
+fn sync_json_on_a_dry_run_reports_no_writes_and_no_backup() {
+    let project = seeded();
+    project.enable_tools(&["claude"]);
+    project
+        .agentsync()
+        .args(["sync", "--dry-run", "--json"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "\"written\":[],\"preserved\":0,\"backup\":null}\n",
+        ))
+        .stdout(predicate::str::starts_with("{\"dry_run\":true,"));
 }

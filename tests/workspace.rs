@@ -1,7 +1,8 @@
 //! `tests/workspace.bats`: `agentsync sync --workspace` and related fan-out
-//! behavior. `cli::workspace::run` writes "No .ai/ directories found" and its
-//! hint to stderr and everything else (found-count, per-project `→ rel`, the
-//! completion line) to stdout — see `src/cli/workspace.rs`.
+//! behavior. `cli::workspace::run` writes everything — the found-count, each
+//! per-project `→ rel`, the completion line, and the "No .ai/ directories
+//! found" hint — to stderr, like the sync log it wraps; stdout stays empty
+//! for `--json` — see `src/cli/workspace.rs`.
 
 mod common;
 
@@ -61,18 +62,19 @@ fn sync_workspace_dry_run_touches_every_project_in_bottom_up_alpha_order() {
         .args(["sync", "--workspace", "--dry-run"])
         .assert()
         .success()
-        .stdout(
+        .stdout("")
+        .stderr(
             predicate::str::contains("Found 2 project(s)")
                 .and(predicate::str::contains("→ leaf"))
                 .and(predicate::str::contains("→ ."))
                 .and(predicate::str::contains("Workspace sync complete")),
         )
         .get_output()
-        .stdout
+        .stderr
         .clone();
-    let stdout = String::from_utf8(output).unwrap();
-    let leaf_pos = stdout.find("→ leaf").unwrap();
-    let root_pos = stdout.find("→ .").unwrap();
+    let stderr = String::from_utf8(output).unwrap();
+    let leaf_pos = stderr.find("→ leaf").unwrap();
+    let root_pos = stderr.find("→ .").unwrap();
     assert!(leaf_pos < root_pos, "leaf must sync before root");
 }
 

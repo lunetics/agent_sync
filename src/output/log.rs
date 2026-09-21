@@ -1,6 +1,9 @@
-//! The engine's log voice, mirroring `lib/helpers/logging.sh`. `check` captures
-//! the render log plain, the way `lib/check.sh` captured `sync.sh` into a file
-//! where `_use_colors` is false; `sync` streams it, coloured on a terminal.
+//! The engine's log voice, descended from `lib/helpers/logging.sh`. `check`
+//! captures the render log plain, the way `lib/check.sh` captured `sync.sh`
+//! into a file where `_use_colors` is false; `sync` streams it, coloured on a
+//! terminal. Every line for a human reader goes to stderr; stdout carries
+//! only what a program reads, `--help` and `--json`
+//! (`.ai/src/rules/cli-output.md`).
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stream {
@@ -16,9 +19,8 @@ pub struct Log {
     lines: Vec<(Stream, String)>,
     sink: Option<Sink>,
     colors: bool,
+    quiet: bool,
 }
-
-pub const SEPARATOR: &str = "═══════════════════════════════════════════════════════════════";
 
 const RESET: &str = "\x1b[0m";
 const BLUE: &str = "\x1b[0;34m";
@@ -33,17 +35,25 @@ impl Log {
             lines: Vec::new(),
             sink: None,
             colors,
+            quiet: false,
         }
     }
 
     /// A log that hands every line to `sink` instead of keeping it; `colors` is
-    /// `_use_colors`, decided by the caller from stdout and `NO_COLOR`.
+    /// `_use_colors`, decided by the caller from stderr and `NO_COLOR`.
     pub fn streaming(colors: bool, sink: Sink) -> Self {
         Self {
             lines: Vec::new(),
             sink: Some(sink),
             colors,
+            quiet: false,
         }
+    }
+
+    /// `--quiet`: keep warnings, errors, and the closing `[DONE]` line; drop
+    /// the progress in between.
+    pub fn set_quiet(&mut self, quiet: bool) {
+        self.quiet = quiet;
     }
 
     /// A level tag, coloured on a terminal and plain otherwise. No glyph: the
@@ -59,15 +69,14 @@ impl Log {
     }
 
     pub fn info(&mut self, msg: &str) {
-        self.tagged(Stream::Out, BLUE, "[INFO]", msg);
-    }
-
-    pub fn success(&mut self, msg: &str) {
-        self.tagged(Stream::Out, GREEN, "[SUCCESS]", msg);
+        if self.quiet {
+            return;
+        }
+        self.tagged(Stream::Err, BLUE, "[INFO]", msg);
     }
 
     pub fn warning(&mut self, msg: &str) {
-        self.tagged(Stream::Out, YELLOW, "[WARNING]", msg);
+        self.tagged(Stream::Err, YELLOW, "[WARNING]", msg);
     }
 
     pub fn error(&mut self, msg: &str) {
@@ -75,17 +84,25 @@ impl Log {
     }
 
     pub fn done(&mut self, msg: &str) {
-        self.tagged(Stream::Out, GREEN, "[DONE]", msg);
+        self.tagged(Stream::Err, GREEN, "[DONE]", msg);
     }
 
     pub fn step(&mut self, msg: &str) {
-        self.out(format!("   {msg}"));
+        if self.quiet {
+            return;
+        }
+        self.emit(Stream::Err, format!("   {msg}"));
     }
 
-    pub fn separator(&mut self) {
-        self.out(SEPARATOR.to_string());
+    /// The empty line that ends a block.
+    pub fn blank(&mut self) {
+        if self.quiet {
+            return;
+        }
+        self.emit(Stream::Err, String::new());
     }
 
+    /// A line for a program to read: help text, or the `--json` summary.
     pub fn out(&mut self, line: String) {
         self.emit(Stream::Out, line);
     }
@@ -129,26 +146,44 @@ mod tests {
         log.warning("b");
         log.error("c");
         log.step("d");
-        log.success("e");
         log.done("f");
         let lines: Vec<&str> = log.lines().iter().map(|(_, l)| l.as_str()).collect();
         assert_eq!(
             lines,
-            [
-                "[INFO] a",
-                "[WARNING] b",
-                "[ERROR] c",
-                "   d",
-                "[SUCCESS] e",
-                "[DONE] f"
-            ]
+            ["[INFO] a", "[WARNING] b", "[ERROR] c", "   d", "[DONE] f"]
         );
-        assert_eq!(log.lines()[2].0, Stream::Err);
+        assert!(log.lines().iter().all(|(s, _)| *s == Stream::Err));
     }
 
     #[test]
-    fn the_separator_is_sixty_three_box_characters() {
-        assert_eq!(SEPARATOR.chars().count(), 63);
+    fn only_out_reaches_stdout() {
+        let mut log = Log::default();
+        log.out("{}".to_string());
+        log.blank();
+        log.info("a");
+        assert_eq!(
+            log.lines(),
+            [
+                (Stream::Out, "{}".to_string()),
+                (Stream::Err, String::new()),
+                (Stream::Err, "[INFO] a".to_string())
+            ]
+        );
+    }
+
+    #[test]
+    fn quiet_keeps_warnings_errors_done_and_stdout_only() {
+        let mut log = Log::default();
+        log.set_quiet(true);
+        log.info("a");
+        log.step("b");
+        log.blank();
+        log.warning("c");
+        log.error("d");
+        log.done("e");
+        log.out("f".to_string());
+        let lines: Vec<&str> = log.lines().iter().map(|(_, l)| l.as_str()).collect();
+        assert_eq!(lines, ["[WARNING] c", "[ERROR] d", "[DONE] e", "f"]);
     }
 
     #[test]
@@ -169,7 +204,7 @@ mod tests {
             true,
             Box::new(move |stream, line| sink_seen.borrow_mut().push((stream, line.to_string()))),
         );
-        log.info("Syncing Claude Code...");
+        log.info("Syncing Claude Code");
         log.warning("w");
         log.error("e");
         log.done("Synced 1/1 tools");
@@ -179,16 +214,16 @@ mod tests {
             *seen.borrow(),
             [
                 (
-                    Stream::Out,
-                    "\x1b[0;34m[INFO]\x1b[0m Syncing Claude Code...".to_string()
+                    Stream::Err,
+                    "\x1b[0;34m[INFO]\x1b[0m Syncing Claude Code".to_string()
                 ),
-                (Stream::Out, "\x1b[0;33m[WARNING]\x1b[0m w".to_string()),
+                (Stream::Err, "\x1b[0;33m[WARNING]\x1b[0m w".to_string()),
                 (Stream::Err, "\x1b[0;31m[ERROR]\x1b[0m e".to_string()),
                 (
-                    Stream::Out,
+                    Stream::Err,
                     "\x1b[0;32m[DONE]\x1b[0m Synced 1/1 tools".to_string()
                 ),
-                (Stream::Out, "   s".to_string()),
+                (Stream::Err, "   s".to_string()),
             ]
         );
     }

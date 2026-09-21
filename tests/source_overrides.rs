@@ -606,15 +606,15 @@ fn tool_resolver_ignores_an_auto_detected_flat_ai_tools_catalog_like_show_does()
         .arg("sync")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Claude Code complete"))
-        .stdout(predicate::str::contains("Flat Claude").not());
+        .stderr(predicate::str::contains("[INFO] Syncing Claude Code"))
+        .stderr(predicate::str::contains("Flat Claude").not());
 
     project
         .agentsync()
         .args(["show", "claude"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("Flat Claude").not());
+        .stderr(predicate::str::contains("Flat Claude").not());
 }
 
 #[test]

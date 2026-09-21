@@ -502,6 +502,6 @@ fn sync_re_sync_emits_no_churn_for_shared_dest_command_or_nested_agents() {
         .arg("sync")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Kept .agents/skills/command-").not())
+        .stderr(predicate::str::contains("Kept .agents/skills/command-").not())
         .stdout(predicate::str::contains("Removed: .amazonq/rules/00-context.md").not());
 }

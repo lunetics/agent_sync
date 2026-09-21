@@ -10,7 +10,7 @@ use crate::output::log::{Log, Sink};
 use crate::paths::{self, Paths};
 use crate::transaction::interrupt::{self, Interrupt};
 use crate::transaction::manifest::{self, Manifest};
-use crate::{Error, engine::gitignore, transaction::backup, transaction::witness};
+use crate::{Error, engine::gitignore, text, transaction::backup, transaction::witness};
 
 pub const USAGE: &str = "AgentSync Config Sync Script
 
@@ -27,7 +27,11 @@ Options:
   --dry-run         Show what would be copied without making changes
   --force           Overwrite destination files even if they were edited manually
   --if-stale        Sync only when source changed since the last sync (else no-op)
+  --quiet, -q       Print only warnings, errors, and the closing summary
+  --json            Print a one-line JSON summary on stdout after a successful run
   --help            Show this help message
+
+The log goes to stderr. Stdout stays empty unless --json asks for the summary.
 ";
 
 /// The options `parse_args` accepts.
@@ -36,6 +40,8 @@ pub struct Args {
     pub dry_run: bool,
     pub force: bool,
     pub if_stale: bool,
+    pub quiet: bool,
+    pub json: bool,
     pub only: String,
     pub skip: String,
     pub profile: Option<String>,
@@ -76,6 +82,8 @@ pub fn parse(args: &[String]) -> Parsed {
             "--dry-run" => parsed.dry_run = true,
             "--force" => parsed.force = true,
             "--if-stale" => parsed.if_stale = true,
+            "--quiet" | "-q" => parsed.quiet = true,
+            "--json" => parsed.json = true,
             "--help" | "-h" => return Parsed::Help,
             other => return Parsed::Invalid(format!("Unknown option: {other}")),
         }
@@ -100,23 +108,28 @@ pub fn run(root: &str, args: &[String], env: &Env, colors: bool, sink: Sink) -> 
         log.error(&format!(
             "Refusing to sync from inside the .ai/ directory: {root}"
         ));
-        log.info("Run agentsync from the project root (the parent of .ai/):");
-        log.info(&format!("  cd \"{project}\" && agentsync sync"));
+        log.err("Run agentsync from the project root (the parent of .ai/):".to_string());
+        log.err(format!("  cd \"{project}\" && agentsync sync"));
         return 2;
     }
     let args = match parse(args) {
         Parsed::Run(args) => args,
         Parsed::Help => {
-            print_usage(&mut log);
+            for line in USAGE.lines() {
+                log.out(line.to_string());
+            }
             return 0;
         }
         Parsed::Invalid(message) => {
             log.error(&message);
-            print_usage(&mut log);
+            for line in USAGE.lines() {
+                log.err(line.to_string());
+            }
             return 1;
         }
     };
 
+    log.set_quiet(args.quiet);
     let mut s = Session::new(Workspace::on_disk(root), Paths::on_disk(root));
     s.log = log;
     s.dry_run = args.dry_run;
@@ -136,12 +149,6 @@ pub fn run(root: &str, args: &[String], env: &Env, colors: bool, sink: Sink) -> 
         return interrupt::status(sig);
     }
     status
-}
-
-fn print_usage(log: &mut Log) {
-    for line in USAGE.lines() {
-        log.out(line.to_string());
-    }
 }
 
 /// `SYNC_BACKUP_PATH` while `SYNC_TRANSACTION_ACTIVE`.
@@ -217,6 +224,10 @@ fn sync(s: &mut Session, args: &Args, env: &Env, tx: &mut Transaction) -> Result
     };
     let mut run = render::prepare(s, &env.render, selection)?;
     if args.if_stale && !is_stale(&s.paths.root, &run, &s.tools_dir) {
+        if args.json {
+            let summary = json_summary(s, &run, tx);
+            s.log.out(summary);
+        }
         return Ok(());
     }
     render::refuse_configless_cleanup(s, &run)?;
@@ -246,7 +257,40 @@ fn sync(s: &mut Session, args: &Args, env: &Env, tx: &mut Transaction) -> Result
             paths::leaf(backup_path)
         ));
     }
+    if args.json {
+        let summary = json_summary(s, &run, tx);
+        s.log.out(summary);
+    }
     Ok(())
+}
+
+/// The `--json` line: one object with `dry_run`, `synced`, `total`, `skipped`
+/// (tool names), `written` (root-relative paths), `preserved`, and `backup`
+/// (root-relative, or null). A fresh `--if-stale` run reports `total` 0.
+fn json_summary(s: &Session, run: &Run, tx: &Transaction) -> String {
+    let skipped: Vec<String> = run
+        .skipped_names
+        .iter()
+        .map(|name| text::json_string(name))
+        .collect();
+    let written: Vec<String> = s
+        .touched()
+        .iter()
+        .map(|path| text::json_string(&s.display(path)))
+        .collect();
+    let backup = tx.backup.as_deref().map_or_else(
+        || "null".to_string(),
+        |path| text::json_string(&s.display(path)),
+    );
+    format!(
+        "{{\"dry_run\":{},\"synced\":{},\"total\":{},\"skipped\":[{}],\"written\":[{}],\"preserved\":{},\"backup\":{backup}}}",
+        s.dry_run,
+        run.synced,
+        run.total,
+        skipped.join(","),
+        written.join(","),
+        s.preserved()
+    )
 }
 
 /// `_sync_is_stale`: no manifest, or any source input modified after it.
@@ -458,9 +502,9 @@ fn finalize(
         }
         let path = Path::new(&root).join(".gitignore");
         if !ignored.is_empty() || gitignore::has_managed_block(&path) {
-            s.log.separator();
-            s.log.info("Updating .gitignore...");
+            s.log.info("Updating .gitignore");
             gitignore::update(&path, &ignored, &mut s.log).map_err(|e| io(s, e))?;
+            s.log.blank();
         }
     }
     render::checkpoint(s)?;
@@ -469,14 +513,13 @@ fn finalize(
         manifest::write(&root, previous, &touched, &mut s.log).map_err(|e| io(s, e))?;
     }
 
-    s.log.separator();
     if s.preserved() > 0 {
         s.log.warning(&format!(
             "Preserved {} user-added file(s) not in .ai/src/ — move them into .ai/src/ to manage them, or re-run with --force to prune.",
             s.preserved()
         ));
     }
-    if !run.skipped_names.is_empty() {
+    if s.dry_run && !run.skipped_names.is_empty() {
         s.log
             .info(&format!("Skipped: {}", run.skipped_names.join(", ")));
     }
@@ -492,7 +535,6 @@ fn finalize(
         s.log.info(&format!("Backup: {shown}"));
     }
     s.log.done(&summary);
-    s.log.separator();
     Ok(())
 }
 
@@ -530,6 +572,13 @@ mod tests {
             Parsed::Invalid("Option --profile requires a profile name".into())
         );
         assert_eq!(parse(&strings(&["--force", "-h", "--bogus"])), Parsed::Help);
+        assert_eq!(
+            parse(&strings(&["-q"])),
+            Parsed::Run(Args {
+                quiet: true,
+                ..Args::default()
+            })
+        );
         assert_eq!(
             parse(&strings(&["--bogus"])),
             Parsed::Invalid("Unknown option: --bogus".into())

@@ -232,7 +232,9 @@ fn sync_emits_source_label_line_for_mcp() {
         .arg("sync")
         .assert()
         .success()
-        .stdout(predicate::str::contains("mcp source: shared"));
+        .stderr(predicate::str::contains(
+            ".ai/src/mcp.json → .cursor/mcp.json (shared)",
+        ));
 }
 
 #[test]
@@ -248,7 +250,9 @@ fn sync_mcp_label_is_base_when_nothing_overrides() {
         .arg("sync")
         .assert()
         .success()
-        .stdout(predicate::str::contains("mcp source: base"));
+        .stderr(predicate::str::contains(
+            "templates/mcp/cursor.json → .cursor/mcp.json (base)",
+        ));
 }
 
 #[test]

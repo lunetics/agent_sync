@@ -261,8 +261,8 @@ fn sync_preserves_a_user_added_rule_in_a_generated_dir() {
         .arg("sync")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Kept"))
-        .stdout(predicate::str::contains("my-own.md"));
+        .stderr(predicate::str::contains("Kept"))
+        .stderr(predicate::str::contains("my-own.md"));
     assert!(project.exists(".claude/rules/my-own.md"));
 }
 
@@ -295,7 +295,7 @@ fn dry_run_previews_keeping_a_user_added_file_without_deleting_it() {
         .args(["sync", "--dry-run"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("Would keep"));
+        .stderr(predicate::str::contains("Would keep"));
     assert!(project.exists(".claude/rules/my-own.md"));
 }
 
@@ -325,7 +325,7 @@ fn obsolete_sync_generated_skill_directory_is_pruned_when_removed_from_source() 
         .arg("sync")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Kept .claude/skills/temp-skill").not());
+        .stderr(predicate::str::contains("Kept .claude/skills/temp-skill").not());
     assert!(!project.exists(".claude/skills/temp-skill"));
 }
 
@@ -338,7 +338,7 @@ fn sync_preserves_a_user_added_skill_directory_in_a_generated_dir() {
         .arg("sync")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Kept .claude/skills/my-own"));
+        .stderr(predicate::str::contains("Kept .claude/skills/my-own"));
     assert!(project.exists(".claude/skills/my-own/SKILL.md"));
 }
 
@@ -356,7 +356,7 @@ fn if_stale_is_a_no_op_when_source_is_older_than_the_manifest() {
         .args(["sync", "--if-stale"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("Starting AgentSync Config Sync").not());
+        .stdout(predicate::str::contains("[DONE] Synced ").not());
 }
 
 #[test]
@@ -383,7 +383,7 @@ fn if_stale_runs_a_full_sync_when_source_is_newer_than_the_manifest() {
         .args(["sync", "--if-stale"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("Starting AgentSync Config Sync"));
+        .stderr(predicate::str::contains("[DONE] Synced "));
 }
 
 #[test]
@@ -395,7 +395,7 @@ fn if_stale_treats_a_missing_manifest_as_stale_and_re_syncs() {
         .args(["sync", "--if-stale"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("Starting AgentSync Config Sync"));
+        .stderr(predicate::str::contains("[DONE] Synced "));
     assert!(project.exists(".ai/.sync-manifest"));
 }
 
@@ -410,6 +410,6 @@ fn first_sync_baseline_message_printed() {
         .arg("sync")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Initialized .ai/.sync-manifest"));
+        .stderr(predicate::str::contains("Initialized .ai/.sync-manifest"));
     assert!(project.exists(".ai/.sync-manifest"));
 }

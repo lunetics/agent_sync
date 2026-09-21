@@ -36,16 +36,16 @@ pub fn run(
         return 1;
     }
 
-    emit(Stream::Out, "");
-    emit(Stream::Out, &style.bold("  AgentSync workspace sync"));
+    emit(Stream::Err, "");
+    emit(Stream::Err, &style.bold("  AgentSync workspace sync"));
     emit(
-        Stream::Out,
+        Stream::Err,
         &style.dim(&format!(
             "  Found {} project(s) below {cwd}",
             projects.len()
         )),
     );
-    emit(Stream::Out, "");
+    emit(Stream::Err, "");
 
     let mut last_failure = 0;
     for ai in &projects {
@@ -57,17 +57,17 @@ pub fn run(
                 .unwrap_or(&root)
                 .to_string()
         };
-        emit(Stream::Out, &format!("  {} {rel}", style.cyan("→")));
+        emit(Stream::Err, &format!("  {} {rel}", style.cyan("→")));
         let status = sync::run(&root, args, env, colors, streams());
         if status != 0 {
             last_failure = status;
         }
-        emit(Stream::Out, "");
+        emit(Stream::Err, "");
     }
 
     if last_failure == 0 {
         emit(
-            Stream::Out,
+            Stream::Err,
             &format!(
                 "  {} {} project(s) processed.",
                 style.green("Workspace sync complete."),
@@ -76,13 +76,13 @@ pub fn run(
         );
     } else {
         emit(
-            Stream::Out,
+            Stream::Err,
             &format!(
                 "  {} max exit code: {last_failure}",
                 style.yellow("Workspace sync finished with errors.")
             ),
         );
     }
-    emit(Stream::Out, "");
+    emit(Stream::Err, "");
     last_failure
 }

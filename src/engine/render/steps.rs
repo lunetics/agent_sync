@@ -288,9 +288,8 @@ pub(super) fn sync_commands_step(
         return result.map_err(|e| io(s, e));
     }
     if tool.value("targets.commands.as_skills") == "true" && !dests.skills.is_empty() {
-        s.log.info(&format!(
-            "{display} has no native commands surface — generating skills (command-*) instead"
-        ));
+        s.log
+            .step("No native commands surface — generating skills (command-*) instead");
         return rules::sync_commands_as_skills(s, &src, &dests.skills, &include, &exclude)
             .map_err(|e| io(s, e));
     }
@@ -306,8 +305,8 @@ pub(super) fn sync_commands_step(
         if !target.is_empty() && s.dry_run {
             s.log.step("Would append command index (dry-run)");
         } else if !target.is_empty() {
-            s.log.info(&format!(
-                "{display} has no native commands surface — appending command index to {}",
+            s.log.step(&format!(
+                "No native commands surface — appending command index to {}",
                 paths::leaf(&target)
             ));
             rules::inline_commands_to_file(s, &src, &target, &include, &exclude)
@@ -374,11 +373,8 @@ pub(super) fn sync_payloads_step(s: &mut Session, tool: &Tool, dests: &Dests) ->
     if tool.value("targets.mcp.format") == "opencode_json" {
         if let Some(settings) = &src_settings {
             if let Some(mcp) = &src_mcp {
-                compose_opencode(s, settings, mcp, &dests.settings)?;
                 let label = payload::describe_source(&tools_dir, &root, mcp, &tool.slug, "mcp");
-                if !label.is_empty() {
-                    s.log.step(&format!("mcp source: {label}"));
-                }
+                compose_opencode(s, settings, mcp, &dests.settings, label)?;
             } else {
                 file_ops::copy_file(s, settings, &dests.settings).map_err(|e| io(s, e))?;
             }
@@ -389,10 +385,7 @@ pub(super) fn sync_payloads_step(s: &mut Session, tool: &Tool, dests: &Dests) ->
         }
         if let Some(mcp) = &src_mcp {
             let label = payload::describe_source(&tools_dir, &root, mcp, &tool.slug, "mcp");
-            file_ops::copy_file(s, mcp, &dests.mcp).map_err(|e| io(s, e))?;
-            if !label.is_empty() {
-                s.log.step(&format!("mcp source: {label}"));
-            }
+            file_ops::copy_file_noted(s, mcp, &dests.mcp, label).map_err(|e| io(s, e))?;
         }
     }
 
@@ -410,11 +403,23 @@ pub(super) fn sync_payloads_step(s: &mut Session, tool: &Tool, dests: &Dests) ->
     Ok(())
 }
 
-/// `sync_opencode_config`.
-fn compose_opencode(s: &mut Session, settings: &str, mcp: &str, dest: &str) -> Step {
+/// `sync_opencode_config`; `mcp_label` is `describe_source`'s word for where
+/// the MCP half came from, shown on the written line.
+fn compose_opencode(
+    s: &mut Session,
+    settings: &str,
+    mcp: &str,
+    dest: &str,
+    mcp_label: &str,
+) -> Step {
     let settings_text =
         String::from_utf8_lossy(&s.ws.read(settings).map_err(|e| io(s, e))?).into_owned();
     let mcp_text = String::from_utf8_lossy(&s.ws.read(mcp).map_err(|e| io(s, e))?).into_owned();
+    let note = if mcp_label.is_empty() {
+        String::new()
+    } else {
+        format!(" (mcp: {mcp_label})")
+    };
     match opencode_json::compose(&settings_text, &mcp_text) {
         Err(failure) => {
             let (settings_disp, mcp_disp) = (s.display(settings), s.display(mcp));
@@ -426,7 +431,7 @@ fn compose_opencode(s: &mut Session, settings: &str, mcp: &str, dest: &str) -> S
         }
         Ok(_) if s.dry_run => {
             s.log.step(&format!(
-                "Would compose OpenCode settings and MCP → {} (dry-run)",
+                "Would compose OpenCode settings and MCP → {}{note} (dry-run)",
                 s.display(dest)
             ));
             Ok(())
@@ -439,7 +444,7 @@ fn compose_opencode(s: &mut Session, settings: &str, mcp: &str, dest: &str) -> S
                 .map_err(|e| io(s, e))?;
             s.record_write(dest);
             let line = format!(
-                "{} + {} → {}",
+                "{} + {} → {}{note}",
                 s.display(settings),
                 s.display(mcp),
                 s.display(dest)

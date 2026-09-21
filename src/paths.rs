@@ -518,10 +518,23 @@ impl Paths {
             .map(str::to_string)
     }
 
-    /// `display_path_r`: root-relative, else `~/`-folded, else unchanged.
+    /// `display_path_r`: root-relative, else `~/`-folded, else unchanged. A
+    /// virtual path is named by what it holds, never by its engine root: an
+    /// overlay entry by its category (`rules/`, `AGENTS.md`), a shipped file
+    /// by its template path (`templates/guard/claude.sh`).
     pub fn display(&self, path: &str) -> String {
         if let Some(rel) = self.to_repo_relative(path) {
             return rel;
+        }
+        if let Some(rest) = path.strip_prefix(&format!("{OVERLAY_ROOT}/")) {
+            let after_name = rest.split_once('/').map_or("", |(_, tail)| tail);
+            return after_name
+                .strip_prefix("src/")
+                .unwrap_or(after_name)
+                .to_string();
+        }
+        if let Some(rest) = path.strip_prefix(&format!("{ENGINE_ROOT}/")) {
+            return rest.strip_prefix("lib/").unwrap_or(rest).to_string();
         }
         if let Some(home) = &self.home
             && let Some(rest) = path
@@ -762,8 +775,25 @@ mod tests {
         assert_eq!(p.display("/proj/.claude/rules"), ".claude/rules");
         assert_eq!(p.display("/proj"), ".");
         assert_eq!(p.display("/home/me/x"), "~/x");
-        assert_eq!(p.display("/<agentsync>/lib"), "/<agentsync>/lib");
         assert_eq!(p.to_repo_relative("/elsewhere"), None);
+    }
+
+    #[test]
+    fn display_names_virtual_paths_by_content_not_engine_root() {
+        let p = paths();
+        assert_eq!(
+            p.display("/<agentsync>/lib/templates/guard/claude.sh"),
+            "templates/guard/claude.sh"
+        );
+        assert_eq!(
+            p.display("/<agentsync-overlay>/base-src/src/rules"),
+            "rules"
+        );
+        assert_eq!(
+            p.display("/<agentsync-overlay>/shared/src/AGENTS.md"),
+            "AGENTS.md"
+        );
+        assert_eq!(p.display("/elsewhere/x"), "/elsewhere/x");
     }
 
     #[cfg(unix)]

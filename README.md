@@ -250,7 +250,7 @@ agentsync <command> [options]
 | Command                  | Alias | Description                                                                                    |
 | ------------------------ | ----- | ---------------------------------------------------------------------------------------------- |
 | `init [dir]`             |       | Create `.ai/` structure with starter templates                                                 |
-| `sync`                   |       | Sync to all enabled tools (`--only`, `--skip`, `--profile`, `--dry-run`, `--force`, `--if-stale`, `--workspace`) |
+| `sync`                   |       | Sync to all enabled tools (`--only`, `--skip`, `--profile`, `--dry-run`, `--force`, `--if-stale`, `--quiet`, `--json`, `--workspace`) |
 | `rollback [backup-id]`   |       | Restore managed targets from the latest or selected backup (`--list`, `--dry-run`, `--force`, `--yes`) |
 | `check`                  |       | Verify outputs match source (CI-friendly, exit code 0/1)                                       |
 | `enable <tools…>`        |       | Opt in to one or more tools (scaffolds editable settings/hooks payloads)                        |
@@ -289,10 +289,14 @@ agentsync sync --profile hub          # Personal tools + the named profile (conf
 agentsync sync --dry-run              # Preview without writing
 agentsync sync --force                # Overwrite edited files and prune hand-added files in generated dirs
 agentsync sync --workspace            # Run sync in every .ai/ below cwd (bottom-up alphabetical)
+agentsync sync --quiet                # Only warnings, errors, and the closing [DONE] line
+agentsync sync --json                 # One JSON summary object on stdout after a successful run
 agentsync rollback --list             # List init/sync/rollback snapshots
 agentsync rollback --dry-run          # Preview restoring the latest snapshot
 agentsync rollback <backup-id> --yes  # Restore one snapshot non-interactively
 ```
+
+The sync log is written to stderr, so `agentsync sync > out.json` captures nothing but the `--json` summary and `2>&1` merges the log back in. The JSON object is the stable contract for scripts — `dry_run`, `synced`, `total`, `skipped`, `written`, `preserved`, `backup` — and its fields are only ever added to; the human log may change between releases.
 
 ### Generate
 
@@ -1030,7 +1034,7 @@ Identical-hash files become a `[d]elete / [k]eep / [v]iew` prompt; for shipped t
 
 **Detection — `agentsync doctor`.** Doctor walks up to the nearest parent `.ai/src/` (same boundary as dedupe) and flags identical-hash duplicates as advisories and divergent files as info. Rules and skills marked with `category: governance` in their frontmatter are upgraded to advisories when divergent, with explicit "likely a mistake, not an override" framing. All cross-project findings are exit-code-0 advisories — visible during interactive runs, invisible to CI gates, so pre-commit hooks running `doctor` don't break on workspace techdebt.
 
-**Workspace-wide sync.** `agentsync sync --workspace` runs `sync` in every AgentSync-managed `.ai/` below cwd, bottom-up alphabetical (deeper paths first; siblings sorted by `LC_ALL=C` for reproducibility). Continues past per-project failures; reports max exit code at the end. All other sync options (`--only`, `--skip`, `--profile`, `--dry-run`, `--force`) forward to each per-project invocation.
+**Workspace-wide sync.** `agentsync sync --workspace` runs `sync` in every AgentSync-managed `.ai/` below cwd, bottom-up alphabetical (deeper paths first; siblings sorted by `LC_ALL=C` for reproducibility). Continues past per-project failures; reports max exit code at the end. All other sync options (`--only`, `--skip`, `--profile`, `--dry-run`, `--force`, `--quiet`, `--json`) forward to each per-project invocation, so `--json` prints one object per project.
 
 The walk-up logic stops at the start's git repository boundary, so a child project with its own `.git` never picks up an unrelated parent `.ai/src/` from above the boundary.
 

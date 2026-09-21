@@ -550,10 +550,11 @@ fn clipboard_command() -> Option<String> {
     .map(|(_, command)| command.to_string())
 }
 
-/// `_use_colors` of `logging.sh`: stdout is a terminal and `NO_COLOR` is empty.
+/// `_use_colors` of `logging.sh`, on the stream the log is written to: stderr
+/// is a terminal and `NO_COLOR` is empty.
 fn log_colors() -> bool {
     use std::io::IsTerminal;
-    std::io::stdout().is_terminal() && var("NO_COLOR").is_none_or(|v| v.is_empty())
+    std::io::stderr().is_terminal() && var("NO_COLOR").is_none_or(|v| v.is_empty())
 }
 
 /// Log lines to the process streams as `echo` writes them. A closed stdout does

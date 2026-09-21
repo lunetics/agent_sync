@@ -338,21 +338,18 @@ pub fn check_version_pin(s: &mut Session, run: &Run) -> Step {
         "This project pins agentsync {pinned} but you are running {engine}."
     ));
     for line in hint {
-        s.log.out(line);
+        s.log.err(line);
     }
     Ok(())
 }
 
-/// `_print_banner`.
+/// `_print_banner`: only a dry run announces itself; a real run's first line
+/// is its first tool.
 pub fn banner(s: &mut Session) {
-    s.log.separator();
     if s.dry_run {
-        s.log.info("Starting AgentSync Config Sync (DRY RUN)...");
-    } else {
-        s.log.info("Starting AgentSync Config Sync...");
+        s.log.info("Dry run: nothing will be written");
+        s.log.blank();
     }
-    s.log.separator();
-    s.log.out(String::new());
 }
 
 /// `shared_setup_overlay` when `shared` is set, `base_src_setup_overlay`, and

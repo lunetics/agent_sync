@@ -37,7 +37,7 @@ pub fn run_passes(s: &mut Session, run: &mut Run) -> Step {
             cleanup_tool(s, run, slug);
         }
         if run.printed {
-            s.log.out(String::new());
+            s.log.blank();
         }
     }
 
@@ -50,7 +50,6 @@ pub fn run_passes(s: &mut Session, run: &mut Run) -> Step {
         if tools.is_empty() {
             continue;
         }
-        s.log.separator();
         s.log.info(&format!("Profile: {profile}"));
         run.sources = run.base_sources.clone();
         let base_src = run.profile_base_src.clone();
@@ -61,7 +60,7 @@ pub fn run_passes(s: &mut Session, run: &mut Run) -> Step {
             checkpoint(s)?;
             sync_tool(s, run, &slug)?;
             if run.printed {
-                s.log.out(String::new());
+                s.log.blank();
             }
         }
         overlay::cleanup_profile(&mut s.ws).map_err(|e| io(s, e))?;
@@ -136,7 +135,7 @@ fn sync_tool(s: &mut Session, run: &mut Run, slug: &str) -> Step {
     }
     run.printed = true;
     let dests = resolve_dests(s, &tool, &display);
-    s.log.info(&format!("Syncing {display}..."));
+    s.log.info(&format!("Syncing {display}"));
 
     if !dests.agents.is_empty() {
         let src = tool_source(s, &tool, "agents", &run.sources.agents, &display)?;
@@ -161,7 +160,6 @@ fn sync_tool(s: &mut Session, run: &mut Run, slug: &str) -> Step {
         ));
         return Err(Stop(1));
     }
-    s.log.success(&format!("{display} complete"));
     run.synced += 1;
     Ok(())
 }

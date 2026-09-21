@@ -136,7 +136,7 @@ fn sync_succeeds_when_overlay_omits_commands_agents_and_agents_md() {
         .arg("sync")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Shared overlay active"));
+        .stderr(predicate::str::contains("Shared overlay active"));
     assert!(child.join(".claude/rules/parent-only.md").is_file());
     assert!(child.join(".claude/rules/child-only.md").is_file());
 }
@@ -150,7 +150,7 @@ fn parent_rules_materialise_into_child_output_dirs() {
         .arg("sync")
         .assert()
         .success()
-        .stdout(predicate::str::contains("Shared overlay active"));
+        .stderr(predicate::str::contains("Shared overlay active"));
     assert!(child.join(".claude/rules/parent-only.md").is_file());
     assert!(child.join(".claude/rules/child-only.md").is_file());
 }
@@ -208,7 +208,7 @@ fn missing_parent_path_warns_and_skips_overlay() {
         "\nshared:\n  path: \"../does-not-exist\"\n  inherit: rules\n",
     );
 
-    project.agentsync().arg("sync").assert().success().stdout(
+    project.agentsync().arg("sync").assert().success().stderr(
         predicate::str::contains("shared.path does not exist")
             .or(predicate::str::contains("overlay skipped")),
     );
@@ -245,7 +245,7 @@ fn dry_run_does_not_produce_output_but_still_tears_down_tmpdir() {
         .args(["sync", "--dry-run"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("Shared overlay active"));
+        .stderr(predicate::str::contains("Shared overlay active"));
     assert!(!child.join(".claude/rules/parent-only.md").exists());
     assert_eq!(std::fs::read_dir(&sandbox).unwrap().count(), 0);
 }

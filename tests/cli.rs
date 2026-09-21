@@ -126,20 +126,21 @@ fn sync_options_are_checked_before_anything_runs() {
         .arg("--bogus")
         .assert()
         .code(1)
-        .stderr("[ERROR] Unknown option: --bogus\n")
-        .stdout(predicate::str::starts_with(
-            "AgentSync Config Sync Script\n\nUsage: sync.sh [OPTIONS]\n",
+        .stdout("")
+        .stderr(predicate::str::starts_with(
+            "[ERROR] Unknown option: --bogus\nAgentSync Config Sync Script\n\nUsage: sync.sh [OPTIONS]\n",
         ));
     sync_in(&dir)
         .args(["--", "--dry-run"])
         .assert()
         .code(1)
-        .stderr("[ERROR] Unknown option: --\n");
+        .stderr(predicate::str::starts_with("[ERROR] Unknown option: --\n"));
     sync_in(&dir)
         .arg("--help")
         .assert()
         .success()
-        .stdout(predicate::str::ends_with(
+        .stderr("")
+        .stdout(predicate::str::contains(
             "  --help            Show this help message\n",
         ));
     assert!(!dir.path().join("CLAUDE.md").exists());
@@ -152,8 +153,8 @@ fn sync_writes_outputs_then_refuses_to_overwrite_a_manual_edit_unless_forced() {
     sync_in(&dir)
         .assert()
         .success()
-        .stdout(predicate::str::contains("[INFO] Syncing Claude Code...\n"))
-        .stdout(predicate::str::contains(
+        .stderr(predicate::str::contains("[INFO] Syncing Claude Code\n"))
+        .stderr(predicate::str::contains(
             "[DONE] Synced 1/13 tools (12 skipped)\n",
         ));
     assert_eq!(
@@ -192,9 +193,10 @@ fn a_terminated_sync_restores_the_pre_sync_state_and_dies_of_the_signal() {
         .env_remove("AGENTSYNC_SKIP_POST_SYNC")
         .arg("sync")
         .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
         .spawn()
         .unwrap();
-    let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+    let mut lines = BufReader::new(child.stderr.take().unwrap()).lines();
     for line in lines.by_ref() {
         if line.unwrap().starts_with("[INFO] Running post-sync hook: ") {
             break;
@@ -205,7 +207,12 @@ fn a_terminated_sync_restores_the_pre_sync_state_and_dies_of_the_signal() {
         .status()
         .unwrap();
     let rest: Vec<String> = lines.map(Result::unwrap).collect();
+    let stdout: Vec<String> = BufReader::new(child.stdout.take().unwrap())
+        .lines()
+        .map(Result::unwrap)
+        .collect();
     assert_eq!(child.wait().unwrap().signal(), Some(15));
+    assert!(stdout.is_empty(), "stdout carried {stdout:?}");
     assert_eq!(
         rest[0],
         "[WARNING] Sync failed; restoring pre-sync state..."
@@ -227,11 +234,9 @@ fn a_failing_post_sync_hook_restores_the_pre_sync_state() {
         .env("AGENTSYNC_ALLOW_POST_SYNC", "true")
         .assert()
         .code(1)
-        .stdout(predicate::str::contains(
-            "[WARNING] Sync failed; restoring pre-sync state...\n[INFO] Restored pre-sync state from ",
-        ))
+        .stderr(predicate::str::contains("[INFO] Restored pre-sync state from "))
         .stderr(predicate::str::contains(
-            "[ERROR] Sync failed because post-sync hook failed for Claude Code\n",
+            "[ERROR] Sync failed because post-sync hook failed for Claude Code\n[WARNING] Sync failed; restoring pre-sync state...\n",
         ));
     assert_eq!(
         std::fs::read_to_string(dir.path().join("CLAUDE.md")).unwrap(),
@@ -239,6 +244,57 @@ fn a_failing_post_sync_hook_restores_the_pre_sync_state() {
     );
     assert!(!dir.path().join(".claude/rules").exists());
     assert!(!dir.path().join(".ai/.sync-manifest").exists());
+}
+
+// The colour decision follows the stream the log is written to, so this needs
+// stdout on a real pty while stderr is a file — `script(1)` provides the pty,
+// as it does for the init wizard case.
+#[cfg(unix)]
+#[test]
+fn sync_writes_a_plain_log_to_a_redirected_stderr_even_when_stdout_is_a_terminal() {
+    use std::process::Command as StdCommand;
+
+    let gnu = StdCommand::new("script")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    if !gnu
+        && StdCommand::new("which")
+            .arg("script")
+            .output()
+            .is_ok_and(|o| !o.status.success())
+    {
+        eprintln!("script(1) not available; skipping");
+        return;
+    }
+    let dir = sync_project(None);
+    let log = dir.path().join("sync.log");
+    let inner = format!(
+        "AGENTSYNC_REPO_ROOT={} AGENTSYNC_NO_UPDATE_CHECK=1 NO_COLOR= {} sync --dry-run 2>{} </dev/null",
+        dir.path().display(),
+        env!("CARGO_BIN_EXE_agentsync"),
+        log.display()
+    );
+    let status = if gnu {
+        StdCommand::new("script")
+            .args(["-q", "-c", &inner, "/dev/null"])
+            .stdout(std::process::Stdio::null())
+            .status()
+    } else {
+        StdCommand::new("script")
+            .args(["-q", "/dev/null", "sh", "-c", &inner])
+            .stdout(std::process::Stdio::null())
+            .status()
+    }
+    .unwrap();
+    assert!(status.success());
+    let text = std::fs::read_to_string(&log).unwrap();
+    assert!(text.contains("[INFO] Syncing Claude Code\n"), "{text}");
+    assert!(
+        !text.contains('\x1b'),
+        "escape codes reached the file: {text:?}"
+    );
 }
 
 mod common;

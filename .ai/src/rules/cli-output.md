@@ -11,13 +11,17 @@ one, or a decision this project made.
 
 ## Streams
 
-- Diagnostics go to stderr, the command's own output to stdout. POSIX reserves
-  stderr for diagnostics; `clig.dev` goes further and puts progress and status
-  there too, so stdout stays a clean pipe. AgentSync currently streams the sync
-  log to stdout, which predates that guidance. Do not move it without a release
-  that says so: a script reading `agentsync sync` today reads stdout.
+- Everything written for a person goes to stderr; stdout carries only what a
+  program reads. POSIX reserves stderr for diagnostics, and `clig.dev` puts
+  progress and status there too so stdout stays a clean pipe: `cargo`, `git`,
+  and `npm` all do this. The whole sync log — `[INFO]`, steps, `[WARNING]`,
+  `[ERROR]`, `[DONE]`, the `--workspace` banner — is on stderr, so `sync
+  > out.json` and `sync | tee` behave. Stdout has `--help` and the `--json`
+  summary, nothing else.
 - A checker's report is its output. `check` printing drift on stdout is
   correct; its exit status carries the verdict.
+- A hint that follows an error follows it on the same stream, the way rustc
+  writes `error:` then `help:`. Never split an error from its hint.
 
 ## Exit codes
 
@@ -29,9 +33,10 @@ one, or a decision this project made.
 
 ## Colour
 
-- Colour when stdout is a terminal and `NO_COLOR` is unset or empty, as
-  `no-color.org` specifies. That is an informal standard with wide adoption,
-  not a formal one.
+- Colour when the stream being written is a terminal and `NO_COLOR` is unset
+  or empty, as `no-color.org` specifies: the sync log asks stderr, a command's
+  report asks stdout. `sync 2>log.txt` must leave no escape codes in the file.
+  That is an informal standard with wide adoption, not a formal one.
 - Colour is emphasis, never information. A line must read the same in a pipe.
 - The GNU Coding Standards argue against looking at the terminal at all. Every
   modern tool ignores that, and so do we, deliberately.
@@ -47,8 +52,10 @@ for use by modern terminal emulators without appropriate tailoring", so one
 glyph misaligns every column to its right. And a screen reader has no text
 alternative for a bare glyph, the principle behind WCAG technique H86.
 
-- The level tag carries the level: `[INFO]`, `[WARNING]`, `[ERROR]`,
-  `[SUCCESS]`, `[DONE]`. Colour decorates the tag; the words survive a pipe.
+- The level tag carries the level: `[INFO]`, `[WARNING]`, `[ERROR]`, and
+  `[DONE]` for the one closing line. Colour decorates the tag; the words
+  survive a pipe. A tool's block has no closing tag of its own: its steps are
+  indented under `[INFO] Syncing <tool>`, and a blank line ends it.
 - Report markers are `✓`, `✗`, `!` and `·`. `→` separates a source from a
   destination. `•` opens a hint. None is an emoji and none needs a
   presentation selector.
@@ -59,9 +66,11 @@ alternative for a bare glyph, the principle behind WCAG technique H86.
   misaligns the columns after them. They stay for now because the legend
   carries the meaning in words and changing a command's main table is its own
   change, not a style sweep. Do not add another Ambiguous-width glyph.
-- `═` and `─` rule off sections. Their width is fixed rather than measured
-  against the terminal, so they wrap in a narrow window. Also known, also
-  waiting for its own change.
+- No rules between sections. A fixed-width line of `═` or `─` wraps in a
+  narrow window and turns to noise in a log; a blank line separates blocks
+  instead, as cargo's output does.
+- A count reads as prose: `(8 updated)`, `(1 agent, md→toml)`. Zero of
+  something is not printed, and a count of one is singular.
 
 ## Messages
 
@@ -70,12 +79,22 @@ alternative for a bare glyph, the principle behind WCAG technique H86.
   the way rustc writes `error:` then `help:`.
 - Say the command to run, not the concept: `run agentsync sync`, never
   "re-synchronise the project".
-- Never print an engine-internal path. The virtual overlay roots
-  (`/<agentsync-overlay>/…`) mean nothing to a reader and currently leak into
-  the sync log; a source is named by what the user wrote, or by its category.
+- Never print an engine-internal path. The virtual roots (`/<agentsync>/…`,
+  `/<agentsync-overlay>/…`) mean nothing to a reader: `Paths::display` names
+  an overlay entry by its category (`rules/`, `AGENTS.md`) and a shipped file
+  by its template path (`templates/guard/claude.sh`).
+- A heading names what is happening, without a trailing `...`: `Syncing Claude
+  Code`. The ellipsis promises a wait, and the next line arrives at once.
+- The closing line carries the count; a list of what was skipped is dry-run
+  detail. Eleven tool names on one line wrap in a narrow window and say
+  nothing a second run needs.
 
 ## Quiet and machine-readable output
 
-- There is no `--quiet` and no `--json` today. Adding them is the documented
-  way to serve scripts; parsing the human log is not, and the human log may
-  change between releases.
+- `sync --quiet` keeps warnings, errors, and the closing `[DONE]` line.
+- `sync --json` prints one object on stdout after a successful run — `dry_run`,
+  `synced`, `total`, `skipped`, `written`, `preserved`, `backup` — and that
+  object is the contract for scripts. The human log on stderr is not: it may
+  change between releases, and `CHANGELOG.md` says so when it does.
+- A field is added to the JSON object, never renamed or removed, without a
+  major version.

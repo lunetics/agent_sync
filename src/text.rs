@@ -83,6 +83,26 @@ pub fn json_escape(bytes: &[u8]) -> Vec<u8> {
     out
 }
 
+/// `s` as a JSON string literal, quotes included: RFC 8259 requires every
+/// control character escaped, which `json_escape` (Bash parity) does not.
+pub fn json_string(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
 /// Bash 3.2 `printf '%b'`. Returns the expansion and whether `\c` stopped
 /// all further output.
 pub fn printf_b(input: &[u8]) -> (Vec<u8>, bool) {
@@ -150,6 +170,13 @@ pub fn printf_b(input: &[u8]) -> (Vec<u8>, bool) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn json_string_quotes_and_escapes_every_control_character() {
+        assert_eq!(json_string("a\"b\\c"), "\"a\\\"b\\\\c\"");
+        assert_eq!(json_string("x\n\t\u{1}"), "\"x\\n\\t\\u0001\"");
+        assert_eq!(json_string("é → ~/x"), "\"é → ~/x\"");
+    }
 
     #[test]
     fn lines_keep_an_unterminated_last_line() {

@@ -108,7 +108,7 @@ fn version_pin_local_mode_without_version_pin_only_warns_and_still_syncs() {
         .arg("sync")
         .assert()
         .success()
-        .stdout(predicate::str::contains("pins agentsync 0.1.0"));
+        .stderr(predicate::str::contains("pins agentsync 0.1.0"));
     assert!(project.exists("CLAUDE.md"));
 }
 
@@ -123,7 +123,7 @@ fn version_pin_local_mode_set_to_warn_only_warns_and_still_syncs() {
         .arg("sync")
         .assert()
         .success()
-        .stdout(predicate::str::contains("pins agentsync 0.1.0"));
+        .stderr(predicate::str::contains("pins agentsync 0.1.0"));
     assert!(project.exists("CLAUDE.md"));
 }
 
@@ -251,7 +251,7 @@ fn version_pin_a_matching_pin_is_silent() {
         .arg("sync")
         .assert()
         .success()
-        .stdout(predicate::str::contains("pins agentsync").not());
+        .stderr(predicate::str::contains("pins agentsync").not());
 }
 
 #[test]
@@ -271,7 +271,7 @@ fn version_pin_no_pin_means_no_check() {
         .arg("sync")
         .assert()
         .success()
-        .stdout(predicate::str::contains("pins agentsync").not());
+        .stderr(predicate::str::contains("pins agentsync").not());
 }
 
 #[test]

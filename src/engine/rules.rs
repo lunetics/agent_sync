@@ -3,7 +3,7 @@
 //! `lib/helpers/format_conversion.sh`.
 
 use crate::engine::session::Session;
-use crate::{Error, engine::convert, engine::filters, paths, text};
+use crate::{Error, engine::convert, engine::file_ops, engine::filters, paths, text};
 
 /// `add_header`: `printf '%b\n'` of the header, a blank line, the file.
 pub fn add_header(file: &[u8], header: &str) -> Vec<u8> {
@@ -227,8 +227,8 @@ pub fn merge_rules_to_file(
             ""
         };
         s.log.step(&format!(
-            "{src_disp}/ → {dest_disp} ({} files merged{extra}) (dry-run)",
-            files.len()
+            "{src_disp}/ → {dest_disp} ({}{extra}) (dry-run)",
+            merged(files.len())
         ));
         return Ok(());
     }
@@ -250,10 +250,15 @@ pub fn merge_rules_to_file(
     }
     s.record_write(dest_file);
     s.log.step(&format!(
-        "{src_disp}/ → {dest_disp} ({} files merged)",
-        files.len()
+        "{src_disp}/ → {dest_disp} ({})",
+        merged(files.len())
     ));
     Ok(())
+}
+
+fn merged(count: usize) -> String {
+    let plural = if count == 1 { "" } else { "s" };
+    format!("{count} file{plural} merged")
 }
 
 pub struct RuleOptions<'a> {
@@ -341,9 +346,9 @@ pub fn sync_rules(
         format!(", include='{}'", opts.include)
     };
     let suffix = if s.dry_run { " (dry-run)" } else { "" };
+    let counts = file_ops::counts(valid.len(), cleaned);
     s.log.step(&format!(
-        "{src_disp}/ → {dest_disp}/ ({} updates, {cleaned} cleanups){extra}{suffix}",
-        valid.len()
+        "{src_disp}/ → {dest_disp}/ {counts}{extra}{suffix}"
     ));
     Ok(())
 }
@@ -491,13 +496,15 @@ impl Conversion {
         }
     }
 
-    fn label(self) -> &'static str {
-        match self {
-            Self::CommandToml => "commands, md→toml",
-            Self::AgentToml => "agents, md→toml",
-            Self::AgentAmazonqJson => "agents, md→amazonq json",
-            Self::AgentOpencodeMd => "agents, md→opencode md",
-        }
+    fn label(self, count: usize) -> String {
+        let (noun, format) = match self {
+            Self::CommandToml => ("command", "md→toml"),
+            Self::AgentToml => ("agent", "md→toml"),
+            Self::AgentAmazonqJson => ("agent", "md→amazonq json"),
+            Self::AgentOpencodeMd => ("agent", "md→opencode md"),
+        };
+        let plural = if count == 1 { "" } else { "s" };
+        format!("{count} {noun}{plural}, {format}")
     }
 
     fn render(self, stem: &str, source: &[u8]) -> Vec<u8> {
@@ -571,9 +578,8 @@ pub fn sync_converted(
         let src_disp = s.display(src_dir);
         let dest_disp = s.display(dest_dir);
         s.log.step(&format!(
-            "{src_disp}/ → {dest_disp}/ ({} {})",
-            valid.len(),
-            conversion.label()
+            "{src_disp}/ → {dest_disp}/ ({})",
+            conversion.label(valid.len())
         ));
     }
     Ok(())
@@ -651,7 +657,7 @@ mod tests {
         assert!(s.ws.exists("/proj/.cursor/rules/notes.txt"));
         assert_eq!(
             s.log.tail(1),
-            ["   .ai/src/rules/ → .cursor/rules/ (1 updates, 1 cleanups)"]
+            ["   .ai/src/rules/ → .cursor/rules/ (1 updated, 1 removed)"]
         );
     }
 
@@ -820,22 +826,22 @@ mod tests {
             [
                 "[WARNING] Would keep .cursor/rules/mine.mdc (not from .ai/src/; --force to prune)",
                 "   Would remove: .cursor/rules/old.mdc (obsolete)",
-                "   .ai/src/rules/ → .cursor/rules/ (1 updates, 1 cleanups) (dry-run)",
+                "   .ai/src/rules/ → .cursor/rules/ (1 updated, 1 removed) (dry-run)",
                 "   .ai/src/agents/rev.md → .codex/agents/rev.toml (agent md→toml) (dry-run)",
                 "[WARNING] Would keep .codex/agents/mine.toml (not from .ai/src/; --force to prune)",
                 "   Would remove: .codex/agents/old.toml (obsolete)",
-                "   .ai/src/agents/ → .codex/agents/ (1 agents, md→toml)",
+                "   .ai/src/agents/ → .codex/agents/ (1 agent, md→toml)",
                 "   Would remove obsolete generated skill: command-gone",
                 "   .ai/src/commands/*.md → .agents/skills/command-*/SKILL.md (1 generated) (dry-run)",
-                "   .ai/src/rules/ → .rules (1 files merged +agents) (dry-run)",
+                "   .ai/src/rules/ → .rules (1 file merged +agents) (dry-run)",
                 "   .ai/src/commands/review.md → .gemini/commands/review.toml (md→toml) (dry-run)",
-                "   .ai/src/commands/ → .gemini/commands/ (1 commands, md→toml)",
+                "   .ai/src/commands/ → .gemini/commands/ (1 command, md→toml)",
                 "[WARNING] Kept .cursor/rules/mine.mdc (not from .ai/src/; move it into .ai/src/, or re-run with --force to prune)",
                 "   Removed: .cursor/rules/old.mdc",
-                "   .ai/src/rules/ → .cursor/rules/ (1 updates, 1 cleanups)",
+                "   .ai/src/rules/ → .cursor/rules/ (1 updated, 1 removed)",
                 "[WARNING] Kept .codex/agents/mine.toml (not from .ai/src/; move it into .ai/src/, or re-run with --force to prune)",
                 "   Removed: .codex/agents/old.toml",
-                "   .ai/src/agents/ → .codex/agents/ (1 agents, md→toml)",
+                "   .ai/src/agents/ → .codex/agents/ (1 agent, md→toml)",
             ]
         );
     }
@@ -862,7 +868,7 @@ mod tests {
         assert!(s.ws.exists("/proj/.codex/agents/keep.json"));
         assert_eq!(
             s.log.tail(1),
-            ["   .ai/src/agents/ → .codex/agents/ (1 agents, md→toml)"]
+            ["   .ai/src/agents/ → .codex/agents/ (1 agent, md→toml)"]
         );
     }
 

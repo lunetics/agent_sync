@@ -336,7 +336,7 @@ fn retention_preserve_failed_sync_restores_outputs_without_pruning_recovery() {
         .args(["sync", "--only", "claude"])
         .assert()
         .failure()
-        .stdout(predicate::str::contains("Restored pre-sync state"));
+        .stderr(predicate::str::contains("Restored pre-sync state"));
     assert_eq!(project.read("CLAUDE.md"), "before-sync\n");
     assert!(!project.exists(".ai/.sync-manifest"));
     assert_recovery_preserved(&before, &snapshot_tree(project.path()));

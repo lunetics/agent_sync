@@ -521,7 +521,7 @@ impl Paths {
     /// `display_path_r`: root-relative, else `~/`-folded, else unchanged. A
     /// virtual path is named by what it holds, never by its engine root: an
     /// overlay entry by its category (`rules/`, `AGENTS.md`), a shipped file
-    /// by its template path (`templates/guard/claude.sh`). 
+    /// by its template path (`templates/guard/claude.sh`).
     pub fn display(&self, path: &str) -> String {
         if let Some(rel) = self.to_repo_relative(path) {
             return rel;

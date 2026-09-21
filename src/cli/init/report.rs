@@ -2,9 +2,9 @@
 
 use std::path::Path;
 
-use crate::catalog;
+use crate::config::catalog;
+use crate::output::style::Style;
 use crate::paths::DiskText;
-use crate::style::Style;
 
 /// `_init_print_plan`.
 pub(super) fn plan(
@@ -273,7 +273,7 @@ fn pad_created(style: &Style, shown: &str) -> String {
 #[cfg(all(test, unix))]
 mod tests {
     use super::super::tests::{backup_line, backups, call, project, quiet, tree};
-    use crate::template_manifest::REL;
+    use crate::config::template_manifest::REL;
     use std::path::Path;
 
     #[test]

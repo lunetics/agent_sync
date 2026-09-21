@@ -3,14 +3,14 @@
 
 use std::path::Path;
 
-use crate::interrupt::{self, Interrupt};
-use crate::log::{Log, Sink};
-use crate::manifest::{self, Manifest};
+use crate::engine::render::{self, Run, Selection, Stop};
+use crate::engine::session::Session;
+use crate::engine::workspace::Workspace;
+use crate::output::log::{Log, Sink};
 use crate::paths::{self, Paths};
-use crate::render::{self, Run, Selection, Stop};
-use crate::session::Session;
-use crate::workspace::Workspace;
-use crate::{Error, backup, gitignore, witness};
+use crate::transaction::interrupt::{self, Interrupt};
+use crate::transaction::manifest::{self, Manifest};
+use crate::{Error, engine::gitignore, transaction::backup, transaction::witness};
 
 pub const USAGE: &str = "AgentSync Config Sync Script
 

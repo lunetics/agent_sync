@@ -7,10 +7,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use super::customize::put;
+use crate::config::template_manifest::{self, TemplateManifest};
+use crate::output::style::Style;
 use crate::project::Project;
-use crate::style::Style;
-use crate::template_manifest::{self, TemplateManifest};
-use crate::{Error, catalog, format_rev, yaml_edit, yaml_subset};
+use crate::{Error, config::catalog, config::format_rev, config::yaml_edit, config::yaml_subset};
 
 type Discover<'a> = &'a dyn Fn() -> Result<Project, Error>;
 
@@ -1033,7 +1033,7 @@ mod tests {
             .map(|rel| {
                 format!(
                     "skills/agentsync/{rel}\t{}\n",
-                    crate::manifest::sha256_hex(skill(rel).as_bytes())
+                    crate::transaction::manifest::sha256_hex(skill(rel).as_bytes())
                 )
             })
             .chain(["rules/core.md\tabc\n".to_string()])

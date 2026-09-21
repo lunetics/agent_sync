@@ -5,10 +5,10 @@ use std::io::Write;
 
 use super::customize::{put, relative};
 use super::diff::KEYS;
+use crate::config::tool::Tool;
+use crate::output::style::Style;
 use crate::project::Project;
-use crate::style::Style;
-use crate::tool::Tool;
-use crate::{Error, catalog, snapshot, yaml_edit, yaml_subset};
+use crate::{Error, config::catalog, config::snapshot, config::yaml_edit, config::yaml_subset};
 
 type Ask<'a> = &'a mut dyn FnMut(&str, &mut dyn Write) -> String;
 

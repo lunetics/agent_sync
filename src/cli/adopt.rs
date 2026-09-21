@@ -7,14 +7,14 @@ use std::path::Path;
 use std::process::Command;
 
 use super::customize::put;
-use crate::log::Log;
-use crate::manifest::{self, Manifest};
+use crate::config::payload::{self, Source};
+use crate::config::tool::Tool;
+use crate::output::log::Log;
+use crate::output::style::Style;
 use crate::paths::{self, Paths};
-use crate::payload::{self, Source};
 use crate::project::Project;
-use crate::style::Style;
-use crate::tool::Tool;
-use crate::{Error, catalog, template_manifest, yaml_subset};
+use crate::transaction::manifest::{self, Manifest};
+use crate::{Error, config::catalog, config::template_manifest, config::yaml_subset};
 
 type Discover<'a> = &'a dyn Fn() -> Result<Project, Error>;
 type Confirm<'a> = &'a mut dyn FnMut(&str) -> bool;

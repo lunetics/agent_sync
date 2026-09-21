@@ -6,7 +6,7 @@ use std::io::Write;
 
 use super::customize::put;
 use crate::Error;
-use crate::style::Style;
+use crate::output::style::Style;
 
 /// `lib/prompts/generate.md`, embedded.
 pub const PROMPT: &str = include_str!("../../lib/prompts/generate.md");

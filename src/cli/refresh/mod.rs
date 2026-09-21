@@ -11,9 +11,9 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use super::customize::put;
-use crate::style::Style;
-use crate::template_manifest::TemplateManifest;
-use crate::{Error, catalog};
+use crate::config::template_manifest::TemplateManifest;
+use crate::output::style::Style;
+use crate::{Error, config::catalog};
 
 use args::{parse_args, resolve_scope};
 use classify::{collect, load_overrides};
@@ -389,9 +389,9 @@ mod tests {
     use std::collections::VecDeque;
 
     use super::*;
-    use crate::manifest::sha256_hex;
+    use crate::config::template_manifest::REL;
     use crate::paths::DiskText;
-    use crate::template_manifest::REL;
+    use crate::transaction::manifest::sha256_hex;
 
     /// A project `init` scaffolded: every template under `.ai/src/` and a
     /// manifest recording each hash.

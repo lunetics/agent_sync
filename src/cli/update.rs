@@ -13,11 +13,11 @@ use std::process::{Command, Stdio};
 use super::bundle::Scratch;
 use super::customize::put;
 use super::notice::{CACHE_FILE, REPO};
-use crate::changelog;
-use crate::manifest::sha256_hex;
-use crate::snapshot::{self, Conflict};
-use crate::style::Style;
-use crate::{Error, catalog, engine_version};
+use crate::config::snapshot::{self, Conflict};
+use crate::output::changelog;
+use crate::output::style::Style;
+use crate::transaction::manifest::sha256_hex;
+use crate::{Error, config::catalog, engine_version};
 
 const USAGE: &str = "Usage: agentsync update [<version>] [--strict]";
 const HELP: &str = "Usage: agentsync update [<version>] [--strict]\n\n  <version>   Pin the install to that release tag (e.g. 0.35.0) instead of\n              the latest release — what a project's agentsync_version asks for.\n  --strict    Exit non-zero if upstream changed a field you have overridden.\n";

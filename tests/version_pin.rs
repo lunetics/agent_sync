@@ -5,7 +5,7 @@
 //! `render::check_version_pin` (sync) logs the mismatch/strict error through
 //! `Log::error`/`Log::err` (stderr) and the warn message through
 //! `Log::warning`/`Log::out` (stdout); `check`'s `version_pin_mismatch`
-//! always writes to `Report::stderr`. See `src/log.rs` and
+//! always writes to `Report::stderr`. See `src/output/log.rs` and
 //! `src/cli/check.rs`.
 
 mod common;

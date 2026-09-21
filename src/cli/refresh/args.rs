@@ -5,7 +5,7 @@ use std::path::Path;
 
 use crate::Error;
 use crate::cli::customize::put;
-use crate::style::Style;
+use crate::output::style::Style;
 
 const CATEGORIES_VALID: [&str; 5] = ["rules", "skills", "commands", "agents", "subagents"];
 const CATEGORIES_DEFAULT: [&str; 4] = ["rules", "skills", "commands", "agents"];
@@ -182,7 +182,7 @@ mod tests {
     use std::path::Path;
 
     use crate::cli::refresh::tests::{call, drop_entry, header, manifest_text, seeded};
-    use crate::template_manifest::REL;
+    use crate::config::template_manifest::REL;
 
     #[test]
     fn arguments_are_refused_and_help_prints_like_bash() {

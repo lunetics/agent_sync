@@ -4,7 +4,7 @@
 
 #![cfg(unix)]
 
-use agentsync::interrupt::{Interrupt, status};
+use agentsync::transaction::interrupt::{Interrupt, status};
 use signal_hook::consts::signal;
 
 #[test]

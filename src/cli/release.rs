@@ -9,7 +9,7 @@ use std::process::{Command, ExitStatus, Stdio};
 
 use super::customize::put;
 use crate::Error;
-use crate::style::Style;
+use crate::output::style::Style;
 
 const USAGE: &str = "  Usage: agentsync release [major|minor|patch] [--no-push]";
 const CRATE_FILES: [&str; 2] = ["Cargo.toml", "Cargo.lock"];

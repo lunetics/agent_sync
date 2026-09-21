@@ -6,8 +6,8 @@ use std::io::Write;
 use std::path::Path;
 
 use super::customize::put;
-use crate::style::Style;
-use crate::{Error, staging};
+use crate::output::style::Style;
+use crate::{Error, engine::staging};
 
 const KEY: &str = "agentsync_version:";
 

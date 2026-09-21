@@ -5,11 +5,11 @@ use crate::paths::DiskText;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use crate::config::tool::Tool;
+use crate::output::style::Style;
 use crate::paths;
 use crate::project::Project;
-use crate::style::Style;
-use crate::tool::Tool;
-use crate::{Error, catalog, edit_paths, payload, yaml_edit};
+use crate::{Error, config::catalog, config::edit_paths, config::payload, config::yaml_edit};
 
 const ENABLE_USAGE: &str =
     "Usage: agentsync enable <slug> [<slug>...] [--no-scaffold|--scaffold] [--yes]

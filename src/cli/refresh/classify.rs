@@ -3,9 +3,9 @@
 
 use std::path::Path;
 
-use crate::manifest::sha256_hex;
-use crate::template_manifest::{self, TemplateManifest};
-use crate::yaml_subset;
+use crate::config::template_manifest::{self, TemplateManifest};
+use crate::config::yaml_subset;
+use crate::transaction::manifest::sha256_hex;
 
 /// One `<rel>|<template>|<hash>` entry of the `*_FILES` arrays.
 pub(super) struct Candidate {
@@ -161,12 +161,12 @@ pub(super) fn collect(
 mod tests {
     use std::path::Path;
 
-    use crate::catalog;
     use crate::cli::refresh::tests::{
         NOT_A_TTY, append, call, drop_entry, header, seeded, set_entry,
     };
-    use crate::manifest::sha256_hex;
-    use crate::template_manifest::{self, TemplateManifest};
+    use crate::config::catalog;
+    use crate::config::template_manifest::{self, TemplateManifest};
+    use crate::transaction::manifest::sha256_hex;
 
     #[test]
     fn new_deleted_auto_update_and_conflict_files_classify_and_apply_like_bash() {

@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use super::customize::put;
-use crate::{Error, yaml_subset};
+use crate::{Error, config::yaml_subset};
 
 const USAGE: &str = "Usage: agentsync setup-hooks [--pre-commit]";
 const BLOCK_START: &str = "# >>> AGENTSYNC AUTO SYNC START >>>";

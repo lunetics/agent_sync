@@ -5,9 +5,11 @@ use std::path::{Path, PathBuf};
 use super::json::json_valid;
 use super::secrets::scan_secrets;
 use super::{Doctor, files_below, sorted_entries};
-use crate::manifest::{self, Manifest};
 use crate::paths::{self, DiskText};
-use crate::{Error, convert, overlay, template_manifest, yaml_subset};
+use crate::transaction::manifest::{self, Manifest};
+use crate::{
+    Error, config::template_manifest, config::yaml_subset, engine::convert, engine::overlay,
+};
 
 /// `_DOCTOR_OUTPUT_DIR_MAP`.
 const OUTPUT_DIRS: [(&str, &str); 12] = [

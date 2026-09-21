@@ -4,8 +4,8 @@
 use std::collections::BTreeSet;
 use std::io::Write;
 
-use crate::style::{Style, pad_right};
-use crate::{Error, catalog, payload, project::Project, tool::Tool};
+use crate::output::style::{Style, pad_right};
+use crate::{Error, config::catalog, config::payload, config::tool::Tool, project::Project};
 
 const RESOURCES: [(&str, &str); 3] = [("hooks", "H"), ("mcp", "M"), ("settings", "S")];
 

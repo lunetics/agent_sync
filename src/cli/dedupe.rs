@@ -7,8 +7,10 @@ use std::path::Path;
 use std::process::Command;
 
 use super::customize::put;
-use crate::style::Style;
-use crate::{Error, catalog, overlay, paths, template_manifest, yaml_edit};
+use crate::output::style::Style;
+use crate::{
+    Error, config::catalog, config::template_manifest, config::yaml_edit, engine::overlay, paths,
+};
 
 type Answer<'a> = &'a mut dyn FnMut() -> String;
 

@@ -107,7 +107,7 @@ fn walk(root: &Path, dir: &Path, out: &mut Vec<(String, String)>) {
             walk(root, &path, out);
         } else {
             let bytes = std::fs::read(&path).unwrap();
-            out.push((rel, agentsync::manifest::sha256_hex(&bytes)));
+            out.push((rel, agentsync::transaction::manifest::sha256_hex(&bytes)));
         }
     }
 }

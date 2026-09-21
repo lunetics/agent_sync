@@ -188,7 +188,7 @@ if [ -f "$file" ]; then cp "$file" "$out"; printf '200'; else printf '404'; fi
             .status()
             .unwrap();
         assert!(status.success());
-        let sum = agentsync::manifest::sha256_hex(&std::fs::read(&archive).unwrap());
+        let sum = agentsync::transaction::manifest::sha256_hex(&std::fs::read(&archive).unwrap());
         std::fs::write(
             release_dir.join("archive.tar.xz.sha256"),
             format!("{sum}  archive.tar.xz\n"),

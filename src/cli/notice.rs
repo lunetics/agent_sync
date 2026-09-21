@@ -5,8 +5,8 @@
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-use crate::format_rev;
-use crate::style::Style;
+use crate::config::format_rev;
+use crate::output::style::Style;
 
 /// The GitHub repository releases come from.
 pub const REPO: &str = "yelmuratoff/agent_sync";
@@ -93,7 +93,7 @@ pub fn update_banner(cache: &str, version: &str, style: &Style) -> String {
     let latest = cached_tag(cache);
     if latest.is_empty()
         || latest == version
-        || crate::changelog::version_cmp(version, latest) != std::cmp::Ordering::Less
+        || crate::output::changelog::version_cmp(version, latest) != std::cmp::Ordering::Less
     {
         return String::new();
     }

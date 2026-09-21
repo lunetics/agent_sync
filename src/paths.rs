@@ -3,7 +3,7 @@
 
 use std::path::Path;
 
-use crate::log::Log;
+use crate::output::log::Log;
 
 /// Where `$DEFAULT_REPO_ROOT` points in the native engine: templates are
 /// embedded, so the engine checkout is a virtual root served by the workspace.

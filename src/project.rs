@@ -4,8 +4,8 @@ use crate::paths::DiskText;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use crate::project_config::{self, Selection};
-use crate::{Error, paths, yaml_subset};
+use crate::config::project_config::{self, Selection};
+use crate::{Error, config::yaml_subset, paths};
 
 #[derive(Debug)]
 pub struct Project {

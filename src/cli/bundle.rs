@@ -10,8 +10,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use super::customize::put;
-use crate::style::Style;
-use crate::{Error, yaml_subset};
+use crate::output::style::Style;
+use crate::{Error, config::yaml_subset};
 
 /// `_BUNDLE_DIR_TARGETS`, in the order `init` creates them.
 const DIR_TARGETS: [&str; 8] = [

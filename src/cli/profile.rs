@@ -6,13 +6,13 @@ use std::io::Write;
 use std::path::Path;
 
 use super::customize::put;
-use crate::log::Log;
+use crate::config::tool::Tool;
+use crate::engine::render::TARGET_KEYS;
+use crate::output::log::Log;
+use crate::output::style::Style;
 use crate::paths::Paths;
 use crate::project::Project;
-use crate::render::TARGET_KEYS;
-use crate::style::Style;
-use crate::tool::Tool;
-use crate::{Error, profiles, yaml_edit};
+use crate::{Error, config::profiles, config::yaml_edit};
 
 const USAGE: &str = "Usage: agentsync profile <command>
 
@@ -330,7 +330,7 @@ fn register(
             updated.push_str(&child);
         }
     }
-    crate::staging::write_beside(config, updated.as_bytes())
+    crate::engine::staging::write_beside(config, updated.as_bytes())
 }
 
 /// `cp -RL <src>/. <dst>/`: links followed, unreadable entries skipped.

@@ -6,10 +6,10 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use super::customize::{put, relative};
+use crate::config::tool::Tool;
+use crate::output::style::Style;
 use crate::project::Project;
-use crate::style::Style;
-use crate::tool::Tool;
-use crate::{Error, catalog, yaml_edit, yaml_subset};
+use crate::{Error, config::catalog, config::yaml_edit, config::yaml_subset};
 
 const KEYS: [&str; 31] = [
     "name",
@@ -582,7 +582,7 @@ mod tests {
         std::fs::create_dir_all(format!("{root}/.ai/src/tools/cursor")).unwrap();
         std::fs::write(
             format!("{root}/.ai/src/tools/cursor/hooks.json"),
-            crate::catalog::base_payload("hooks", "cursor")
+            crate::config::catalog::base_payload("hooks", "cursor")
                 .unwrap()
                 .contents(),
         )

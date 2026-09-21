@@ -5,7 +5,7 @@
 use std::io::Write;
 
 use super::customize::put;
-use crate::style::Style;
+use crate::output::style::Style;
 use crate::{Error, engine_version};
 
 const COMMANDS: [(&str, &str); 29] = [

@@ -2,9 +2,9 @@
 //! one sync per project below the working directory, deepest first.
 
 use crate::cli::sync::{self, Env};
-use crate::log::{Sink, Stream};
+use crate::output::log::{Sink, Stream};
+use crate::output::style::Style;
 use crate::paths;
-use crate::style::Style;
 
 /// Syncs every project below `cwd` with `args`, `--workspace` removed. The
 /// status is that of the last project that failed, or 0.

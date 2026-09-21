@@ -119,7 +119,7 @@ fn describe(path: &Path) -> Entry {
     } else if ft.is_file() {
         Entry::File(
             mode_of(&meta),
-            agentsync::manifest::sha256_hex(&std::fs::read(path).unwrap()),
+            agentsync::transaction::manifest::sha256_hex(&std::fs::read(path).unwrap()),
         )
     } else {
         #[cfg(unix)]

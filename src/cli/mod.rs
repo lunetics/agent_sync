@@ -31,8 +31,8 @@ use crate::paths::DiskText;
 use std::io::Write;
 
 use crate::Error;
+use crate::output::style::Style;
 use crate::project::Project;
-use crate::style::Style;
 
 /// `tool_resolver_require_project_user_dir`: prints why and returns status 1.
 pub(crate) fn refuse_outside_tools_dir(

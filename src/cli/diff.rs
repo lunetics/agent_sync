@@ -7,11 +7,11 @@ use std::process::{Command, Stdio};
 
 use super::customize::{VALID_RESOURCES, put, unknown_resource};
 use super::show::{base_tool_shown, read_text};
-use crate::payload;
+use crate::config::payload;
+use crate::config::tool::Tool;
+use crate::output::style::Style;
 use crate::project::Project;
-use crate::style::Style;
-use crate::tool::Tool;
-use crate::{Error, catalog, text, yaml_subset};
+use crate::{Error, config::catalog, config::yaml_subset, text};
 
 const USAGE: &str = "Usage: agentsync diff [<slug>] [<resource>]
 
@@ -373,7 +373,7 @@ mod tests {
 
         std::fs::write(
             format!("{root}/.ai/src/tools/cursor/hooks.json"),
-            crate::catalog::base_payload("hooks", "cursor")
+            crate::config::catalog::base_payload("hooks", "cursor")
                 .unwrap()
                 .contents(),
         )

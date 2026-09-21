@@ -92,7 +92,7 @@ impl Project {
 
     /// `file_sha256`: the hex digest of one file.
     pub fn sha256(&self, rel: &str) -> String {
-        agentsync::manifest::sha256_hex(&std::fs::read(self.join(rel)).unwrap())
+        agentsync::transaction::manifest::sha256_hex(&std::fs::read(self.join(rel)).unwrap())
     }
 
     /// `enable_tools`: enable without scaffolding, so a test starts from the

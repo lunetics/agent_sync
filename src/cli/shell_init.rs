@@ -6,8 +6,8 @@ use std::io::Write;
 
 use super::customize::put;
 use crate::Error;
-use crate::log::Log;
-use crate::style::Style;
+use crate::output::log::Log;
+use crate::output::style::Style;
 
 const USAGE: &str = "Usage: agentsync shell-init [zsh|bash]
 

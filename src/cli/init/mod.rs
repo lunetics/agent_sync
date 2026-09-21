@@ -6,13 +6,13 @@ use std::io::Write;
 use std::path::Path;
 
 use super::customize::put;
-use crate::interrupt::{self, Interrupt};
+use crate::config::project_config::{self, Selection};
+use crate::output::prompts::Cancelled;
+use crate::output::style::Style;
 use crate::paths;
 use crate::project::Project;
-use crate::project_config::{self, Selection};
-use crate::prompts::Cancelled;
-use crate::style::Style;
-use crate::{Error, backup, catalog, witness};
+use crate::transaction::interrupt::{self, Interrupt};
+use crate::{Error, config::catalog, transaction::backup, transaction::witness};
 
 mod args;
 mod discover;
@@ -474,8 +474,8 @@ mod tests {
 
     use super::discover::files_below;
     use super::*;
+    use crate::config::template_manifest::REL;
     use crate::paths::DiskText;
-    use crate::template_manifest::REL;
 
     pub(super) fn project(files: &[(&str, &str)]) -> (tempfile::TempDir, String) {
         let dir = tempfile::tempdir().unwrap();

@@ -4,9 +4,9 @@
 
 use std::io::Write;
 
-use crate::interrupt::{self, Interrupt};
-use crate::witness::{self, Preflight};
-use crate::{Error, backup, paths, project_config};
+use crate::transaction::interrupt::{self, Interrupt};
+use crate::transaction::witness::{self, Preflight};
+use crate::{Error, config::project_config, paths, transaction::backup};
 
 pub const USAGE: &str = "Usage: agentsync rollback [<backup-id>] [OPTIONS]
 
@@ -365,7 +365,7 @@ mod tests {
         let id = paths::leaf(&snapshot);
         std::fs::write(dir.path().join("CLAUDE.md"), "after\n").unwrap();
         std::fs::create_dir_all(dir.path().join(".claude/rules")).unwrap();
-        crate::witness::seal(&root, &snapshot).unwrap();
+        crate::transaction::witness::seal(&root, &snapshot).unwrap();
 
         let plan = rollback(&root, &["--dry-run"], false);
         assert_eq!(
@@ -419,7 +419,7 @@ mod tests {
         let snapshot = backup::create(&root, "sync", &targets, backup::Retention::Bounded).unwrap();
         let id = paths::leaf(&snapshot);
         std::fs::write(dir.path().join("CLAUDE.md"), "synced\n").unwrap();
-        crate::witness::seal(&root, &snapshot).unwrap();
+        crate::transaction::witness::seal(&root, &snapshot).unwrap();
         std::fs::write(dir.path().join("CLAUDE.md"), "edited\n").unwrap();
 
         let refused = rollback(&root, &["--yes"], true);

@@ -3,10 +3,10 @@
 use std::path::Path;
 
 use super::{Doctor, sorted_entries};
+use crate::config::payload;
+use crate::config::tool::Tool;
 use crate::paths::{self, DiskText};
-use crate::payload;
-use crate::tool::Tool;
-use crate::{Error, opencode_json};
+use crate::{Error, engine::opencode_json};
 
 impl Doctor<'_> {
     /// `_doctor_check_commands_config`.

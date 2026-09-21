@@ -6,11 +6,11 @@ use super::Run;
 use super::report::summary;
 use crate::cli::adopt::{self, Resolver};
 use crate::cli::refresh::write_template;
-use crate::interrupt::Interrupt;
+use crate::config::template_manifest::TemplateManifest;
 use crate::paths::DiskText;
 use crate::project::Project;
-use crate::template_manifest::TemplateManifest;
-use crate::{Error, catalog, format_rev, staging};
+use crate::transaction::interrupt::Interrupt;
+use crate::{Error, config::catalog, config::format_rev, engine::staging};
 
 /// `AGENTSYNC_REPO` of `lib/helpers/update.sh`, which the CI template's install
 /// URL names.

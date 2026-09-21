@@ -4,12 +4,12 @@ use crate::paths::DiskText;
 use std::io::Write;
 
 use super::customize::{VALID_RESOURCES, put, unknown_resource};
+use crate::config::payload::{self, Source};
+use crate::config::tool::Tool;
+use crate::output::style::Style;
 use crate::paths::ENGINE_ROOT;
-use crate::payload::{self, Source};
 use crate::project::Project;
-use crate::style::Style;
-use crate::tool::Tool;
-use crate::{Error, catalog, text, yaml_subset};
+use crate::{Error, config::catalog, config::yaml_subset, text};
 
 const USAGE: &str = "Usage: agentsync show <slug> [<resource>] [--base]
 

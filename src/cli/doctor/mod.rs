@@ -11,12 +11,12 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use super::customize::put;
+use crate::config::payload::{self, Source};
+use crate::config::tool::Tool;
+use crate::output::style::Style;
 use crate::paths::{DiskText, ExplicitSource, Paths};
-use crate::payload::{self, Source};
 use crate::project::Project;
-use crate::style::Style;
-use crate::tool::Tool;
-use crate::{Error, catalog, edit_paths, format_rev, yaml_subset};
+use crate::{Error, config::catalog, config::edit_paths, config::format_rev, config::yaml_subset};
 
 /// What `doctor` takes from the process.
 pub struct Env<'a> {

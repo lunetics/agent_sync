@@ -6,11 +6,14 @@ use std::collections::BTreeSet;
 use std::io::Write;
 use std::path::Path;
 
+use crate::engine::render::{self, Env};
+use crate::engine::session::Session;
+use crate::engine::workspace::Workspace;
 use crate::paths::Paths;
-use crate::render::{self, Env};
-use crate::session::Session;
-use crate::workspace::Workspace;
-use crate::{Error, engine_version, overlay, paths, project_config, version, yaml_subset};
+use crate::{
+    Error, config::project_config, config::version, config::yaml_subset, engine::overlay,
+    engine_version, paths,
+};
 
 const MANIFEST_REL: &str = ".ai/.sync-manifest";
 

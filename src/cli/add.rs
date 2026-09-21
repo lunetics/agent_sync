@@ -6,8 +6,8 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use super::customize::put;
-use crate::style::Style;
-use crate::{Error, catalog, staging};
+use crate::output::style::Style;
+use crate::{Error, config::catalog, engine::staging};
 
 const USAGE: &str = "Usage: agentsync add <kind> <name> [--force]
        agentsync add mcp <server> (--url URL | --command CMD [--args 'a b'] [--env K=V,...])

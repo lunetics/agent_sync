@@ -9,8 +9,8 @@ use super::Env;
 use super::classify::{Candidate, Changes};
 use crate::Error;
 use crate::cli::customize::put;
-use crate::style::Style;
-use crate::template_manifest::TemplateManifest;
+use crate::config::template_manifest::TemplateManifest;
+use crate::output::style::Style;
 
 pub(super) struct Run<'a, 'b> {
     pub(super) style: &'a Style,
@@ -305,9 +305,9 @@ pub(crate) fn write_template(dest: &Path, bytes: &[u8]) -> Result<(), Error> {
 mod tests {
     use std::path::Path;
 
-    use crate::catalog;
     use crate::cli::refresh::tests::{append, call, drop_entry, manifest_text, seeded};
-    use crate::template_manifest::{REL, TemplateManifest};
+    use crate::config::catalog;
+    use crate::config::template_manifest::{REL, TemplateManifest};
 
     #[test]
     fn prompts_restore_add_update_skip_view_and_quit_like_bash() {

@@ -5,11 +5,11 @@ use std::path::{Path, PathBuf};
 
 use super::Run;
 use crate::Error;
-use crate::log::Log;
+use crate::config::tool::Tool;
+use crate::engine::render::TARGET_KEYS;
+use crate::output::log::Log;
 use crate::paths::{DiskText, Paths};
 use crate::project::Project;
-use crate::render::TARGET_KEYS;
-use crate::tool::Tool;
 
 /// `_init_detect_enabled_tools`: a tool is detected when any marker exists.
 const DETECTORS: [(&str, &[&str]); 13] = [

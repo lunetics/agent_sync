@@ -5,11 +5,11 @@ use crate::paths::DiskText;
 use std::io::Write;
 use std::path::Path;
 
-use crate::payload;
+use crate::config::payload;
+use crate::config::tool::Tool;
+use crate::output::style::Style;
 use crate::project::Project;
-use crate::style::Style;
-use crate::tool::Tool;
-use crate::{Error, catalog, text};
+use crate::{Error, config::catalog, text};
 
 pub const VALID_RESOURCES: [&str; 4] = ["tool", "hooks", "mcp", "settings"];
 

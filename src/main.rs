@@ -4,11 +4,11 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use agentsync::cli::{self, Command};
-use agentsync::log::{Sink, Stream};
+use agentsync::engine::render::Env;
+use agentsync::output::log::{Sink, Stream};
+use agentsync::output::style::Style;
 use agentsync::project::Project;
-use agentsync::render::Env;
-use agentsync::style::Style;
-use agentsync::{Error, engine_version, paths, prompts};
+use agentsync::{Error, engine_version, output::prompts, paths};
 
 fn main() -> ExitCode {
     let args: Vec<OsString> = std::env::args_os().skip(1).collect();
@@ -64,7 +64,7 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
             let mut env = cli::update::Env {
                 exe,
                 project_dir: notice_root()?,
-                today: agentsync::snapshot::utc_date(now),
+                today: agentsync::config::snapshot::utc_date(now),
                 width: cli::update::terminal_width(),
                 fetch: &mut cli::update::curl_fetch,
                 extract: &mut cli::update::tar_extract,
@@ -522,7 +522,7 @@ fn sync_env() -> cli::sync::Env {
             config_path: path_var("AGENTSYNC_CONFIG_PATH"),
             skip_post_sync: var("AGENTSYNC_SKIP_POST_SYNC"),
             allow_post_sync: var("AGENTSYNC_ALLOW_POST_SYNC"),
-            backup: (!skip_backup).then(|| agentsync::render::BackupBounds {
+            backup: (!skip_backup).then(|| agentsync::engine::render::BackupBounds {
                 limit: var("AGENTSYNC_BACKUP_LIMIT"),
                 max_age: var("AGENTSYNC_BACKUP_MAX_AGE_DAYS"),
             }),

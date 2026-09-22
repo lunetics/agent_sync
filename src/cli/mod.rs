@@ -21,6 +21,7 @@ pub mod setup_hooks;
 pub mod shell_init;
 pub mod show;
 pub mod simplify;
+pub mod skills;
 pub mod sync;
 pub mod update;
 pub mod upgrade_config;
@@ -83,6 +84,7 @@ pub enum Command {
     Disable,
     Customize,
     Show,
+    Skills,
     Diff,
     Simplify,
     Resolve,
@@ -120,6 +122,7 @@ impl Command {
             "disable" => Self::Disable,
             "customize" => Self::Customize,
             "show" => Self::Show,
+            "skills" => Self::Skills,
             "diff" => Self::Diff,
             "simplify" => Self::Simplify,
             "resolve" => Self::Resolve,
@@ -140,6 +143,7 @@ mod tests {
         assert_eq!(Command::parse("gen"), Some(Command::Generate));
         assert_eq!(Command::parse("--version"), Some(Command::Version));
         assert_eq!(Command::parse("-v"), Some(Command::Version));
+        assert_eq!(Command::parse("skills"), Some(Command::Skills));
     }
 
     #[test]

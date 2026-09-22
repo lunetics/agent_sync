@@ -259,6 +259,7 @@ agentsync <command> [options]
 | `customize <tool> [res]` |       | Create a per-field override for a tool                                                          |
 | `simplify [tool]`        |       | Remove override fields that match the base (`--apply`)                                          |
 | `show <tool>`            |       | Show effective (merged) config for a tool                                                       |
+| `skills list/show`       |       | Inspect an explicit, read-only experimental skill-card catalog; see [`docs/skill-cards.md`](docs/skill-cards.md) |
 | `diff [tool]`            |       | Show user overrides vs base defaults                                                            |
 | `resolve`                |       | Interactively reconcile overrides with base values                                              |
 | `refresh`                |       | Pull new template files into existing `.ai/src/` (three-way diff; `--status` to list declined) |

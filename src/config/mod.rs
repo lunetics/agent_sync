@@ -8,6 +8,8 @@ pub mod format_rev;
 pub mod payload;
 pub mod profiles;
 pub mod project_config;
+pub mod skill_cards;
+pub mod skill_source;
 pub mod snapshot;
 pub mod template_manifest;
 pub mod tool;

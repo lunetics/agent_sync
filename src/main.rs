@@ -338,6 +338,9 @@ fn run(args: Vec<OsString>) -> Result<u8, Error> {
             &mut std::io::stdout(),
             &mut std::io::stderr(),
         ),
+        Command::Skills => {
+            cli::skills::run(rest, &style, &mut std::io::stdout(), &mut std::io::stderr())
+        }
         Command::Adopt => cli::adopt::adopt(
             rest,
             &Project::discover,

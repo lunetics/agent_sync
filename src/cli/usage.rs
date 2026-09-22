@@ -8,7 +8,7 @@ use super::customize::put;
 use crate::output::style::Style;
 use crate::{Error, engine_version};
 
-const COMMANDS: [(&str, &str); 29] = [
+const COMMANDS: [(&str, &str); 30] = [
     ("init", "Create .ai/ structure in current project"),
     ("sync", "Sync instructions to all enabled tools"),
     ("rollback", "Restore targets from the latest backup"),
@@ -24,6 +24,10 @@ const COMMANDS: [(&str, &str); 29] = [
         "Print and copy a prompt for upgrading an existing config",
     ),
     ("show", "Show effective config for a tool"),
+    (
+        "skills",
+        "Inspect an explicit experimental skill-card catalog",
+    ),
     ("diff", "Show user overrides vs base defaults"),
     (
         "resolve",
@@ -88,6 +92,7 @@ const EXAMPLES: &str = "    agentsync init
     agentsync simplify
     agentsync simplify cursor --apply
     agentsync show cursor
+    agentsync skills list --catalog docs/examples/skill-cards/pilot/catalog.tsv
     agentsync diff
     agentsync doctor
     agentsync resolve
@@ -187,7 +192,13 @@ mod tests {
         assert!(text.ends_with(
             "    agentsync refresh --dry-run\n\n  DOCS\n    https://github.com/yelmuratoff/agent\n\n"
         ));
-        assert_eq!(text.lines().count(), 85);
+        assert!(text.contains(
+            "\n    skills         Inspect an explicit experimental skill-card catalog\n"
+        ));
+        assert!(text.contains(
+            "\n    agentsync skills list --catalog docs/examples/skill-cards/pilot/catalog.tsv\n"
+        ));
+        assert_eq!(text.lines().count(), 87);
     }
 
     #[test]

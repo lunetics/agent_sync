@@ -165,7 +165,7 @@ fn display(value: &str) -> String {
     for ch in value.chars() {
         if ch == '\\'
             || ch.is_control()
-            || matches!(ch, '\u{200b}'..='\u{200f}' | '\u{2028}'..='\u{202e}' | '\u{2060}'..='\u{206f}')
+            || matches!(ch, '\u{061c}' | '\u{200b}'..='\u{200f}' | '\u{2028}'..='\u{202e}' | '\u{2060}'..='\u{206f}' | '\u{feff}')
         {
             out.extend(ch.escape_debug());
         } else {
@@ -214,6 +214,13 @@ fn scalar(value: &str) -> Option<String> {
     Some(value.to_string())
 }
 
+fn simple_key(value: &str) -> bool {
+    !value.is_empty()
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b"_-".contains(&byte))
+}
+
 fn parse(text: &str) -> SourceInfo {
     let mut info = SourceInfo {
         status: "available (pinned local Git object)".into(),
@@ -255,7 +262,6 @@ fn fields(text: &str) -> Result<(String, String), &'static str> {
     let mut name = None;
     let mut description = None;
     let mut i = 1;
-    let mut relevant = false;
     while i < end {
         let line = lines[i];
         if line.is_empty() || line.trim_start().starts_with('#') {
@@ -263,20 +269,52 @@ fn fields(text: &str) -> Result<(String, String), &'static str> {
             continue;
         }
         if line.starts_with(char::is_whitespace) {
-            if relevant {
-                return Err("multiline scalar");
-            }
-            i += 1;
-            continue;
+            return Err("unsupported indented content");
         }
         let (key, raw) = line.split_once(':').ok_or("unsupported top-level line")?;
-        relevant = matches!(key, "name" | "description");
-        if !relevant {
-            i += 1;
-            continue;
+        if !simple_key(key) {
+            return Err("unsupported top-level field");
         }
         if !raw.is_empty() && !raw.starts_with(' ') {
             return Err("unsupported field separator");
+        }
+        let value = raw.trim();
+        if key == "metadata" {
+            if !value.is_empty() {
+                return Err("unsupported metadata mapping");
+            }
+            i += 1;
+            let mut entries = 0;
+            while i < end {
+                let line = lines[i];
+                if line.is_empty() || line.trim_start().starts_with('#') {
+                    i += 1;
+                    continue;
+                }
+                if !line.starts_with(char::is_whitespace) {
+                    break;
+                }
+                let entry = line
+                    .strip_prefix("  ")
+                    .ok_or("unsupported metadata mapping")?;
+                let (field, raw) = entry
+                    .split_once(':')
+                    .ok_or("unsupported metadata mapping")?;
+                if !simple_key(field) || !raw.starts_with(' ') || scalar(raw).is_none() {
+                    return Err("unsupported metadata mapping");
+                }
+                entries += 1;
+                i += 1;
+            }
+            if entries == 0 {
+                return Err("empty metadata mapping");
+            }
+            continue;
+        }
+        if !matches!(key, "name" | "description") {
+            scalar(value).ok_or("unsupported top-level field")?;
+            i += 1;
+            continue;
         }
         let slot = if key == "name" {
             &mut name
@@ -286,7 +324,6 @@ fn fields(text: &str) -> Result<(String, String), &'static str> {
         if slot.is_some() {
             return Err("duplicate field");
         }
-        let value = raw.trim();
         if key == "description" && matches!(value, ">" | ">-" | ">+" | "|" | "|-" | "|+") {
             let mut block = Vec::new();
             i += 1;
@@ -312,7 +349,6 @@ fn fields(text: &str) -> Result<(String, String), &'static str> {
                 joined.push('\n');
             }
             *slot = Some(joined);
-            relevant = false;
             continue;
         }
         *slot = Some(scalar(value).ok_or("unsupported or empty scalar")?);
@@ -502,6 +538,34 @@ mod tests {
     }
 
     #[test]
+    fn unsupported_extra_fields_leave_source_metadata_unknown() {
+        for extra in [
+            "extra: [unterminated",
+            "metadata: [unterminated",
+            "metadata:\n  author: [unterminated",
+            "extra: valid\n  unexpected: indentation",
+            "[invalid: value",
+        ] {
+            let info = parse(&format!(
+                "---\nname: pdf\ndescription: Valid description\n{extra}\n---\n"
+            ));
+            assert!(info.frontmatter.starts_with("unsupported"), "{extra}");
+            assert_eq!(info.name, "unknown", "{extra}");
+            assert_eq!(info.description, "unknown", "{extra}");
+        }
+    }
+
+    #[test]
+    fn ordinary_optional_fields_preserve_source_metadata() {
+        let info = parse(
+            "---\nname: pdf\ndescription: Valid description\nlicense: MIT\ncompatibility: Requires git\nallowed-tools: Bash(git:*) Read\nmetadata:\n  author: example-org\n  version: '1.0'\n---\n",
+        );
+        assert_eq!(info.frontmatter, "parsed");
+        assert_eq!(info.name, "pdf");
+        assert_eq!(info.description, "Valid description");
+    }
+
+    #[test]
     fn ambiguous_scalars_are_never_canonical() {
         for value in [
             "first\n  second",
@@ -556,6 +620,7 @@ mod tests {
     #[test]
     fn controls_are_escaped_without_inventing_nul_bytes() {
         assert_eq!(display("a\u{1b}\u{7}\u{7f}b"), "a\\u{1b}\\u{7}\\u{7f}b");
+        assert_eq!(display("a\u{061c}\u{feff}b"), "a\\u{61c}\\u{feff}b");
     }
 
     #[test]

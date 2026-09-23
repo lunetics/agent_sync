@@ -63,11 +63,14 @@ canonical name.
 The frontmatter reader is intentionally a conservative subset, not a full YAML
 validator. It reads ordinary scalar `name` and `description` fields and the
 supported description-block form (`>` or `|`, with an optional `+` or `-`,
-exactly two-space indentation, and no blank block lines). Escaped double-quoted
-strings, plain multiline scalars, deeper blocks, YAML indicators/tags,
-malformed quotes, duplicate or missing fields,
-and other unsupported YAML leave name and description `unknown`; they are not
-silently interpreted.
+exactly two-space indentation, and no blank block lines). Other top-level
+fields may use simple scalars under unquoted ASCII keys; `metadata` may be a
+one-level mapping of simple scalar values under the same keys, with two-space
+indentation. Escaped double-quoted strings, plain multiline scalars, deeper
+blocks, YAML indicators/tags, malformed quotes,
+duplicate or missing required fields, and other unsupported YAML anywhere in
+the frontmatter leave name and description `unknown`; they are not silently
+interpreted.
 
 ## Curator notes are not runtime facts
 

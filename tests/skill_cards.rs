@@ -319,3 +319,40 @@ fn unsupported_frontmatter_never_fabricates_a_pinned_name_or_description() {
         assert!(stdout.contains("Description: unknown"));
     }
 }
+
+#[test]
+fn malformed_extra_source_field_does_not_appear_as_parsed_frontmatter() {
+    let project = Project::empty();
+    let source = Project::empty();
+    source.write(
+        "skill-one/SKILL.md",
+        "---\nname: skill-one\ndescription: Valid description\nmetadata: [unterminated\n---\n",
+    );
+    source.git(&["add", "."]);
+    source.git(&["commit", "--quiet", "-m", "malformed extra field"]);
+    let commit = revision(&source);
+    write_catalog(
+        &project,
+        "catalog.tsv",
+        &[row("skill-one", &commit, "skill-one")],
+    );
+
+    let output = project
+        .agentsync()
+        .args([
+            "skills",
+            "show",
+            "skill-one",
+            "--catalog",
+            "catalog.tsv",
+            "--source",
+            &source_arg(&source),
+        ])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains("Frontmatter: unsupported ("));
+    assert!(stdout.contains("Name: unknown\n"));
+    assert!(stdout.contains("Description: unknown\n"));
+}

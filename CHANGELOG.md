@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.40.0
 
 ### Breaking
 
@@ -22,7 +22,7 @@
 - **Every command's `--help` has one shape.** A bold `agentsync <command> — <what it does>` line, then USAGE, DESCRIPTION, OPTIONS, and EXAMPLES in green with the option column aligned, the way `agentsync help` already read. `check`, `list`, `disable`, `resolve`, and `doctor` gained a help of their own where they had answered with the top-level command list; `show` and `diff` print theirs instead of that list; `add mcp --help` moved from stderr to stdout. A refusal for a missing argument names what is missing (`Error: missing <name> for rule`) before the usage.
 - **`doctor` ends with a blank line, not a rule.** The `────` line before the summary is gone; the CLI output rules forbid rules between sections.
 - **`enable` exits 1 when a tool is unknown**, after enabling the ones it knows, so a misspelt slug fails a script instead of passing silently.
-- **`refresh` names the templates by release.** The header reads `Templates: shipped with agentsync v0.39.0` where it printed the engine-internal `/<agentsync>/lib/templates`.
+- **`refresh` names the templates by release.** The header reads `Templates: shipped with agentsync v0.40.0` where it printed the engine-internal `/<agentsync>/lib/templates`.
 - **`sync` stops when tools sharing `AGENTS.md` have different sources.** Codex, Cursor, Windsurf, OpenCode, and MiniMax Code all write the root `AGENTS.md`. When a per-tool override gave one of them a different source, whichever tool synced last silently overwrote the others. Now `sync` fails before writing (`Agents destination AGENTS.md is shared by … but their sources differ`); `--only` checks only the tools it selects.
 - **`add skill` checks the name.** A name that is not 1–64 lowercase letters, digits, or single hyphens, the Agent Skills format, is refused with exit status 1.
 - **The shipped `prompt-engineering` skill is updated** with current model references and more snippets; `refresh` brings it into a project.

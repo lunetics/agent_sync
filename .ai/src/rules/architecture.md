@@ -27,11 +27,14 @@ src/config/                    → what a project and the engine declare:
   project_config.rs / profiles.rs / version.rs     which `agent_sync.yaml` a project uses, config-home variants, the `version_pin` policy.
   snapshot.rs / template_manifest.rs / format_rev.rs  update diffs and the conflict queue, template content hashes, the project format revision.
   edit_paths.rs                                    where payload overrides are edited.
+  mcp_catalog.rs                                   bounded, read-only MCP catalog manifests.
+  skill_metadata.rs / skill_cards.rs / skill_source.rs  `SKILL.md` frontmatter, the skill-card TSV, the pinned Git blob behind a card.
 src/engine/                    → the render:
   render/ / session.rs                             sync and check orchestration: prepare, per-tool passes, steps, checkpoint.
   overlay.rs / workspace.rs                        source overlays, the virtual file tree.
   file_ops.rs / staging.rs                         safe copying, directory sync, cleanup, write-then-rename.
   rules.rs / convert.rs / opencode_json.rs         rule headers and merges, target format conversion and composition.
+  codex_toml.rs                                    MCP servers composed into Codex's `config.toml`.
   filters.rs / gitignore.rs                        include/exclude matching, the managed `.gitignore` block.
 src/transaction/               → what makes a mutating run restorable:
   backup.rs / witness.rs / manifest.rs             transactions, post-operation witnesses, ownership, and drift.

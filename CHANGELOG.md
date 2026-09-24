@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Breaking
+
+- **Codex receives the project's MCP servers, and its settings can no longer define their own.** `sync` appends the servers from `.ai/src/mcp.json`, or from a per-tool `.ai/src/tools/codex/mcp.json`, to `.codex/config.toml` after your Codex settings. Once either MCP source exists, even as `{"mcpServers": {}}`, a Codex settings file that still defines `[mcp_servers]` (the old shipped template suggested it) fails the sync with `Cannot compose Codex config: settings already contain or may encode mcp_servers`, and `doctor` reports the conflict. Move those servers into the MCP source and delete them from the settings file. Codex can take a server with `command`, string `args`, and string `env`, or one with an HTTP(S) `url`; a server with any other field, `headers` for one, fails the sync the same way. `adopt` refuses the composed `config.toml`, so edit the two sources separately.
+
+### Added
+
+- **`agentsync skills list|show|check`.** `list` reads the effective `source.skills` tree, shared and bundled skills included, with `--profile`, `--include`, and `--exclude`. `show <name>` prints the description, the source path, any declared `license` and `compatibility`, and the `agentsync-use-when`, `agentsync-not-for`, and `agentsync-requirements` metadata, labelled as unverified annotations. `check` reports missing or malformed required `SKILL.md` metadata without changing what `sync` accepts.
+- **`agentsync skills catalog list|show --catalog FILE`** (experimental). It reads a hand-curated TSV of skill cards; `--source ALIAS=LOCAL_REPO` reads the name and description from the `SKILL.md` at the pinned commit in a local Git repository. It is read-only: nothing is fetched, installed, or run, and curator notes are shown as unverified. The format is in `docs/skill-cards.md`.
+- **`agentsync mcp list|show|validate|render --library DIR`.** It inspects a local catalog of `<id>/manifest.json` files; `library.mcp.path` in `.ai/agent_sync.yaml` saves passing the directory each time. `render <id>[@variant]` prints the selected connection as an MCP source. Nothing starts a server or contacts an endpoint. The manifest format is in `docs/mcp-library.md`.
+- **`agentsync mcp use <id>[@variant] --tool <slug>`.** It previews the per-tool MCP source it would write. `--apply` creates `.ai/src/tools/<slug>/mcp.json` with a backup `rollback` can restore, and refuses when an MCP source already exists; `--merge --apply` adds the server to an existing per-tool `mcp.json`, and `--replace <id>` overwrites a different entry with the same ID. For Kimi it writes Kimi's native form. `sync` stays a separate step.
+- **A pilot MCP catalog in the repository**, `catalog/mcp/`, with Microsoft Learn, Context7, and Octocode. It is opt-in: pass its path to `--library`; the binary does not embed it.
+- **MiniMax Code (`minimax`).** `agentsync enable minimax` writes `AGENTS.md` with inlined rule references and the project `.mcp.json`, the two surfaces MiniMax documents; skills, commands, subagents, settings, and hooks are not synced to it. `list` counts 14 tools. MiniMax shares `.mcp.json` with Claude Code, and `sync` stops before writing when their effective MCP sources differ. When another enabled tool also writes `AGENTS.md`, the rule references stay. `profile add` and `sync` refuse MiniMax profile variants because it reads only project-root files, and `adopt` refuses `AGENTS.md` while MiniMax is enabled, since the file carries generated references.
+
 ### Changed
 
 - **Every command hint is coloured the same way.** The sync log's version-pin hints (`agentsync update <pinned>`, `agentsync upgrade-config`), its drift and first-sync advice, the legacy-layout warning, and the `run agentsync init` / `agentsync sync` errors of `profile`, `adopt`, and `doctor` print the command in cyan on a terminal, as `doctor` and `list` already did, and drop the quotes around it. Piped output is unchanged apart from those quotes.
@@ -10,12 +23,21 @@
 - **`doctor` ends with a blank line, not a rule.** The `────` line before the summary is gone; the CLI output rules forbid rules between sections.
 - **`enable` exits 1 when a tool is unknown**, after enabling the ones it knows, so a misspelt slug fails a script instead of passing silently.
 - **`refresh` names the templates by release.** The header reads `Templates: shipped with agentsync v0.39.0` where it printed the engine-internal `/<agentsync>/lib/templates`.
+- **`sync` stops when tools sharing `AGENTS.md` have different sources.** Codex, Cursor, Windsurf, OpenCode, and MiniMax Code all write the root `AGENTS.md`. When a per-tool override gave one of them a different source, whichever tool synced last silently overwrote the others. Now `sync` fails before writing (`Agents destination AGENTS.md is shared by … but their sources differ`); `--only` checks only the tools it selects.
+- **`add skill` checks the name.** A name that is not 1–64 lowercase letters, digits, or single hyphens, the Agent Skills format, is refused with exit status 1.
+- **The shipped `prompt-engineering` skill is updated** with current model references and more snippets; `refresh` brings it into a project.
 
 ### Fixed
 
 - **`upgrade-config --help` re-pinned the project.** The command took no arguments, so `--help` ran it. It prints its usage now, and an unknown argument is refused with exit status 2 before anything is written.
 - **`generate --help` and `release --help` answer with usage.** `generate` treated the flag as the project description; `release` refused it as an unknown bump type.
 - **`setup-hooks` repairs a hook an older release installed.** It found the marked block and stopped, so a hook that still ran `bash lib/sync.sh` or a `dart` wrapper kept failing after an upgrade. Running `agentsync setup-hooks` now rewrites an outdated block in place (`Updated AgentSync hook in post-checkout.`) and leaves the rest of the hook as it was.
+- **`setup-hooks` failed in a removed working directory** even with `AGENTSYNC_REPO_ROOT` set, though it never uses the working directory then.
+
+### Internal
+
+- `serde` and `serde_json` are dependencies now, for the strict parsing of MCP manifests and sources (duplicate keys, nesting and size limits). YAML still goes through `yaml_subset`.
+- The command modules share one set of write and directory-walk helpers in `cli/mod.rs`, and `main` resolves the project root in one place.
 
 ## 0.39.0
 
